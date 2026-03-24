@@ -27,6 +27,7 @@ brews:
   - repository:
       owner: finnhambly
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     name: antistatic
     homepage: https://antistatic.exchange
     description: CLI for Antistatic Exchange
