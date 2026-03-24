@@ -163,6 +163,19 @@ The CLI is designed to work as a tool for AI coding agents and assistants. To gi
 
 When the agent pipes output or uses `--json`, it gets structured JSON it can parse directly.
 
+## Release (maintainers)
+
+Tag and push `vX.Y.Z` to publish binaries and update Homebrew.
+
+The release workflow prefers a short-lived GitHub App token for pushing to `finnhambly/homebrew-tap`.
+
+Configure in `finnhambly/antistatic-cli`:
+
+- Repository variable: `HOMEBREW_TAP_APP_ID`
+- Repository secret: `HOMEBREW_TAP_APP_PRIVATE_KEY`
+
+Fallback (optional): if App credentials are not set, the workflow uses `HOMEBREW_TAP_GITHUB_TOKEN` if present.
+
 ## Development
 
 ```sh
