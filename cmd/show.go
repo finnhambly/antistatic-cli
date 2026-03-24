@@ -1,0 +1,81 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/url"
+
+	"github.com/finnhambly/antistatic-cli/internal/output"
+	"github.com/spf13/cobra"
+)
+
+var showCmd = &cobra.Command{
+	Use:   "show <code>",
+	Short: "Show market details",
+	Long: `Show details for a specific market by its code.
+
+Use --fuzzy to enable fuzzy code resolution (prefix matching).`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		code := args[0]
+		fuzzy, _ := cmd.Flags().GetBool("fuzzy")
+
+		params := url.Values{}
+		if fuzzy {
+			params.Set("fuzzy", "true")
+		}
+
+		resp, err := client.Get("/markets/"+code, params)
+		if err != nil {
+			return err
+		}
+
+		data, err := resp.Data()
+		if err != nil {
+			return err
+		}
+
+		if jsonOutput || !output.IsTTY() {
+			output.JSON(data)
+			return nil
+		}
+
+		var market struct {
+			Code          string `json:"code"`
+			Title         string `json:"title"`
+			Status        string `json:"status"`
+			Type          string `json:"type"`
+			Description   string `json:"description"`
+			SubmarketCount int   `json:"submarket_count"`
+		}
+		if err := json.Unmarshal(data, &market); err != nil {
+			output.JSON(data)
+			return nil
+		}
+
+		pairs := [][2]string{
+			{"Code", market.Code},
+			{"Title", market.Title},
+			{"Status", market.Status},
+			{"Type", market.Type},
+		}
+		if market.SubmarketCount > 0 {
+			pairs = append(pairs, [2]string{"Submarkets", fmt.Sprintf("%d", market.SubmarketCount)})
+		}
+		if market.Description != "" {
+			desc := market.Description
+			if len(desc) > 200 {
+				desc = desc[:197] + "..."
+			}
+			pairs = append(pairs, [2]string{"Description", desc})
+		}
+		output.KeyValue(pairs)
+
+		return nil
+	},
+}
+
+func init() {
+	showCmd.Flags().Bool("fuzzy", false, "Enable fuzzy code matching (prefix search)")
+	rootCmd.AddCommand(showCmd)
+}

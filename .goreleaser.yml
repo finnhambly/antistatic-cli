@@ -1,0 +1,45 @@
+version: 2
+
+builds:
+  - binary: antistatic
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/finnhambly/antistatic-cli/cmd.Version={{.Version}}
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "antistatic_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+brews:
+  - repository:
+      owner: finnhambly
+      name: homebrew-tap
+    name: antistatic
+    homepage: https://antistatic.exchange
+    description: CLI for Antistatic Exchange
+    install: |
+      bin.install "antistatic"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"

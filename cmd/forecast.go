@@ -1,0 +1,158 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/url"
+
+	"github.com/finnhambly/antistatic-cli/internal/output"
+	"github.com/spf13/cobra"
+)
+
+var forecastCmd = &cobra.Command{
+	Use:   "forecast <code>",
+	Short: "Get forecast data for a market",
+	Long: `Retrieve community aggregate forecast data for a market.
+
+Use --for to query a specific point (date or threshold).
+Use --group to filter by projection group (e.g. "2026-08").
+Use --include to control detail level (summary, liquidity, full).`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		code := args[0]
+		forParam, _ := cmd.Flags().GetString("for")
+		group, _ := cmd.Flags().GetString("group")
+		year, _ := cmd.Flags().GetString("year")
+		include, _ := cmd.Flags().GetString("include")
+		curve, _ := cmd.Flags().GetBool("curve")
+		limit, _ := cmd.Flags().GetInt("limit")
+
+		params := url.Values{}
+		if forParam != "" {
+			params.Set("for", forParam)
+		}
+		if group != "" {
+			params.Set("group", group)
+		}
+		if year != "" {
+			params.Set("year", year)
+		}
+		if include != "" {
+			params.Set("include", include)
+		}
+		if curve {
+			params.Set("curve", "true")
+		}
+		if limit > 0 {
+			params.Set("limit", fmt.Sprintf("%d", limit))
+		}
+
+		resp, err := client.Get("/markets/"+code+"/forecast", params)
+		if err != nil {
+			return err
+		}
+
+		data, err := resp.Data()
+		if err != nil {
+			return err
+		}
+
+		if jsonOutput || !output.IsTTY() {
+			output.JSON(data)
+			return nil
+		}
+
+		// Try to render a human-friendly summary
+		var forecast struct {
+			Market struct {
+				Code  string `json:"code"`
+				Title string `json:"title"`
+				Type  string `json:"type"`
+			} `json:"market"`
+			Interpretation string                            `json:"interpretation"`
+			Forecast       map[string]json.RawMessage        `json:"forecast"`
+			Submarkets     []map[string]interface{}           `json:"submarkets"`
+			Matched        map[string]interface{}             `json:"matched"`
+		}
+		if err := json.Unmarshal(data, &forecast); err != nil {
+			output.JSON(data)
+			return nil
+		}
+
+		// Print market header
+		if forecast.Market.Title != "" {
+			fmt.Printf("%s (%s)\n\n", forecast.Market.Title, forecast.Market.Code)
+		}
+
+		// Print interpretation if present
+		if forecast.Interpretation != "" {
+			fmt.Printf("  %s\n\n", forecast.Interpretation)
+		}
+
+		// If single match, show it
+		if forecast.Matched != nil {
+			if label, ok := forecast.Matched["label"].(string); ok {
+				prob := ""
+				if p, ok := forecast.Matched["community_probability"].(float64); ok {
+					prob = fmt.Sprintf("%.1f%%", p*100)
+				}
+				fmt.Printf("  Matched: %s → %s\n", label, prob)
+			}
+			return nil
+		}
+
+		// If submarkets list (curve mode or full include)
+		if len(forecast.Submarkets) > 0 {
+			headers := []string{"LABEL", "PROBABILITY"}
+			rows := make([][]string, 0, len(forecast.Submarkets))
+			for _, sm := range forecast.Submarkets {
+				label := fmt.Sprintf("%v", sm["label"])
+				prob := ""
+				if p, ok := sm["community_probability"].(float64); ok {
+					prob = fmt.Sprintf("%.1f%%", p*100)
+				}
+				rows = append(rows, []string{label, prob})
+			}
+			output.Table(headers, rows)
+			return nil
+		}
+
+		// If grouped forecast (compact index)
+		if len(forecast.Forecast) > 0 {
+			headers := []string{"GROUP", "SUBMARKETS", "DETAILS"}
+			rows := make([][]string, 0, len(forecast.Forecast))
+			for groupName, raw := range forecast.Forecast {
+				var group struct {
+					SubmarketCount int     `json:"submarket_count"`
+					MeanProb       float64 `json:"mean_probability"`
+				}
+				if json.Unmarshal(raw, &group) == nil && group.SubmarketCount > 0 {
+					rows = append(rows, []string{
+						groupName,
+						fmt.Sprintf("%d", group.SubmarketCount),
+						fmt.Sprintf("mean %.1f%%", group.MeanProb*100),
+					})
+				} else {
+					rows = append(rows, []string{groupName, "-", "-"})
+				}
+			}
+			output.Table(headers, rows)
+			return nil
+		}
+
+		// Fallback to JSON
+		output.JSON(data)
+		return nil
+	},
+}
+
+func init() {
+	forecastCmd.Flags().String("for", "", "Query specific point (date or threshold value)")
+	forecastCmd.Flags().String("group", "", "Filter by projection group (e.g. 2026-08)")
+	forecastCmd.Flags().String("year", "", "Filter by year")
+	forecastCmd.Flags().String("include", "", "Detail level: summary, liquidity, or full")
+	forecastCmd.Flags().Bool("curve", false, "Return all submarkets up to the queried point")
+	forecastCmd.Flags().IntP("limit", "l", 0, "Maximum submarkets per group")
+
+	rootCmd.AddCommand(forecastCmd)
+}
