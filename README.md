@@ -56,6 +56,7 @@ antistatic status
 
 ```sh
 # List open markets (ordered by activity)
+# Includes private markets you have access to when authenticated
 antistatic markets
 
 # Search by keyword
@@ -104,6 +105,19 @@ antistatic positions us-troops-iran
 
 # P&L scenarios (what you gain/lose under each outcome)
 antistatic points us-troops-iran
+```
+
+### Profile analytics
+
+```sh
+# Overall points won/lost and tipping totals
+antistatic profile summary
+
+# Forecast-history details from your profile (paged)
+antistatic profile history --limit 20 --offset 0
+
+# Markets with the fastest 24h liquidity decay
+antistatic profile liquidity-decay --limit 20
 ```
 
 ### Recommended workflow for AI agents
