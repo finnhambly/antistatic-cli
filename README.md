@@ -266,7 +266,3 @@ go build -o antistatic .
 go test ./...
 go vet ./...
 ```
-
-## License
-
-MIT
