@@ -25,7 +25,7 @@ var rootCmd = &cobra.Command{
 Browse markets, view forecasts, manage positions, and place trades
 from the terminal. Works for both humans and AI agents.
 
-Set ANTISTATIC_TOKEN or run "antistatic auth login" to authenticate.
+Set ANTISTATIC_TOKEN or run "antistatic login" to authenticate.
 Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -53,7 +53,7 @@ func init() {
 // a clear error if missing.
 func requireAuth() error {
 	if !client.HasAuth() {
-		return fmt.Errorf("authentication required: run \"antistatic auth login\" or set ANTISTATIC_TOKEN")
+		return fmt.Errorf("authentication required: run \"antistatic login\" (or \"antistatic auth login\") or set ANTISTATIC_TOKEN")
 	}
 	return nil
 }

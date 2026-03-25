@@ -22,85 +22,19 @@ var authLoginCmd = &cobra.Command{
 
 Generate a token at https://antistatic.exchange/users/settings
 or set the ANTISTATIC_TOKEN environment variable instead.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		token, _ := cmd.Flags().GetString("token")
-
-		if token == "" {
-			fmt.Print("Paste your API token (axk_...): ")
-			reader := bufio.NewReader(os.Stdin)
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				return fmt.Errorf("reading token: %w", err)
-			}
-			token = strings.TrimSpace(line)
-		}
-
-		if token == "" {
-			return fmt.Errorf("no token provided")
-		}
-
-		if !strings.HasPrefix(token, "axk_") {
-			output.Warn("Token doesn't start with 'axk_' — are you sure this is correct?")
-		}
-
-		cfg.Token = token
-		if err := cfg.Save(); err != nil {
-			return fmt.Errorf("saving config: %w", err)
-		}
-
-		fmt.Println("Token saved.")
-		return nil
-	},
+	RunE: runAuthLogin,
 }
 
 var authStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show current authentication status",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		token := cfg.ResolveToken()
-		baseURL := cfg.ResolveBaseURL()
-
-		if token == "" {
-			fmt.Println("Not authenticated.")
-			fmt.Println("Run \"antistatic auth login\" or set ANTISTATIC_TOKEN.")
-			return nil
-		}
-
-		source := "config file"
-		if os.Getenv("ANTISTATIC_TOKEN") != "" {
-			source = "ANTISTATIC_TOKEN env var"
-		}
-
-		// Mask the token: show prefix + first 8 chars + ...
-		masked := token
-		if len(token) > 12 {
-			masked = token[:12] + "..."
-		}
-
-		output.KeyValue([][2]string{
-			{"Server", baseURL},
-			{"Token", masked},
-			{"Source", source},
-		})
-
-		return nil
-	},
+	RunE:  runAuthStatus,
 }
 
 var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Remove saved API token",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg.Token = ""
-		if err := cfg.Save(); err != nil {
-			return fmt.Errorf("saving config: %w", err)
-		}
-		fmt.Println("Token removed from config.")
-		if os.Getenv("ANTISTATIC_TOKEN") != "" {
-			output.Warn("ANTISTATIC_TOKEN environment variable is still set.")
-		}
-		return nil
-	},
+	RunE:  runAuthLogout,
 }
 
 func init() {
@@ -110,4 +44,100 @@ func init() {
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	rootCmd.AddCommand(authCmd)
+
+	// Top-level aliases for convenience.
+	loginCmd := &cobra.Command{
+		Use:   "login",
+		Short: "Alias for \"auth login\"",
+		RunE:  runAuthLogin,
+	}
+	loginCmd.Flags().StringP("token", "t", "", "API token (or paste interactively)")
+
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Alias for \"auth status\"",
+		RunE:  runAuthStatus,
+	}
+
+	logoutCmd := &cobra.Command{
+		Use:   "logout",
+		Short: "Alias for \"auth logout\"",
+		RunE:  runAuthLogout,
+	}
+
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(logoutCmd)
+}
+
+func runAuthLogin(cmd *cobra.Command, args []string) error {
+	token, _ := cmd.Flags().GetString("token")
+
+	if token == "" {
+		fmt.Print("Paste your API token (axk_...): ")
+		reader := bufio.NewReader(os.Stdin)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("reading token: %w", err)
+		}
+		token = strings.TrimSpace(line)
+	}
+
+	if token == "" {
+		return fmt.Errorf("no token provided")
+	}
+
+	if !strings.HasPrefix(token, "axk_") {
+		output.Warn("Token doesn't start with 'axk_' — are you sure this is correct?")
+	}
+
+	cfg.Token = token
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	fmt.Println("Token saved.")
+	return nil
+}
+
+func runAuthStatus(cmd *cobra.Command, args []string) error {
+	token := cfg.ResolveToken()
+	baseURL := cfg.ResolveBaseURL()
+
+	if token == "" {
+		fmt.Println("Not authenticated.")
+		fmt.Println("Run \"antistatic login\" (or \"antistatic auth login\") or set ANTISTATIC_TOKEN.")
+		return nil
+	}
+
+	source := "config file"
+	if os.Getenv("ANTISTATIC_TOKEN") != "" {
+		source = "ANTISTATIC_TOKEN env var"
+	}
+
+	// Mask the token: show prefix + first 8 chars + ...
+	masked := token
+	if len(token) > 12 {
+		masked = token[:12] + "..."
+	}
+
+	output.KeyValue([][2]string{
+		{"Server", baseURL},
+		{"Token", masked},
+		{"Source", source},
+	})
+
+	return nil
+}
+
+func runAuthLogout(cmd *cobra.Command, args []string) error {
+	cfg.Token = ""
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+	fmt.Println("Token removed from config.")
+	if os.Getenv("ANTISTATIC_TOKEN") != "" {
+		output.Warn("ANTISTATIC_TOKEN environment variable is still set.")
+	}
+	return nil
 }

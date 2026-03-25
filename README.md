@@ -31,7 +31,7 @@ Generate an API token at https://antistatic.exchange/users/settings#api-tokens, 
 **Option A** — paste the one-liner shown on the settings page:
 
 ```sh
-antistatic auth login -t axk_YOUR_TOKEN_HERE
+antistatic login -t axk_YOUR_TOKEN_HERE
 ```
 
 **Option B** — set an environment variable (useful for CI, scripts, and AI agents):
@@ -40,12 +40,12 @@ antistatic auth login -t axk_YOUR_TOKEN_HERE
 export ANTISTATIC_TOKEN=axk_YOUR_TOKEN_HERE
 ```
 
-**Option C** — run `antistatic auth login` and paste interactively.
+**Option C** — run `antistatic login` and paste interactively.
 
 Check your auth status:
 
 ```sh
-antistatic auth status
+antistatic status
 ```
 
 ## Usage
