@@ -22,37 +22,18 @@ Without flags, shows current pending edits.
 Use --clear to delete all pending edits.
 Use --updates to set or merge edits (pipe JSON or use the flag).`,
 	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuth(); err != nil {
-			return err
-		}
+	RunE: runPendingEdits,
+}
 
-		code := args[0]
-		clear, _ := cmd.Flags().GetBool("clear")
-		updatesJSON, _ := cmd.Flags().GetString("updates")
-		mode, _ := cmd.Flags().GetString("mode")
+var draftCmd = &cobra.Command{
+	Use:   "draft <code>",
+	Short: "Create or review draft edits (agent-friendly)",
+	Long: `Draft probability updates for human review before trading.
 
-		if clear {
-			return clearPendingEdits(code)
-		}
-
-		if updatesJSON != "" {
-			return updatePendingEdits(code, updatesJSON, mode)
-		}
-
-		// Check stdin
-		stat, _ := os.Stdin.Stat()
-		if (stat.Mode() & os.ModeCharDevice) == 0 {
-			stdinData, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return fmt.Errorf("reading stdin: %w", err)
-			}
-			return updatePendingEdits(code, string(stdinData), mode)
-		}
-
-		// Default: show pending edits
-		return showPendingEdits(code)
-	},
+This is an alias for "pending-edits" and is recommended for AI agents
+that should run updates by a human before submitting a trade.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPendingEdits,
 }
 
 func showPendingEdits(code string) error {
@@ -142,10 +123,48 @@ func clearPendingEdits(code string) error {
 	return nil
 }
 
+func runPendingEdits(cmd *cobra.Command, args []string) error {
+	if err := requireAuth(); err != nil {
+		return err
+	}
+
+	code := args[0]
+	clear, _ := cmd.Flags().GetBool("clear")
+	updatesJSON, _ := cmd.Flags().GetString("updates")
+	mode, _ := cmd.Flags().GetString("mode")
+
+	if clear {
+		return clearPendingEdits(code)
+	}
+
+	if updatesJSON != "" {
+		return updatePendingEdits(code, updatesJSON, mode)
+	}
+
+	// Check stdin
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		stdinData, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("reading stdin: %w", err)
+		}
+		return updatePendingEdits(code, string(stdinData), mode)
+	}
+
+	// Default: show pending edits
+	return showPendingEdits(code)
+}
+
 func init() {
-	pendingEditsCmd.Flags().Bool("clear", false, "Clear all pending edits")
-	pendingEditsCmd.Flags().String("updates", "", "Probability updates as JSON")
-	pendingEditsCmd.Flags().String("mode", "merge", "Update mode: merge (default) or replace")
+	addPendingEditFlags(pendingEditsCmd)
+	addPendingEditFlags(draftCmd)
 
 	rootCmd.AddCommand(pendingEditsCmd)
+	rootCmd.AddCommand(draftCmd)
+}
+
+func addPendingEditFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("clear", false, "Clear all pending edits")
+	cmd.Flags().String("updates", "", "Probability updates as JSON")
+	cmd.Flags().String("mode", "merge", "Update mode: merge (default) or replace")
 }

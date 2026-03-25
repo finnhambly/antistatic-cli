@@ -97,12 +97,25 @@ antistatic positions us-troops-iran
 antistatic points us-troops-iran
 ```
 
+### Recommended workflow for AI agents
+
+```sh
+# 1) Inspect current forecast and submarket ids
+antistatic forecast us-troops-iran --group 2026-08 --include full --json
+
+# 2) Draft proposed probability edits for human review
+antistatic draft us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
+
+# 3) Optional: estimate cost if needed
+antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
+
+# 4) Submit trade once approved
+antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]' -y
+```
+
 ### Trade
 
 ```sh
-# Get a cost quote
-antistatic quote us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
-
 # Place a trade
 antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
 
@@ -112,17 +125,29 @@ antistatic trade us-troops-iran --updates '[...]' -y
 
 ### Pending edits
 
-Pending edits are draft probability changes saved server-side that persist across sessions, but aren't submitted as trades yet.
+Pending edits (alias: `draft`) are probability changes saved server-side that persist across sessions, but aren't submitted as trades yet.
 
 ```sh
 # View your pending edits
 antistatic pending-edits us-troops-iran
 
 # Update pending edits
-antistatic pending-edits us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.6}]'
+antistatic draft us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.6}]'
 
 # Clear all pending edits
 antistatic pending-edits us-troops-iran --clear
+```
+
+### Quote (optional)
+
+Use quote when you need a cost estimate. Many agent workflows can skip this.
+
+```sh
+# Single update via flags
+antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
+
+# Multiple updates via JSON
+antistatic quote us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
 ```
 
 ### Comment
@@ -161,7 +186,7 @@ The CLI is designed to work as a tool for AI coding agents and assistants. To gi
 
 1. Generate a token at https://antistatic.exchange/users/settings#api-tokens
 2. Set `ANTISTATIC_TOKEN` in the agent environment
-3. The agent can then run commands like `antistatic search`, `antistatic forecast`, `antistatic trade`, etc.
+3. Prefer `antistatic draft` for review-first workflows, then `antistatic trade` when approved.
 
 When the agent pipes output or uses `--json`, it gets structured JSON it can parse directly.
 

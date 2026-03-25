@@ -13,10 +13,13 @@ import (
 
 var tradeCmd = &cobra.Command{
 	Use:   "trade <code>",
-	Short: "Place a trade",
+	Short: "Submit probability updates as a trade",
 	Long: `Place a trade on a market, updating submarket probabilities.
 
 Pass probability updates via --updates as a JSON array, or pipe JSON to stdin.
+
+For a review-first workflow, use "draft" (or "pending-edits") first, then
+submit the trade once a human approves.
 
 Example:
   antistatic trade my-market --updates '[{"submarket_id": 42, "probability": 0.75}]'
