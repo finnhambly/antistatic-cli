@@ -124,6 +124,9 @@ antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 
 
 # Skip confirmation prompt
 antistatic trade us-troops-iran --updates '[...]' -y
+
+# Disable auto interpolation/monotonic shaping
+antistatic trade us-troops-iran --updates '[...]' --no-auto-shape -y
 ```
 
 ### Pending edits
@@ -142,6 +145,9 @@ antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 
 
 # Interpolate linearly across a range and apply
 antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-to 0.20 --from-group 2026-W13 --to-group 2026-W18 --apply
+
+# Disable auto interpolation/monotonic shaping
+antistatic draft us-troops-iran --updates '[...]' --no-auto-shape
 
 # Clear all pending edits
 antistatic pending-edits us-troops-iran --clear

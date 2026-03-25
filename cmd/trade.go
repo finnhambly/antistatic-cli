@@ -32,6 +32,8 @@ Example:
 
 		code := args[0]
 		updatesJSON, _ := cmd.Flags().GetString("updates")
+		noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
+		autoShape := !noAutoShape
 
 		var body map[string]interface{}
 
@@ -55,6 +57,29 @@ Example:
 				}
 			} else {
 				return fmt.Errorf("provide updates via --updates flag or pipe JSON to stdin")
+			}
+		}
+
+		if autoShape {
+			updates, err := parseProbabilityUpdatesFromBody(body)
+			if err != nil {
+				return err
+			}
+			if len(updates) > 0 {
+				shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+					UsePendingBaseline: false,
+				})
+				if err != nil {
+					return err
+				}
+				body["updates"] = probabilityUpdatesToPayload(shaped)
+				if output.IsTTY() && report.OutputCount != report.InputCount {
+					fmt.Printf(
+						"Auto-shaped updates: %d input -> %d applied.\n",
+						report.InputCount,
+						report.OutputCount,
+					)
+				}
 			}
 		}
 
@@ -104,6 +129,7 @@ Example:
 func init() {
 	tradeCmd.Flags().String("updates", "", "Probability updates as JSON array")
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
+	tradeCmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 
 	rootCmd.AddCommand(tradeCmd)
 }

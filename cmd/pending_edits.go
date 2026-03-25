@@ -99,7 +99,7 @@ func showPendingEdits(code string) error {
 	return nil
 }
 
-func updatePendingEdits(code, updatesRaw, mode string) error {
+func updatePendingEdits(code, updatesRaw, mode string, autoShape bool) error {
 	var body map[string]interface{}
 	if err := json.Unmarshal([]byte(updatesRaw), &body); err != nil {
 		// Try as array of updates
@@ -114,10 +114,33 @@ func updatePendingEdits(code, updatesRaw, mode string) error {
 		body["mode"] = mode
 	}
 
-	return updatePendingEditsBody(code, body)
+	return updatePendingEditsBody(code, body, autoShape, true)
 }
 
-func updatePendingEditsBody(code string, body map[string]interface{}) error {
+func updatePendingEditsBody(code string, body map[string]interface{}, autoShape bool, usePendingBaseline bool) error {
+	if autoShape {
+		updates, err := parseProbabilityUpdatesFromBody(body)
+		if err != nil {
+			return err
+		}
+		if len(updates) > 0 {
+			shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+				UsePendingBaseline: usePendingBaseline,
+			})
+			if err != nil {
+				return err
+			}
+			body["updates"] = probabilityUpdatesToPayload(shaped)
+			if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
+				fmt.Printf(
+					"Auto-shaped updates: %d input -> %d applied.\n",
+					report.InputCount,
+					report.OutputCount,
+				)
+			}
+		}
+	}
+
 	resp, err := client.Put("/markets/"+code+"/pending-edits", body)
 	if err != nil {
 		return err
@@ -158,6 +181,8 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	clear, _ := cmd.Flags().GetBool("clear")
 	updatesJSON, _ := cmd.Flags().GetString("updates")
 	mode, _ := cmd.Flags().GetString("mode")
+	noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
+	autoShape := !noAutoShape
 	plannerMode := isDraftPlannerMode(cmd)
 
 	if clear {
@@ -171,11 +196,11 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if updatesJSON != "" {
 			return fmt.Errorf("use either draft planning flags or --updates JSON, not both")
 		}
-		return runDraftPlanner(cmd, code, mode)
+		return runDraftPlanner(cmd, code, mode, autoShape)
 	}
 
 	if updatesJSON != "" {
-		return updatePendingEdits(code, updatesJSON, mode)
+		return updatePendingEdits(code, updatesJSON, mode, autoShape)
 	}
 
 	// Check stdin
@@ -185,7 +210,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("reading stdin: %w", err)
 		}
-		return updatePendingEdits(code, string(stdinData), mode)
+		return updatePendingEdits(code, string(stdinData), mode, autoShape)
 	}
 
 	// Default: show pending edits
@@ -212,7 +237,7 @@ func isDraftPlannerMode(cmd *cobra.Command) bool {
 	return false
 }
 
-func runDraftPlanner(cmd *cobra.Command, code, mode string) error {
+func runDraftPlanner(cmd *cobra.Command, code, mode string, autoShape bool) error {
 	if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
 		return fmt.Errorf("draft planner requires both --threshold and --probability")
 	}
@@ -262,11 +287,22 @@ func runDraftPlanner(cmd *cobra.Command, code, mode string) error {
 		return err
 	}
 
+	updates := draftPlanAsProbabilityUpdates(plan)
+	if autoShape {
+		shaped, _, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+			UsePendingBaseline: true,
+		})
+		if err != nil {
+			return err
+		}
+		updates = shaped
+	}
+
 	if jsonOutput || !output.IsTTY() {
 		preview := map[string]interface{}{
 			"selected_groups": selectedGroups,
 			"missing_groups":  missingGroups,
-			"updates":         draftPlanAsUpdates(plan),
+			"updates":         probabilityUpdatesToPayload(updates),
 			"mode":            mode,
 			"apply":           apply,
 		}
@@ -294,13 +330,11 @@ func runDraftPlanner(cmd *cobra.Command, code, mode string) error {
 			)
 		}
 
-		headers := []string{"GROUP", "SUBMARKET ID", "THRESHOLD", "PROBABILITY"}
-		rows := make([][]string, 0, len(plan))
-		for _, line := range plan {
+		headers := []string{"SUBMARKET ID", "PROBABILITY"}
+		rows := make([][]string, 0, len(updates))
+		for _, line := range updates {
 			rows = append(rows, []string{
-				line.Group,
 				fmt.Sprintf("%d", line.SubmarketID),
-				fmt.Sprintf("%.3f", line.Threshold),
 				fmt.Sprintf("%.2f%%", line.Probability*100),
 			})
 		}
@@ -315,10 +349,10 @@ func runDraftPlanner(cmd *cobra.Command, code, mode string) error {
 	}
 
 	body := map[string]interface{}{
-		"updates": draftPlanAsUpdates(plan),
+		"updates": probabilityUpdatesToPayload(updates),
 		"mode":    mode,
 	}
-	return updatePendingEditsBody(code, body)
+	return updatePendingEditsBody(code, body, false, true)
 }
 
 func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []string, []string, error) {
@@ -508,12 +542,12 @@ func matchThresholdSubmarket(
 	return bestID, bestThreshold, true
 }
 
-func draftPlanAsUpdates(plan []draftPlanLine) []map[string]interface{} {
-	updates := make([]map[string]interface{}, 0, len(plan))
+func draftPlanAsProbabilityUpdates(plan []draftPlanLine) []probabilityUpdate {
+	updates := make([]probabilityUpdate, 0, len(plan))
 	for _, line := range plan {
-		updates = append(updates, map[string]interface{}{
-			"submarket_id": line.SubmarketID,
-			"probability":  line.Probability,
+		updates = append(updates, probabilityUpdate{
+			SubmarketID: line.SubmarketID,
+			Probability: line.Probability,
 		})
 	}
 	return updates
@@ -543,4 +577,5 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Int("next-groups", 0, "Draft planner: select next N groups (from --from-group or current period)")
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")
+	cmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 }
