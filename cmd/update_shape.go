@@ -221,32 +221,17 @@ func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
 }
 
 func fetchPendingEditProbabilities(code string) (map[int]float64, error) {
-	resp, err := client.Get("/markets/"+code+"/pending-edits", nil)
+	states, err := fetchPendingEditStates(code)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := resp.Data()
-	if err != nil {
-		return nil, err
-	}
-
-	var pending map[string]map[string]interface{}
-	if err := json.Unmarshal(data, &pending); err != nil {
-		return nil, err
-	}
-
-	out := make(map[int]float64, len(pending))
-	for rawID, entry := range pending {
-		id, err := strconv.Atoi(rawID)
-		if err != nil {
+	out := make(map[int]float64, len(states))
+	for id, state := range states {
+		if !state.HasProbability {
 			continue
 		}
-		prob, ok := toFloat(entry["probability"])
-		if !ok {
-			continue
-		}
-		out[id] = clampProb(prob)
+		out[id] = clampProb(state.Probability)
 	}
 	return out, nil
 }

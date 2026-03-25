@@ -99,7 +99,13 @@ func showPendingEdits(code string) error {
 	return nil
 }
 
-func updatePendingEdits(code, updatesRaw, mode string, autoShape bool) error {
+func updatePendingEditsWithRemainder(
+	code,
+	updatesRaw,
+	mode string,
+	autoShape bool,
+	remainderRequest multicountRemainderRequest,
+) error {
 	var body map[string]interface{}
 	if err := json.Unmarshal([]byte(updatesRaw), &body); err != nil {
 		// Try as array of updates
@@ -114,15 +120,22 @@ func updatePendingEdits(code, updatesRaw, mode string, autoShape bool) error {
 		body["mode"] = mode
 	}
 
-	return updatePendingEditsBody(code, body, autoShape, true)
+	return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
 }
 
-func updatePendingEditsBody(code string, body map[string]interface{}, autoShape bool, usePendingBaseline bool) error {
+func updatePendingEditsBody(
+	code string,
+	body map[string]interface{},
+	autoShape bool,
+	usePendingBaseline bool,
+	remainderRequest multicountRemainderRequest,
+) error {
+	updates, err := parseProbabilityUpdatesFromBody(body)
+	if err != nil {
+		return err
+	}
+
 	if autoShape {
-		updates, err := parseProbabilityUpdatesFromBody(body)
-		if err != nil {
-			return err
-		}
 		if len(updates) > 0 {
 			shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
 				UsePendingBaseline: usePendingBaseline,
@@ -138,7 +151,26 @@ func updatePendingEditsBody(code string, body map[string]interface{}, autoShape 
 					report.OutputCount,
 				)
 			}
+			updates = shaped
 		}
+	}
+
+	updates, remainderReport, err := applyMulticountRemainder(
+		code,
+		updates,
+		usePendingBaseline,
+		remainderRequest,
+	)
+	if err != nil {
+		return err
+	}
+	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
+		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
+	}
+	printMulticountRemainderNotice(code, remainderReport, remainderRequest)
+
+	if updates != nil {
+		body["updates"] = probabilityUpdatesToPayload(updates)
 	}
 
 	resp, err := client.Put("/markets/"+code+"/pending-edits", body)
@@ -184,10 +216,14 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
 	autoShape := !noAutoShape
 	plannerMode := isDraftPlannerMode(cmd)
+	remainderRequest, err := parseMulticountRemainderRequest(cmd)
+	if err != nil {
+		return err
+	}
 
 	if clear {
-		if plannerMode || updatesJSON != "" {
-			return fmt.Errorf("--clear cannot be combined with draft planning flags or --updates")
+		if plannerMode || updatesJSON != "" || remainderRequest.Enabled() {
+			return fmt.Errorf("--clear cannot be combined with draft planning flags, --updates, or remainder flags")
 		}
 		return clearPendingEdits(code)
 	}
@@ -196,11 +232,11 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if updatesJSON != "" {
 			return fmt.Errorf("use either draft planning flags or --updates JSON, not both")
 		}
-		return runDraftPlanner(cmd, code, mode, autoShape)
+		return runDraftPlanner(cmd, code, mode, autoShape, remainderRequest)
 	}
 
 	if updatesJSON != "" {
-		return updatePendingEdits(code, updatesJSON, mode, autoShape)
+		return updatePendingEditsWithRemainder(code, updatesJSON, mode, autoShape, remainderRequest)
 	}
 
 	// Check stdin
@@ -210,7 +246,15 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("reading stdin: %w", err)
 		}
-		return updatePendingEdits(code, string(stdinData), mode, autoShape)
+		return updatePendingEditsWithRemainder(code, string(stdinData), mode, autoShape, remainderRequest)
+	}
+
+	if remainderRequest.Enabled() {
+		body := map[string]interface{}{
+			"updates": []interface{}{},
+			"mode":    mode,
+		}
+		return updatePendingEditsBody(code, body, false, true, remainderRequest)
 	}
 
 	// Default: show pending edits
@@ -226,7 +270,6 @@ func isDraftPlannerMode(cmd *cobra.Command) bool {
 		"to-group",
 		"next-groups",
 		"threshold-tolerance",
-		"apply",
 	}
 
 	for _, name := range flags {
@@ -237,7 +280,13 @@ func isDraftPlannerMode(cmd *cobra.Command) bool {
 	return false
 }
 
-func runDraftPlanner(cmd *cobra.Command, code, mode string, autoShape bool) error {
+func runDraftPlanner(
+	cmd *cobra.Command,
+	code,
+	mode string,
+	autoShape bool,
+	remainderRequest multicountRemainderRequest,
+) error {
 	if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
 		return fmt.Errorf("draft planner requires both --threshold and --probability")
 	}
@@ -298,13 +347,30 @@ func runDraftPlanner(cmd *cobra.Command, code, mode string, autoShape bool) erro
 		updates = shaped
 	}
 
+	updates, remainderReport, err := applyMulticountRemainder(
+		code,
+		updates,
+		true,
+		remainderRequest,
+	)
+	if err != nil {
+		return err
+	}
+	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
+		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
+	}
+	if remainderRequest.Enabled() || !apply {
+		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
+	}
+
 	if jsonOutput || !output.IsTTY() {
 		preview := map[string]interface{}{
-			"selected_groups": selectedGroups,
-			"missing_groups":  missingGroups,
-			"updates":         probabilityUpdatesToPayload(updates),
-			"mode":            mode,
-			"apply":           apply,
+			"selected_groups":      selectedGroups,
+			"missing_groups":       missingGroups,
+			"updates":              probabilityUpdatesToPayload(updates),
+			"mode":                 mode,
+			"apply":                apply,
+			"multicount_remainder": multicountRemainderReportJSON(remainderReport),
 		}
 
 		data, _ := json.Marshal(preview)
@@ -352,7 +418,7 @@ func runDraftPlanner(cmd *cobra.Command, code, mode string, autoShape bool) erro
 		"updates": probabilityUpdatesToPayload(updates),
 		"mode":    mode,
 	}
-	return updatePendingEditsBody(code, body, false, true)
+	return updatePendingEditsBody(code, body, false, true, multicountRemainderRequest{})
 }
 
 func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []string, []string, error) {
@@ -578,4 +644,5 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")
 	cmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
+	addMulticountRemainderFlags(cmd)
 }

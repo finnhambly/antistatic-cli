@@ -34,6 +34,10 @@ Example:
 		updatesJSON, _ := cmd.Flags().GetString("updates")
 		noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
 		autoShape := !noAutoShape
+		remainderRequest, err := parseMulticountRemainderRequest(cmd)
+		if err != nil {
+			return err
+		}
 
 		var body map[string]interface{}
 
@@ -60,28 +64,42 @@ Example:
 			}
 		}
 
-		if autoShape {
-			updates, err := parseProbabilityUpdatesFromBody(body)
+		updates, err := parseProbabilityUpdatesFromBody(body)
+		if err != nil {
+			return err
+		}
+
+		if autoShape && len(updates) > 0 {
+			shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+				UsePendingBaseline: false,
+			})
 			if err != nil {
 				return err
 			}
-			if len(updates) > 0 {
-				shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-					UsePendingBaseline: false,
-				})
-				if err != nil {
-					return err
-				}
-				body["updates"] = probabilityUpdatesToPayload(shaped)
-				if output.IsTTY() && report.OutputCount != report.InputCount {
-					fmt.Printf(
-						"Auto-shaped updates: %d input -> %d applied.\n",
-						report.InputCount,
-						report.OutputCount,
-					)
-				}
+			if output.IsTTY() && report.OutputCount != report.InputCount {
+				fmt.Printf(
+					"Auto-shaped updates: %d input -> %d applied.\n",
+					report.InputCount,
+					report.OutputCount,
+				)
 			}
+			updates = shaped
 		}
+
+		updates, remainderReport, err := applyMulticountRemainder(
+			code,
+			updates,
+			false,
+			remainderRequest,
+		)
+		if err != nil {
+			return err
+		}
+		if remainderRequest.Enabled() && !remainderReport.IsMulticount {
+			return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
+		}
+		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
+		body["updates"] = probabilityUpdatesToPayload(updates)
 
 		// Confirm if TTY and not --yes
 		yes, _ := cmd.Flags().GetBool("yes")
@@ -130,6 +148,7 @@ func init() {
 	tradeCmd.Flags().String("updates", "", "Probability updates as JSON array")
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	tradeCmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
+	addMulticountRemainderFlags(tradeCmd)
 
 	rootCmd.AddCommand(tradeCmd)
 }

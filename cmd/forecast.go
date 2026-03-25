@@ -26,6 +26,17 @@ Use --include to control detail level (summary, liquidity, full).`,
 		include, _ := cmd.Flags().GetString("include")
 		curve, _ := cmd.Flags().GetBool("curve")
 		limit, _ := cmd.Flags().GetInt("limit")
+		ascii, _ := cmd.Flags().GetBool("ascii")
+		asciiWidth, _ := cmd.Flags().GetInt("ascii-width")
+		asciiMaxGroups, _ := cmd.Flags().GetInt("ascii-max-groups")
+		asciiMaxPoints, _ := cmd.Flags().GetInt("ascii-max-points")
+
+		if ascii && jsonOutput {
+			return fmt.Errorf("--ascii cannot be combined with --json")
+		}
+		if ascii && forParam != "" && !curve {
+			return fmt.Errorf("--ascii requires grouped or curve forecast data; omit --for or add --curve")
+		}
 
 		params := url.Values{}
 		if forParam != "" {
@@ -43,8 +54,15 @@ Use --include to control detail level (summary, liquidity, full).`,
 		if curve {
 			params.Set("curve", "true")
 		}
+		if ascii && include == "" {
+			include = "full"
+			params.Set("include", include)
+		}
 		if limit > 0 {
 			params.Set("limit", fmt.Sprintf("%d", limit))
+		} else if ascii {
+			// Fetch all points for terminal plotting/sanity checks.
+			params.Set("limit", "1000000")
 		}
 
 		resp, err := client.Get("/markets/"+code+"/forecast", params)
@@ -62,6 +80,14 @@ Use --include to control detail level (summary, liquidity, full).`,
 			return nil
 		}
 
+		if ascii {
+			return renderASCIIForecast(data, asciiRenderOptions{
+				Width:     asciiWidth,
+				MaxGroups: asciiMaxGroups,
+				MaxPoints: asciiMaxPoints,
+			})
+		}
+
 		// Try to render a human-friendly summary
 		var forecast struct {
 			Market struct {
@@ -69,10 +95,10 @@ Use --include to control detail level (summary, liquidity, full).`,
 				Title string `json:"title"`
 				Type  string `json:"type"`
 			} `json:"market"`
-			Interpretation string                            `json:"interpretation"`
-			Forecast       map[string]json.RawMessage        `json:"forecast"`
-			Submarkets     []map[string]interface{}           `json:"submarkets"`
-			Matched        map[string]interface{}             `json:"matched"`
+			Interpretation string                     `json:"interpretation"`
+			Forecast       map[string]json.RawMessage `json:"forecast"`
+			Submarkets     []map[string]interface{}   `json:"submarkets"`
+			Matched        map[string]interface{}     `json:"matched"`
 		}
 		if err := json.Unmarshal(data, &forecast); err != nil {
 			output.JSON(data)
@@ -153,6 +179,10 @@ func init() {
 	forecastCmd.Flags().String("include", "", "Detail level: summary, liquidity, or full")
 	forecastCmd.Flags().Bool("curve", false, "Return all submarkets up to the queried point")
 	forecastCmd.Flags().IntP("limit", "l", 0, "Maximum submarkets per group")
+	forecastCmd.Flags().Bool("ascii", false, "Render ASCII bars with monotonicity checks")
+	forecastCmd.Flags().Int("ascii-width", 32, "ASCII chart width in characters")
+	forecastCmd.Flags().Int("ascii-max-groups", 6, "Maximum groups to render in ASCII mode")
+	forecastCmd.Flags().Int("ascii-max-points", 60, "Maximum points per group to print in ASCII mode")
 
 	rootCmd.AddCommand(forecastCmd)
 }

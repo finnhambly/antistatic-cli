@@ -82,6 +82,9 @@ antistatic forecast us-troops-iran --for 5000 --group 2026-08
 
 # Full submarket detail
 antistatic forecast us-troops-iran --group 2026-08 --include full
+
+# ASCII chart + monotonicity sanity check in terminal
+antistatic forecast us-troops-iran --group 2026-08 --ascii
 ```
 
 ### Positions & P/L
@@ -109,10 +112,13 @@ antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-group
 # 3) Apply the planned draft edits once reviewed
 antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --apply
 
-# 4) Optional: estimate cost if needed
+# 4) For multicount markets, optionally fill/remove remainder in one group
+antistatic draft eng-le --fill-remainder --multicount-group labour
+
+# 5) Optional: estimate cost if needed
 antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
 
-# 5) Submit trade once approved
+# 6) Submit trade once approved
 antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]' -y
 ```
 
@@ -127,6 +133,9 @@ antistatic trade us-troops-iran --updates '[...]' -y
 
 # Disable auto interpolation/monotonic shaping
 antistatic trade us-troops-iran --updates '[...]' --no-auto-shape -y
+
+# Multicount markets: fill/remove remainder while trading
+antistatic trade eng-le --updates '[...]' --fill-remainder --multicount-group labour -y
 ```
 
 ### Pending edits
@@ -148,6 +157,10 @@ antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-
 
 # Disable auto interpolation/monotonic shaping
 antistatic draft us-troops-iran --updates '[...]' --no-auto-shape
+
+# Multicount markets: fill/remove remainder for one entity group
+antistatic draft eng-le --fill-remainder --multicount-group labour
+antistatic draft eng-le --remove-remainder --multicount-group other
 
 # Clear all pending edits
 antistatic pending-edits us-troops-iran --clear
