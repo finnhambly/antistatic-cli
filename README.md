@@ -83,6 +83,12 @@ antistatic forecast us-troops-iran --for 5000 --group 2026-08
 # Full submarket detail
 antistatic forecast us-troops-iran --group 2026-08 --include full
 
+# Force stable full response shape (no summary-index fallback)
+antistatic forecast us-troops-iran --group 2026-08 --require-full --json
+
+# Include submarket IDs for direct trading flows
+antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
+
 # ASCII chart + monotonicity sanity check in terminal
 antistatic forecast us-troops-iran --group 2026-08 --ascii
 ```
@@ -103,14 +109,14 @@ antistatic points us-troops-iran
 ### Recommended workflow for AI agents
 
 ```sh
-# 1) Inspect current forecast and submarket ids
-antistatic forecast us-troops-iran --group 2026-08 --include full --json
+# 1) Inspect current forecast and submarket IDs
+antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
 
 # 2) Plan draft edits across contiguous groups (preview only by default)
-antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --interpolate-to 0.60
 
-# 3) Apply the planned draft edits once reviewed
-antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --apply
+# 3) Optional: fit a full threshold distribution in one shot
+antistatic draft us-troops-iran --distribution lognormal --median 3100 --sigma 0.35 --next-groups 6
 
 # 4) For multicount markets, optionally fill/remove remainder in one group
 antistatic draft eng-le --fill-remainder --multicount-group labour
@@ -118,8 +124,8 @@ antistatic draft eng-le --fill-remainder --multicount-group labour
 # 5) Optional: estimate cost if needed
 antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
 
-# 6) Submit trade once approved
-antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]' -y
+# 6) Submit directly from draft planning once approved
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --submit -y
 ```
 
 ### Trade
@@ -130,6 +136,10 @@ antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 
 
 # Skip confirmation prompt
 antistatic trade us-troops-iran --updates '[...]' -y
+
+# Submit from draft preview JSON (stdin or --updates)
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --json \
+  | antistatic trade us-troops-iran --from-draft -y
 
 # Disable auto interpolation/monotonic shaping
 antistatic trade us-troops-iran --updates '[...]' --no-auto-shape -y
@@ -154,6 +164,12 @@ antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 
 
 # Interpolate linearly across a range and apply
 antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-to 0.20 --from-group 2026-W13 --to-group 2026-W18 --apply
+
+# Parametric full distribution fit
+antistatic draft us-troops-iran --distribution lognormal --median 3100 --sigma 0.35 --next-groups 6
+
+# Plan and submit in one command
+antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 6 --submit -y
 
 # Disable auto interpolation/monotonic shaping
 antistatic draft us-troops-iran --updates '[...]' --no-auto-shape
@@ -206,7 +222,11 @@ antistatic forecast nuke-det --json | jq '.forecast'
 
 ## Configuration
 
-Config is stored in `~/.config/antistatic/config.json` (macOS/Linux) or `%APPDATA%\antistatic\config.json` (Windows).
+Config is stored in:
+
+- macOS: `~/Library/Application Support/antistatic/config.json`
+- Linux: `~/.config/antistatic/config.json`
+- Windows: `%APPDATA%\antistatic\config.json`
 
 Environment variables take precedence over the config file:
 
