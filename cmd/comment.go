@@ -14,7 +14,9 @@ var commentCmd = &cobra.Command{
 	Long: `Post a comment on a market.
 
 Example:
-  antistatic comment us-troops-iran "I think this is underpriced"`,
+  antistatic comment us-troops-iran "I think this is underpriced"
+
+Use "antistatic comments <code>" to read existing comments.`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(); err != nil {

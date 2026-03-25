@@ -103,13 +103,16 @@ antistatic points us-troops-iran
 # 1) Inspect current forecast and submarket ids
 antistatic forecast us-troops-iran --group 2026-08 --include full --json
 
-# 2) Draft proposed probability edits for human review
-antistatic draft us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
+# 2) Plan draft edits across contiguous groups (preview only by default)
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6
 
-# 3) Optional: estimate cost if needed
+# 3) Apply the planned draft edits once reviewed
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --apply
+
+# 4) Optional: estimate cost if needed
 antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
 
-# 4) Submit trade once approved
+# 5) Submit trade once approved
 antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]' -y
 ```
 
@@ -131,8 +134,14 @@ Pending edits (alias: `draft`) are probability changes saved server-side that pe
 # View your pending edits
 antistatic pending-edits us-troops-iran
 
-# Update pending edits
+# Update pending edits directly
 antistatic draft us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.6}]'
+
+# Plan contiguous weekly edits (dry run)
+antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 6
+
+# Interpolate linearly across a range and apply
+antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-to 0.20 --from-group 2026-W13 --to-group 2026-W18 --apply
 
 # Clear all pending edits
 antistatic pending-edits us-troops-iran --clear
@@ -153,6 +162,13 @@ antistatic quote us-troops-iran --updates '[{"submarket_id": 42, "probability": 
 ### Comment
 
 ```sh
+# Read comments with pagination and truncation controls
+antistatic comments us-troops-iran --sort newest --limit 10 --max-comments 50 --max-body-chars 400
+
+# Continue from next cursor
+antistatic comments us-troops-iran --cursor-inserted-at "2026-03-25T10:00:00Z" --cursor-id 123
+
+# Post a comment
 antistatic comment us-troops-iran "I think the raid scenario is underpriced given recent deployments"
 ```
 
