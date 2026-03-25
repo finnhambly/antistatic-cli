@@ -53,7 +53,7 @@ func init() {
 // a clear error if missing.
 func requireAuth() error {
 	if !client.HasAuth() {
-		return fmt.Errorf("authentication required: run \"antistatic login\" (or \"antistatic auth login\") or set ANTISTATIC_TOKEN")
+		return fmt.Errorf("authentication required: run \"antistatic login\" (browser OAuth) or set ANTISTATIC_TOKEN")
 	}
 	return nil
 }

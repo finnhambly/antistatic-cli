@@ -16,8 +16,11 @@ const (
 
 // Config holds the persisted CLI configuration.
 type Config struct {
-	Token     string `json:"token,omitempty"`
-	ServerURL string `json:"server_url,omitempty"`
+	Token             string `json:"token,omitempty"`
+	ServerURL         string `json:"server_url,omitempty"`
+	OAuthClientID     string `json:"oauth_client_id,omitempty"`
+	OAuthRefreshToken string `json:"oauth_refresh_token,omitempty"`
+	OAuthTokenExpiry  string `json:"oauth_token_expiry,omitempty"`
 }
 
 // configDir returns the OS-appropriate config directory.
@@ -102,4 +105,11 @@ func (c *Config) ResolveBaseURL() string {
 		return c.ServerURL
 	}
 	return DefaultBaseURL
+}
+
+// ClearOAuthState removes saved OAuth session fields.
+func (c *Config) ClearOAuthState() {
+	c.OAuthClientID = ""
+	c.OAuthRefreshToken = ""
+	c.OAuthTokenExpiry = ""
 }

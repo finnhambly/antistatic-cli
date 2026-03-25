@@ -26,21 +26,23 @@ Download a prebuilt binary from [Releases](https://github.com/finnhambly/antista
 
 ## Authenticate
 
-Generate an API token at https://antistatic.exchange/users/settings#api-tokens, then either:
-
-**Option A** — paste the one-liner shown on the settings page:
+Run browser OAuth login (recommended):
 
 ```sh
-antistatic login -t axk_YOUR_TOKEN_HERE
+antistatic login
 ```
 
-**Option B** — set an environment variable (useful for CI, scripts, and AI agents):
+For headless/CI usage, use an API token:
 
 ```sh
 export ANTISTATIC_TOKEN=axk_YOUR_TOKEN_HERE
 ```
 
-**Option C** — run `antistatic login` and paste interactively.
+Or pass a token directly:
+
+```sh
+antistatic login -t axk_YOUR_TOKEN_HERE
+```
 
 Check your auth status:
 
@@ -150,7 +152,7 @@ Environment variables take precedence over the config file:
 
 | Variable | Description |
 |---|---|
-| `ANTISTATIC_TOKEN` | API token (overrides saved token) |
+| `ANTISTATIC_TOKEN` | API token (overrides saved OAuth/config token) |
 | `ANTISTATIC_URL` | Base URL (default: `https://antistatic.exchange`) |
 
 ## For AI agents
@@ -158,7 +160,7 @@ Environment variables take precedence over the config file:
 The CLI is designed to work as a tool for AI coding agents and assistants. To give an agent access:
 
 1. Generate a token at https://antistatic.exchange/users/settings#api-tokens
-2. Set `ANTISTATIC_TOKEN` in the agent's environment
+2. Set `ANTISTATIC_TOKEN` in the agent environment
 3. The agent can then run commands like `antistatic search`, `antistatic forecast`, `antistatic trade`, etc.
 
 When the agent pipes output or uses `--json`, it gets structured JSON it can parse directly.

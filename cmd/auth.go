@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -17,11 +16,11 @@ var authCmd = &cobra.Command{
 
 var authLoginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Save an API token",
-	Long: `Save an API token for authenticating with Antistatic Exchange.
+	Short: "Log in with browser OAuth",
+	Long: `Log in to Antistatic Exchange.
 
-Generate a token at https://antistatic.exchange/users/settings
-or set the ANTISTATIC_TOKEN environment variable instead.`,
+By default, this opens a browser and completes OAuth (recommended).
+For non-interactive environments, pass --token or set ANTISTATIC_TOKEN.`,
 	RunE: runAuthLogin,
 }
 
@@ -38,7 +37,7 @@ var authLogoutCmd = &cobra.Command{
 }
 
 func init() {
-	authLoginCmd.Flags().StringP("token", "t", "", "API token (or paste interactively)")
+	addLoginFlags(authLoginCmd)
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
@@ -51,7 +50,7 @@ func init() {
 		Short: "Alias for \"auth login\"",
 		RunE:  runAuthLogin,
 	}
-	loginCmd.Flags().StringP("token", "t", "", "API token (or paste interactively)")
+	addLoginFlags(loginCmd)
 
 	statusCmd := &cobra.Command{
 		Use:   "status",
@@ -74,17 +73,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	token, _ := cmd.Flags().GetString("token")
 
 	if token == "" {
-		fmt.Print("Paste your API token (axk_...): ")
-		reader := bufio.NewReader(os.Stdin)
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("reading token: %w", err)
-		}
-		token = strings.TrimSpace(line)
-	}
-
-	if token == "" {
-		return fmt.Errorf("no token provided")
+		return runOAuthBrowserLogin(cmd)
 	}
 
 	if !strings.HasPrefix(token, "axk_") {
@@ -92,6 +81,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg.Token = token
+	cfg.ClearOAuthState()
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
@@ -121,17 +111,31 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		masked = token[:12] + "..."
 	}
 
-	output.KeyValue([][2]string{
+	pairs := [][2]string{
 		{"Server", baseURL},
 		{"Token", masked},
 		{"Source", source},
-	})
+	}
+
+	if source == "config file" {
+		mode := "API token"
+		if cfg.OAuthClientID != "" && cfg.OAuthRefreshToken != "" {
+			mode = "OAuth session"
+		}
+		pairs = append(pairs, [2]string{"Mode", mode})
+		if cfg.OAuthTokenExpiry != "" {
+			pairs = append(pairs, [2]string{"Access token expiry", cfg.OAuthTokenExpiry})
+		}
+	}
+
+	output.KeyValue(pairs)
 
 	return nil
 }
 
 func runAuthLogout(cmd *cobra.Command, args []string) error {
 	cfg.Token = ""
+	cfg.ClearOAuthState()
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
@@ -140,4 +144,9 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 		output.Warn("ANTISTATIC_TOKEN environment variable is still set.")
 	}
 	return nil
+}
+
+func addLoginFlags(loginCmd *cobra.Command) {
+	loginCmd.Flags().StringP("token", "t", "", "API token for non-interactive login")
+	loginCmd.Flags().Bool("no-browser", false, "Print login URL instead of opening a browser automatically")
 }
