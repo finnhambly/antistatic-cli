@@ -47,9 +47,10 @@ type pendingEditState struct {
 }
 
 type multicountForecastEnvelope struct {
-	Type       string                     `json:"type"`
-	Multicount *multicountForecastMeta    `json:"multicount"`
-	Forecast   map[string][]forecastPoint `json:"forecast"`
+	Type         string                     `json:"type"`
+	ResponseMode string                     `json:"response_mode"`
+	Multicount   *multicountForecastMeta    `json:"multicount"`
+	Forecast     map[string][]forecastPoint `json:"forecast"`
 }
 
 type multicountForecastMeta struct {
@@ -225,7 +226,8 @@ func applyMulticountRemainder(
 func fetchMulticountForecastEnvelope(code string) (multicountForecastEnvelope, error) {
 	params := url.Values{}
 	params.Set("include", "full")
-	params.Set("limit", "1000000")
+	params.Set("limit", "0")
+	params.Set("mode", "full")
 
 	resp, err := client.Get("/markets/"+code+"/forecast", params)
 	if err != nil {
@@ -240,6 +242,9 @@ func fetchMulticountForecastEnvelope(code string) (multicountForecastEnvelope, e
 	var payload multicountForecastEnvelope
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return multicountForecastEnvelope{}, fmt.Errorf("parsing forecast payload: %w", err)
+	}
+	if payload.ResponseMode == "summary_index" {
+		return multicountForecastEnvelope{}, fmt.Errorf("received summary_index forecast while computing multicount remainder")
 	}
 
 	return payload, nil

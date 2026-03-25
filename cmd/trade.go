@@ -32,6 +32,7 @@ Example:
 
 		code := args[0]
 		updatesJSON, _ := cmd.Flags().GetString("updates")
+		fromDraft, _ := cmd.Flags().GetBool("from-draft")
 		noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
 		autoShape := !noAutoShape
 		remainderRequest, err := parseMulticountRemainderRequest(cmd)
@@ -42,12 +43,10 @@ Example:
 		var body map[string]interface{}
 
 		if updatesJSON != "" {
-			// Parse --updates flag
-			var updates []interface{}
-			if err := json.Unmarshal([]byte(updatesJSON), &updates); err != nil {
+			body, err = parseTradePayloadBytes([]byte(updatesJSON), fromDraft)
+			if err != nil {
 				return fmt.Errorf("invalid --updates JSON: %w", err)
 			}
-			body = map[string]interface{}{"updates": updates}
 		} else {
 			// Try stdin
 			stat, _ := os.Stdin.Stat()
@@ -56,7 +55,8 @@ Example:
 				if err != nil {
 					return fmt.Errorf("reading stdin: %w", err)
 				}
-				if err := json.Unmarshal(stdinData, &body); err != nil {
+				body, err = parseTradePayloadBytes(stdinData, fromDraft)
+				if err != nil {
 					return fmt.Errorf("invalid JSON from stdin: %w", err)
 				}
 			} else {
@@ -146,9 +146,38 @@ Example:
 
 func init() {
 	tradeCmd.Flags().String("updates", "", "Probability updates as JSON array")
+	tradeCmd.Flags().Bool("from-draft", false, "Treat input as draft planner output ({\"updates\": [...]})")
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	tradeCmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 	addMulticountRemainderFlags(tradeCmd)
 
 	rootCmd.AddCommand(tradeCmd)
+}
+
+func parseTradePayloadBytes(raw []byte, fromDraft bool) (map[string]interface{}, error) {
+	var parsed interface{}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, err
+	}
+
+	switch typed := parsed.(type) {
+	case []interface{}:
+		return map[string]interface{}{"updates": typed}, nil
+	case map[string]interface{}:
+		updatesRaw, ok := typed["updates"]
+		if !ok {
+			if fromDraft {
+				return nil, fmt.Errorf("expected draft JSON object with an updates array")
+			}
+			return nil, fmt.Errorf("expected JSON updates array or object with updates array")
+		}
+
+		updates, ok := updatesRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("updates must be an array")
+		}
+		return map[string]interface{}{"updates": updates}, nil
+	default:
+		return nil, fmt.Errorf("expected JSON updates array or object with updates array")
+	}
 }

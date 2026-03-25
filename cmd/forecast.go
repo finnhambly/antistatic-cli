@@ -26,16 +26,27 @@ Use --include to control detail level (summary, liquidity, full).`,
 		include, _ := cmd.Flags().GetString("include")
 		curve, _ := cmd.Flags().GetBool("curve")
 		limit, _ := cmd.Flags().GetInt("limit")
+		requireFull, _ := cmd.Flags().GetBool("require-full")
+		includeIDs, _ := cmd.Flags().GetBool("include-ids")
 		ascii, _ := cmd.Flags().GetBool("ascii")
 		asciiWidth, _ := cmd.Flags().GetInt("ascii-width")
 		asciiMaxGroups, _ := cmd.Flags().GetInt("ascii-max-groups")
 		asciiMaxPoints, _ := cmd.Flags().GetInt("ascii-max-points")
+		machineOutput := jsonOutput || !output.IsTTY()
 
 		if ascii && jsonOutput {
 			return fmt.Errorf("--ascii cannot be combined with --json")
 		}
 		if ascii && forParam != "" && !curve {
 			return fmt.Errorf("--ascii requires grouped or curve forecast data; omit --for or add --curve")
+		}
+		if includeIDs && ascii {
+			return fmt.Errorf("--include-ids cannot be combined with --ascii")
+		}
+
+		// Agent/machine consumers usually need a stable full response shape.
+		if machineOutput && !cmd.Flags().Changed("limit") {
+			requireFull = true
 		}
 
 		params := url.Values{}
@@ -54,15 +65,27 @@ Use --include to control detail level (summary, liquidity, full).`,
 		if curve {
 			params.Set("curve", "true")
 		}
+		if includeIDs {
+			include = "full"
+			params.Set("include", include)
+			requireFull = true
+		}
 		if ascii && include == "" {
 			include = "full"
 			params.Set("include", include)
 		}
+		if requireFull {
+			if include == "" || include == "summary" {
+				include = "full"
+				params.Set("include", include)
+			}
+			params.Set("mode", "full")
+		}
 		if limit > 0 {
 			params.Set("limit", fmt.Sprintf("%d", limit))
-		} else if ascii {
+		} else if ascii || requireFull {
 			// Fetch all points for terminal plotting/sanity checks.
-			params.Set("limit", "1000000")
+			params.Set("limit", "0")
 		}
 
 		resp, err := client.Get("/markets/"+code+"/forecast", params)
@@ -95,10 +118,13 @@ Use --include to control detail level (summary, liquidity, full).`,
 				Title string `json:"title"`
 				Type  string `json:"type"`
 			} `json:"market"`
+			ResponseMode   string                     `json:"response_mode"`
 			Interpretation string                     `json:"interpretation"`
 			Forecast       map[string]json.RawMessage `json:"forecast"`
 			Submarkets     []map[string]interface{}   `json:"submarkets"`
 			Matched        map[string]interface{}     `json:"matched"`
+			Groups         []map[string]interface{}   `json:"groups"`
+			Hint           string                     `json:"hint"`
 		}
 		if err := json.Unmarshal(data, &forecast); err != nil {
 			output.JSON(data)
@@ -166,6 +192,32 @@ Use --include to control detail level (summary, liquidity, full).`,
 			return nil
 		}
 
+		if forecast.ResponseMode == "summary_index" || len(forecast.Groups) > 0 {
+			headers := []string{"GROUP", "SUBMARKETS", "RANGE"}
+			rows := make([][]string, 0, len(forecast.Groups))
+			for _, row := range forecast.Groups {
+				group := fmt.Sprintf("%v", row["group"])
+				submarketCount := fmt.Sprintf("%v", row["submarkets"])
+				rangeText := "-"
+				if rawRange, ok := row["prob_range"].([]interface{}); ok && len(rawRange) == 2 {
+					low, lowOK := rawRange[0].(float64)
+					high, highOK := rawRange[1].(float64)
+					if lowOK && highOK {
+						rangeText = fmt.Sprintf("%.1f%%..%.1f%%", low*100, high*100)
+					}
+				}
+				rows = append(rows, []string{group, submarketCount, rangeText})
+			}
+			if len(rows) > 0 {
+				output.Table(headers, rows)
+			}
+			if forecast.Hint != "" {
+				fmt.Printf("\n%s\n", forecast.Hint)
+			}
+			fmt.Println("Tip: re-run with --require-full (or --include-ids) for stable row-level forecast data.")
+			return nil
+		}
+
 		// Fallback to JSON
 		output.JSON(data)
 		return nil
@@ -179,6 +231,8 @@ func init() {
 	forecastCmd.Flags().String("include", "", "Detail level: summary, liquidity, or full")
 	forecastCmd.Flags().Bool("curve", false, "Return all submarkets up to the queried point")
 	forecastCmd.Flags().IntP("limit", "l", 0, "Maximum submarkets per group")
+	forecastCmd.Flags().Bool("require-full", false, "Require full grouped forecast rows (mode=full)")
+	forecastCmd.Flags().Bool("include-ids", false, "Force full forecast rows with submarket IDs for agent trading flows")
 	forecastCmd.Flags().Bool("ascii", false, "Render ASCII bars with monotonicity checks")
 	forecastCmd.Flags().Int("ascii-width", 32, "ASCII chart width in characters")
 	forecastCmd.Flags().Int("ascii-max-groups", 6, "Maximum groups to render in ASCII mode")

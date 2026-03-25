@@ -198,7 +198,8 @@ func fetchMarketShapeInfo(code string) (string, bool, error) {
 func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
 	params := url.Values{}
 	params.Set("include", "full")
-	params.Set("limit", "1000000")
+	params.Set("limit", "0")
+	params.Set("mode", "full")
 
 	resp, err := client.Get("/markets/"+code+"/forecast", params)
 	if err != nil {
@@ -211,10 +212,14 @@ func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
 	}
 
 	var payload struct {
-		Forecast map[string][]forecastPoint `json:"forecast"`
+		ResponseMode string                     `json:"response_mode"`
+		Forecast     map[string][]forecastPoint `json:"forecast"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast payload: %w", err)
+	}
+	if payload.ResponseMode == "summary_index" {
+		return nil, fmt.Errorf("received summary_index forecast while shaping updates")
 	}
 
 	return payload.Forecast, nil

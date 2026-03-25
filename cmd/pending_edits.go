@@ -19,6 +19,9 @@ type draftPlanOptions struct {
 	Threshold     float64
 	Probability   float64
 	InterpolateTo *float64
+	Distribution  string
+	Median        float64
+	Sigma         float64
 	FromGroup     string
 	ToGroup       string
 	NextGroups    int
@@ -30,6 +33,12 @@ type draftPlanLine struct {
 	SubmarketID int
 	Threshold   float64
 	Probability float64
+}
+
+type draftForecastPoint struct {
+	ID        int      `json:"id"`
+	Label     string   `json:"label"`
+	Threshold *float64 `json:"threshold"`
 }
 
 var pendingEditsCmd = &cobra.Command{
@@ -215,6 +224,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	mode, _ := cmd.Flags().GetString("mode")
 	noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
 	autoShape := !noAutoShape
+	submit, _ := cmd.Flags().GetBool("submit")
 	plannerMode := isDraftPlannerMode(cmd)
 	remainderRequest, err := parseMulticountRemainderRequest(cmd)
 	if err != nil {
@@ -222,8 +232,8 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	}
 
 	if clear {
-		if plannerMode || updatesJSON != "" || remainderRequest.Enabled() {
-			return fmt.Errorf("--clear cannot be combined with draft planning flags, --updates, or remainder flags")
+		if plannerMode || updatesJSON != "" || remainderRequest.Enabled() || submit {
+			return fmt.Errorf("--clear cannot be combined with draft planning flags, --updates, remainder flags, or --submit")
 		}
 		return clearPendingEdits(code)
 	}
@@ -233,6 +243,10 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("use either draft planning flags or --updates JSON, not both")
 		}
 		return runDraftPlanner(cmd, code, mode, autoShape, remainderRequest)
+	}
+
+	if submit {
+		return fmt.Errorf("--submit requires draft planning flags")
 	}
 
 	if updatesJSON != "" {
@@ -266,10 +280,14 @@ func isDraftPlannerMode(cmd *cobra.Command) bool {
 		"threshold",
 		"probability",
 		"interpolate-to",
+		"distribution",
+		"median",
+		"sigma",
 		"from-group",
 		"to-group",
 		"next-groups",
 		"threshold-tolerance",
+		"submit",
 	}
 
 	for _, name := range flags {
@@ -287,10 +305,10 @@ func runDraftPlanner(
 	autoShape bool,
 	remainderRequest multicountRemainderRequest,
 ) error {
-	if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
-		return fmt.Errorf("draft planner requires both --threshold and --probability")
-	}
-
+	distribution, _ := cmd.Flags().GetString("distribution")
+	distribution = strings.ToLower(strings.TrimSpace(distribution))
+	median, _ := cmd.Flags().GetFloat64("median")
+	sigma, _ := cmd.Flags().GetFloat64("sigma")
 	threshold, _ := cmd.Flags().GetFloat64("threshold")
 	probability, _ := cmd.Flags().GetFloat64("probability")
 	interpolateTo, _ := cmd.Flags().GetFloat64("interpolate-to")
@@ -299,16 +317,13 @@ func runDraftPlanner(
 	nextGroups, _ := cmd.Flags().GetInt("next-groups")
 	tolerance, _ := cmd.Flags().GetFloat64("threshold-tolerance")
 	apply, _ := cmd.Flags().GetBool("apply")
+	submit, _ := cmd.Flags().GetBool("submit")
+	yes, _ := cmd.Flags().GetBool("yes")
 
-	if probability < 0 || probability > 1 {
-		return fmt.Errorf("--probability must be between 0 and 1")
+	if apply && submit {
+		return fmt.Errorf("use either --apply (save pending edits) or --submit (place trade), not both")
 	}
-	if cmd.Flags().Changed("interpolate-to") && (interpolateTo < 0 || interpolateTo > 1) {
-		return fmt.Errorf("--interpolate-to must be between 0 and 1")
-	}
-	if threshold < 0 {
-		return fmt.Errorf("--threshold must be non-negative")
-	}
+
 	if nextGroups < 0 {
 		return fmt.Errorf("--next-groups must be >= 0")
 	}
@@ -319,21 +334,92 @@ func runDraftPlanner(
 		return fmt.Errorf("use either --next-groups or --to-group")
 	}
 
+	useDistribution := distribution != "" || cmd.Flags().Changed("distribution")
+	if useDistribution {
+		if distribution == "" {
+			return fmt.Errorf("--distribution is required when using distribution mode")
+		}
+		if distribution != "lognormal" {
+			return fmt.Errorf("--distribution currently supports only: lognormal")
+		}
+		if cmd.Flags().Changed("threshold") || cmd.Flags().Changed("probability") || cmd.Flags().Changed("interpolate-to") {
+			return fmt.Errorf("distribution mode cannot be combined with --threshold/--probability/--interpolate-to")
+		}
+		if median <= 0 {
+			return fmt.Errorf("--median must be > 0")
+		}
+		if sigma <= 0 {
+			return fmt.Errorf("--sigma must be > 0")
+		}
+	} else {
+		if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
+			return fmt.Errorf("draft planner requires both --threshold and --probability")
+		}
+		if probability < 0 || probability > 1 {
+			return fmt.Errorf("--probability must be between 0 and 1")
+		}
+		if cmd.Flags().Changed("interpolate-to") && (interpolateTo < 0 || interpolateTo > 1) {
+			return fmt.Errorf("--interpolate-to must be between 0 and 1")
+		}
+		if threshold < 0 {
+			return fmt.Errorf("--threshold must be non-negative")
+		}
+	}
+
 	opts := draftPlanOptions{
-		Threshold:   threshold,
-		Probability: probability,
-		FromGroup:   fromGroup,
-		ToGroup:     toGroup,
-		NextGroups:  nextGroups,
-		Tolerance:   tolerance,
+		Distribution: distribution,
+		Median:       median,
+		Sigma:        sigma,
+		Threshold:    threshold,
+		Probability:  probability,
+		FromGroup:    fromGroup,
+		ToGroup:      toGroup,
+		NextGroups:   nextGroups,
+		Tolerance:    tolerance,
 	}
 	if cmd.Flags().Changed("interpolate-to") {
 		opts.InterpolateTo = &interpolateTo
 	}
 
-	plan, selectedGroups, missingGroups, err := buildDraftPlan(code, opts)
+	var (
+		plan           []draftPlanLine
+		selectedGroups []string
+		missingGroups  []string
+		err            error
+	)
+
+	if useDistribution {
+		plan, selectedGroups, missingGroups, err = buildDraftDistributionPlan(code, opts)
+	} else {
+		plan, selectedGroups, missingGroups, err = buildDraftPlan(code, opts)
+	}
 	if err != nil {
 		return err
+	}
+
+	if output.IsTTY() && len(selectedGroups) > 1 {
+		if useDistribution {
+			fmt.Printf(
+				"Distribution mode: applying %s(median=%.3f, sigma=%.3f) to %d selected group(s).\n",
+				distribution,
+				median,
+				sigma,
+				len(selectedGroups),
+			)
+		} else if opts.InterpolateTo == nil {
+			fmt.Printf(
+				"Applying a constant %.2f%% across %d selected group(s). Use --interpolate-to for a cross-group ramp.\n",
+				probability*100,
+				len(selectedGroups),
+			)
+		} else {
+			fmt.Printf(
+				"Interpolating across %d selected group(s): %.2f%% -> %.2f%%.\n",
+				len(selectedGroups),
+				probability*100,
+				(*opts.InterpolateTo)*100,
+			)
+		}
 	}
 
 	updates := draftPlanAsProbabilityUpdates(plan)
@@ -363,7 +449,7 @@ func runDraftPlanner(
 		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 	}
 
-	if jsonOutput || !output.IsTTY() {
+	if (jsonOutput || !output.IsTTY()) && !submit {
 		preview := map[string]interface{}{
 			"selected_groups":      selectedGroups,
 			"missing_groups":       missingGroups,
@@ -381,12 +467,21 @@ func runDraftPlanner(
 	}
 
 	if output.IsTTY() {
-		fmt.Printf(
-			"Planned %d update(s) for threshold %.3f across %d group(s).\n",
-			len(plan),
-			threshold,
-			len(selectedGroups),
-		)
+		if useDistribution {
+			fmt.Printf(
+				"Planned %d update(s) from %s distribution across %d group(s).\n",
+				len(plan),
+				distribution,
+				len(selectedGroups),
+			)
+		} else {
+			fmt.Printf(
+				"Planned %d update(s) for threshold %.3f across %d group(s).\n",
+				len(plan),
+				threshold,
+				len(selectedGroups),
+			)
+		}
 
 		if len(missingGroups) > 0 {
 			fmt.Printf(
@@ -407,11 +502,15 @@ func runDraftPlanner(
 		output.Table(headers, rows)
 	}
 
-	if !apply {
+	if !apply && !submit {
 		if output.IsTTY() {
 			fmt.Println("Dry run only. Re-run with --apply to save these pending edits.")
 		}
 		return nil
+	}
+
+	if submit {
+		return submitTradeFromDraft(code, updates, yes)
 	}
 
 	body := map[string]interface{}{
@@ -422,36 +521,16 @@ func runDraftPlanner(
 }
 
 func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []string, []string, error) {
-	params := url.Values{}
-	params.Set("include", "full")
-	params.Set("limit", "1000000")
-
-	resp, err := client.Get("/markets/"+code+"/forecast", params)
+	forecastGroups, err := fetchDraftForecastGroups(code)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	data, err := resp.Data()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	var forecast struct {
-		Forecast map[string][]struct {
-			ID        int      `json:"id"`
-			Label     string   `json:"label"`
-			Threshold *float64 `json:"threshold"`
-		} `json:"forecast"`
-	}
-	if err := json.Unmarshal(data, &forecast); err != nil {
-		return nil, nil, nil, fmt.Errorf("parsing forecast response: %w", err)
-	}
-	if len(forecast.Forecast) == 0 {
+	if len(forecastGroups) == 0 {
 		return nil, nil, nil, fmt.Errorf("no grouped forecast data available; try specifying --group and verify market type")
 	}
 
-	groups := make([]string, 0, len(forecast.Forecast))
-	for group := range forecast.Forecast {
+	groups := make([]string, 0, len(forecastGroups))
+	for group := range forecastGroups {
 		groups = append(groups, group)
 	}
 	sort.Strings(groups)
@@ -466,7 +545,7 @@ func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []stri
 
 	for _, group := range selectedGroups {
 		submarketID, matchedThreshold, ok := matchThresholdSubmarket(
-			forecast.Forecast[group],
+			forecastGroups[group],
 			opts.Threshold,
 			opts.Tolerance,
 		)
@@ -506,6 +585,115 @@ func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []stri
 	}
 
 	return lines, selectedGroups, missingGroups, nil
+}
+
+func buildDraftDistributionPlan(
+	code string,
+	opts draftPlanOptions,
+) ([]draftPlanLine, []string, []string, error) {
+	forecastGroups, err := fetchDraftForecastGroups(code)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(forecastGroups) == 0 {
+		return nil, nil, nil, fmt.Errorf("no grouped forecast data available; try specifying --group and verify market type")
+	}
+
+	groups := make([]string, 0, len(forecastGroups))
+	for group := range forecastGroups {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	lines := make([]draftPlanLine, 0)
+	missingGroups := make([]string, 0)
+
+	for _, group := range selectedGroups {
+		groupPoints := forecastGroups[group]
+		if len(groupPoints) == 0 {
+			missingGroups = append(missingGroups, group)
+			continue
+		}
+
+		sorted := append([]draftForecastPoint(nil), groupPoints...)
+		sort.Slice(sorted, func(i, j int) bool {
+			li := math.Inf(1)
+			if sorted[i].Threshold != nil {
+				li = *sorted[i].Threshold
+			}
+			lj := math.Inf(1)
+			if sorted[j].Threshold != nil {
+				lj = *sorted[j].Threshold
+			}
+			if li == lj {
+				return sorted[i].ID < sorted[j].ID
+			}
+			return li < lj
+		})
+
+		for _, point := range sorted {
+			if point.Threshold == nil {
+				continue
+			}
+			probability := lognormalSurvivalProbability(*point.Threshold, opts.Median, opts.Sigma)
+			lines = append(lines, draftPlanLine{
+				Group:       group,
+				SubmarketID: point.ID,
+				Threshold:   *point.Threshold,
+				Probability: roundProbability(clampProb(probability)),
+			})
+		}
+	}
+
+	if len(lines) == 0 {
+		return nil, selectedGroups, missingGroups, fmt.Errorf("distribution produced no threshold-matched submarkets in selected groups")
+	}
+
+	return lines, selectedGroups, missingGroups, nil
+}
+
+func fetchDraftForecastGroups(code string) (map[string][]draftForecastPoint, error) {
+	params := url.Values{}
+	params.Set("include", "full")
+	params.Set("limit", "0")
+	params.Set("mode", "full")
+
+	resp, err := client.Get("/markets/"+code+"/forecast", params)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := resp.Data()
+	if err != nil {
+		return nil, err
+	}
+
+	var forecast struct {
+		ResponseMode string                          `json:"response_mode"`
+		Forecast     map[string][]draftForecastPoint `json:"forecast"`
+	}
+	if err := json.Unmarshal(data, &forecast); err != nil {
+		return nil, fmt.Errorf("parsing forecast response: %w", err)
+	}
+	if forecast.ResponseMode == "summary_index" {
+		return nil, fmt.Errorf("received summary_index forecast; retry with include=full and limit=0")
+	}
+	return forecast.Forecast, nil
+}
+
+func lognormalSurvivalProbability(threshold, median, sigma float64) float64 {
+	if threshold <= 0 {
+		return 1
+	}
+	mu := math.Log(median)
+	z := (math.Log(threshold) - mu) / sigma
+	cdf := 0.5 * (1 + math.Erf(z/math.Sqrt2))
+	return 1 - cdf
 }
 
 func selectDraftPlanGroups(groups []string, fromGroup, toGroup string, nextGroups int) ([]string, error) {
@@ -578,11 +766,7 @@ func findGroupIndex(groups []string, target string) int {
 }
 
 func matchThresholdSubmarket(
-	submarkets []struct {
-		ID        int      `json:"id"`
-		Label     string   `json:"label"`
-		Threshold *float64 `json:"threshold"`
-	},
+	submarkets []draftForecastPoint,
 	target float64,
 	tolerance float64,
 ) (int, float64, bool) {
@@ -623,6 +807,40 @@ func roundProbability(value float64) float64 {
 	return math.Round(value*1_000_000) / 1_000_000
 }
 
+func submitTradeFromDraft(code string, updates []probabilityUpdate, yes bool) error {
+	body := map[string]interface{}{
+		"updates": probabilityUpdatesToPayload(updates),
+	}
+
+	if output.IsTTY() && !jsonOutput && !yes {
+		fmt.Printf("Submit draft plan as trade on %s? [y/N] ", code)
+		var confirm string
+		fmt.Scanln(&confirm)
+		if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+
+	resp, err := client.Post("/markets/"+code+"/positions", body)
+	if err != nil {
+		return err
+	}
+
+	data, err := resp.Data()
+	if err != nil {
+		return err
+	}
+
+	if jsonOutput || !output.IsTTY() {
+		output.JSON(data)
+		return nil
+	}
+
+	fmt.Println("Trade placed successfully.")
+	return nil
+}
+
 func init() {
 	addPendingEditFlags(pendingEditsCmd)
 	addPendingEditFlags(draftCmd)
@@ -637,12 +855,17 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().String("mode", "merge", "Update mode: merge (default) or replace")
 	cmd.Flags().Float64("threshold", 0, "Draft planner: threshold to target (e.g. 70)")
 	cmd.Flags().Float64("probability", 0, "Draft planner: target probability for selected groups (0..1)")
-	cmd.Flags().Float64("interpolate-to", 0, "Draft planner: optional ending probability (0..1) for linear interpolation")
+	cmd.Flags().Float64("interpolate-to", 0, "Draft planner: optional ending probability (0..1) for linear interpolation across selected groups")
+	cmd.Flags().String("distribution", "", "Draft planner: parametric distribution to fit across thresholds (currently: lognormal)")
+	cmd.Flags().Float64("median", 0, "Draft planner distribution mode: median parameter")
+	cmd.Flags().Float64("sigma", 0, "Draft planner distribution mode: sigma parameter")
 	cmd.Flags().String("from-group", "", "Draft planner: first projection group (inclusive)")
 	cmd.Flags().String("to-group", "", "Draft planner: last projection group (inclusive)")
 	cmd.Flags().Int("next-groups", 0, "Draft planner: select next N groups (from --from-group or current period)")
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")
+	cmd.Flags().Bool("submit", false, "Draft planner: submit planned updates directly as a trade")
+	cmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt when using --submit")
 	cmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 	addMulticountRemainderFlags(cmd)
 }
