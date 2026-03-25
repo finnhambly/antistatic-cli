@@ -195,6 +195,7 @@ Environment variables take precedence over the config file:
 |---|---|
 | `ANTISTATIC_TOKEN` | API token (overrides saved OAuth/config token) |
 | `ANTISTATIC_URL` | Base URL (default: `https://antistatic.exchange`) |
+| `ANTISTATIC_NO_UPDATE_CHECK` | Set to `1` to disable daily update checks |
 
 ## For AI agents
 

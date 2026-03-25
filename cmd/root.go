@@ -5,6 +5,8 @@ import (
 
 	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/config"
+	"github.com/finnhambly/antistatic-cli/internal/output"
+	"github.com/finnhambly/antistatic-cli/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +39,10 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 		}
 		client = api.NewClient(cfg)
 		return nil
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		interactive := output.IsTTY() && !jsonOutput
+		update.MaybeNotify(Version, cfg, interactive)
 	},
 }
 
