@@ -69,7 +69,7 @@ type multicountShiftPoint struct {
 func addMulticountRemainderFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("fill-remainder", false, "Multicount only: fill missing remainder in one group")
 	cmd.Flags().Bool("remove-remainder", false, "Multicount only: remove excess remainder in one group")
-	cmd.Flags().String("multicount-group", "", "Multicount group/entity to adjust (defaults to first configured entity)")
+	cmd.Flags().String("multicount-group", "", "Multicount group/entity to target (also selects group for draft planner when --from-group/--to-group are not set)")
 }
 
 func parseMulticountRemainderRequest(cmd *cobra.Command) (multicountRemainderRequest, error) {
@@ -80,9 +80,6 @@ func parseMulticountRemainderRequest(cmd *cobra.Command) (multicountRemainderReq
 
 	if fill && remove {
 		return multicountRemainderRequest{}, fmt.Errorf("use either --fill-remainder or --remove-remainder")
-	}
-	if group != "" && !fill && !remove {
-		return multicountRemainderRequest{}, fmt.Errorf("--multicount-group requires --fill-remainder or --remove-remainder")
 	}
 
 	return multicountRemainderRequest{Fill: fill, Remove: remove, Group: group}, nil
@@ -731,6 +728,99 @@ func printMulticountRemainderNotice(_ string, report multicountRemainderReport, 
 		),
 	)
 }
+
+// buildGroupExpectedValuesJSON returns per-group E[X] data for JSON output.
+func buildGroupExpectedValuesJSON(code string, usePendingBaseline bool) map[string]interface{} {
+	payload, err := fetchMulticountForecastEnvelope(code)
+	if err != nil || payload.Multicount == nil || payload.Multicount.Total <= 0 {
+		return nil
+	}
+
+	currentProb := make(map[int]float64)
+	for _, points := range payload.Forecast {
+		for _, point := range points {
+			currentProb[point.ID] = clampProb(point.CommunityProbability)
+		}
+	}
+
+	if usePendingBaseline {
+		pendingStates, err := fetchPendingEditStates(code)
+		if err == nil {
+			for id, state := range pendingStates {
+				if _, ok := currentProb[id]; !ok {
+					continue
+				}
+				if state.HasProbability {
+					currentProb[id] = clampProb(state.Probability)
+				}
+			}
+		}
+	}
+
+	groups := sortedForecastGroups(payload.Forecast)
+	groupEVs := make(map[string]float64, len(groups))
+	totalExpected := 0.0
+	for _, group := range groups {
+		ev := expectedValueForGroup(payload.Forecast[group], currentProb)
+		groupEVs[group] = ev
+		totalExpected += ev
+	}
+
+	return map[string]interface{}{
+		"groups":    groupEVs,
+		"total":     totalExpected,
+		"target":    payload.Multicount.Total,
+		"remainder": payload.Multicount.Total - totalExpected,
+	}
+}
+
+// printMulticountGroupBreakdown shows per-group expected values and the total
+// remainder. This helps agents understand what the remainder calculation is
+// doing and where expected value is allocated.
+func printMulticountGroupBreakdown(code string, usePendingBaseline bool) {
+	payload, err := fetchMulticountForecastEnvelope(code)
+	if err != nil || payload.Multicount == nil || payload.Multicount.Total <= 0 {
+		return
+	}
+
+	currentProb := make(map[int]float64)
+	for _, points := range payload.Forecast {
+		for _, point := range points {
+			currentProb[point.ID] = clampProb(point.CommunityProbability)
+		}
+	}
+
+	if usePendingBaseline {
+		pendingStates, err := fetchPendingEditStates(code)
+		if err == nil {
+			for id, state := range pendingStates {
+				if _, ok := currentProb[id]; !ok {
+					continue
+				}
+				if state.HasProbability {
+					currentProb[id] = clampProb(state.Probability)
+				}
+			}
+		}
+	}
+
+	groups := sortedForecastGroups(payload.Forecast)
+	totalExpected := 0.0
+
+	headers := []string{"GROUP", "E[X]"}
+	rows := make([][]string, 0, len(groups))
+	for _, group := range groups {
+		ev := expectedValueForGroup(payload.Forecast[group], currentProb)
+		totalExpected += ev
+		rows = append(rows, []string{group, fmt.Sprintf("%.1f", ev)})
+	}
+
+	fmt.Println("\nMulticount E[X] breakdown:")
+	output.Table(headers, rows)
+	remainder := payload.Multicount.Total - totalExpected
+	fmt.Printf("Total: %.1f / %.1f (remainder: %.1f)\n", totalExpected, payload.Multicount.Total, remainder)
+}
+
 
 func multicountRemainderReportJSON(report multicountRemainderReport) map[string]interface{} {
 	if !report.IsMulticount {

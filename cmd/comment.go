@@ -9,25 +9,39 @@ import (
 )
 
 var commentCmd = &cobra.Command{
-	Use:   "comment <code> <text>",
+	Use:   "comment <code> [text]",
 	Short: "Post a comment on a market",
-	Long: `Post a comment on a market.
+	Long: `Post a comment on a market. The body supports Markdown formatting.
 
-Example:
+Provide the text as arguments, via --body flag, or pipe via stdin.
+For multi-line content (Markdown with headings, lists, etc.), use --body
+or stdin since shell arguments collapse whitespace.
+
+Examples:
   antistatic comment us-troops-iran "I think this is underpriced"
+  antistatic comment us-troops-iran --body "## Analysis\n\nKey points:\n- Point one\n- Point two"
+  echo "Multi-line markdown comment" | antistatic comment us-troops-iran
 
-Use "antistatic comments <code>" to read existing comments.`,
-	Args: cobra.MinimumNArgs(2),
+Use "antistatic comments <code>" to read existing comments.
+Use "antistatic comment-edit <code> <id> <text>" to edit a comment.`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(); err != nil {
 			return err
 		}
 
 		code := args[0]
-		text := strings.Join(args[1:], " ")
+		text, err := resolveCommentBody(cmd, args[1:])
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("comment body cannot be empty")
+		}
 
 		body := map[string]interface{}{
-			"body": text,
+			"body":   text,
+			"format": "markdown",
 		}
 
 		resp, err := client.Post("/markets/"+code+"/comments", body)
@@ -51,5 +65,6 @@ Use "antistatic comments <code>" to read existing comments.`,
 }
 
 func init() {
+	commentCmd.Flags().String("body", "", "Comment body text (supports Markdown; use for multi-line content)")
 	rootCmd.AddCommand(commentCmd)
 }
