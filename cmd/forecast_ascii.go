@@ -14,12 +14,15 @@ type asciiRenderOptions struct {
 	MaxGroups int
 	MaxPoints int
 	Summary   bool
+	Basis     string
 }
 
 type asciiPoint struct {
 	ID                   int      `json:"id"`
 	Label                string   `json:"label"`
-	CommunityProbability float64  `json:"community_probability"`
+	Probability          *float64 `json:"probability"`
+	CommunityProbability *float64 `json:"community_probability"`
+	StartingProbability  *float64 `json:"starting_probability"`
 	Threshold            *float64 `json:"threshold"`
 	ThresholdDate        string   `json:"threshold_date"`
 }
@@ -36,6 +39,13 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 	maxPoints := opts.MaxPoints
 	if maxPoints <= 0 {
 		maxPoints = 20
+	}
+	basis := strings.ToLower(strings.TrimSpace(opts.Basis))
+	if basis == "" {
+		basis = "starting"
+	}
+	if basis != "starting" && basis != "community" {
+		return fmt.Errorf("invalid --ascii-basis %q (expected: starting or community)", opts.Basis)
 	}
 
 	var payload struct {
@@ -107,7 +117,7 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 
 	if len(groupMap) > 0 {
 		if opts.Summary {
-			return renderASCIISummaryGroups(groupMap, width, maxGroups)
+			return renderASCIISummaryGroups(groupMap, width, maxGroups, basis)
 		}
 
 		groupNames := make([]string, 0, len(groupMap))
@@ -123,29 +133,29 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 			}
 			points := append([]asciiPoint(nil), groupMap[groupName]...)
 			sortASCIIPoints(points)
-			renderASCIIGroup(groupName, points, width, maxPoints, monotonicDirection, cumulative)
+			renderASCIIGroup(groupName, points, width, maxPoints, monotonicDirection, cumulative, basis)
 			maxRenderedGroups++
 		}
 		return nil
 	}
 
 	if opts.Summary {
-		return renderASCIISummarySeries("curve", singleSeries, width)
+		return renderASCIISummarySeries("curve", singleSeries, width, basis)
 	}
 
 	sortASCIIPoints(singleSeries)
-	renderASCIIGroup("curve", singleSeries, width, maxPoints, monotonicDirection, cumulative)
+	renderASCIIGroup("curve", singleSeries, width, maxPoints, monotonicDirection, cumulative, basis)
 	return nil
 }
 
-func renderASCIISummaryGroups(groupMap map[string][]asciiPoint, width, maxGroups int) error {
+func renderASCIISummaryGroups(groupMap map[string][]asciiPoint, width, maxGroups int, basis string) error {
 	groupNames := make([]string, 0, len(groupMap))
 	for name := range groupMap {
 		groupNames = append(groupNames, name)
 	}
 	sort.Strings(groupNames)
 
-	fmt.Println("\nASCII summary (last point per group):")
+	fmt.Printf("\nASCII summary (last point per group, basis=%s):\n", basisLabel(basis))
 	rendered := 0
 	for _, groupName := range groupNames {
 		if rendered >= maxGroups {
@@ -154,27 +164,27 @@ func renderASCIISummaryGroups(groupMap map[string][]asciiPoint, width, maxGroups
 		}
 		points := append([]asciiPoint(nil), groupMap[groupName]...)
 		sortASCIIPoints(points)
-		printASCIISummaryLine(groupName, points, width)
+		printASCIISummaryLine(groupName, points, width, basis)
 		rendered++
 	}
 	return nil
 }
 
-func renderASCIISummarySeries(name string, points []asciiPoint, width int) error {
-	fmt.Println("\nASCII summary:")
+func renderASCIISummarySeries(name string, points []asciiPoint, width int, basis string) error {
+	fmt.Printf("\nASCII summary (basis=%s):\n", basisLabel(basis))
 	sortASCIIPoints(points)
-	printASCIISummaryLine(name, points, width)
+	printASCIISummaryLine(name, points, width, basis)
 	return nil
 }
 
-func printASCIISummaryLine(groupName string, points []asciiPoint, width int) {
+func printASCIISummaryLine(groupName string, points []asciiPoint, width int, basis string) {
 	if len(points) == 0 {
 		fmt.Printf("%-12s n/a\n", groupName)
 		return
 	}
 
 	last := points[len(points)-1]
-	prob := clampProb(last.CommunityProbability)
+	prob := clampProb(pointProbabilityForBasis(last, basis))
 	barCount := int(math.Round(prob * float64(width)))
 	if barCount < 0 {
 		barCount = 0
@@ -256,11 +266,13 @@ func renderASCIIGroup(
 	maxPoints int,
 	direction string,
 	cumulative bool,
+	basis string,
 ) {
 	fmt.Printf("\nGroup: %s\n", groupName)
+	fmt.Printf("Display basis: %s\n", basisLabel(basis))
 	printMonotonicExpectation(direction, cumulative)
 
-	violations := monotonicViolations(points, direction)
+	violations := monotonicViolations(points, direction, basis)
 	if len(violations) == 0 {
 		fmt.Println("Monotonic check: ok")
 	} else {
@@ -287,7 +299,8 @@ func renderASCIIGroup(
 		if len(label) > 30 {
 			label = label[:27] + "..."
 		}
-		barCount := int(math.Round(clampProb(point.CommunityProbability) * float64(width)))
+		prob := clampProb(pointProbabilityForBasis(point, basis))
+		barCount := int(math.Round(prob * float64(width)))
 		if barCount < 0 {
 			barCount = 0
 		}
@@ -299,7 +312,7 @@ func renderASCIIGroup(
 			"[%02d] %-30s %6.2f%% |%s|\n",
 			idx,
 			label,
-			clampProb(point.CommunityProbability)*100,
+			prob*100,
 			bar,
 		)
 	}
@@ -316,15 +329,15 @@ type monotonicViolation struct {
 	currProb  float64
 }
 
-func monotonicViolations(points []asciiPoint, direction string) []monotonicViolation {
+func monotonicViolations(points []asciiPoint, direction, basis string) []monotonicViolation {
 	if len(points) < 2 {
 		return nil
 	}
 
 	out := make([]monotonicViolation, 0)
 	for i := 1; i < len(points); i++ {
-		prev := clampProb(points[i-1].CommunityProbability)
-		curr := clampProb(points[i].CommunityProbability)
+		prev := clampProb(pointProbabilityForBasis(points[i-1], basis))
+		curr := clampProb(pointProbabilityForBasis(points[i], basis))
 
 		bad := false
 		if direction == "down" {
@@ -343,6 +356,45 @@ func monotonicViolations(points []asciiPoint, direction string) []monotonicViola
 		}
 	}
 	return out
+}
+
+func pointProbabilityForBasis(point asciiPoint, basis string) float64 {
+	switch basis {
+	case "community":
+		if point.CommunityProbability != nil {
+			return *point.CommunityProbability
+		}
+		if point.Probability != nil {
+			return *point.Probability
+		}
+		if point.StartingProbability != nil {
+			return *point.StartingProbability
+		}
+		return 0
+	case "starting":
+		if point.StartingProbability != nil {
+			return *point.StartingProbability
+		}
+		if point.Probability != nil {
+			return *point.Probability
+		}
+		if point.CommunityProbability != nil {
+			return *point.CommunityProbability
+		}
+		return 0
+	default:
+		if point.CommunityProbability != nil {
+			return *point.CommunityProbability
+		}
+		return 0
+	}
+}
+
+func basisLabel(basis string) string {
+	if basis == "starting" {
+		return "starting_probability (trade line)"
+	}
+	return "community aggregate (context only)"
 }
 
 func printMonotonicExpectation(direction string, cumulative bool) {

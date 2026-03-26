@@ -65,6 +65,9 @@ var draftCmd = &cobra.Command{
 This is an alias for "pending-edits" and is recommended for AI agents
 that should run updates by a human before submitting a trade.
 
+When submitted, trades are quoted against starting_probability (house line),
+not community_probability.
+
 Use --submit-pending to submit existing pending edits as a trade
 without running the draft planner. This avoids needing --threshold
 and --probability when you've already staged edits.

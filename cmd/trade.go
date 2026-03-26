@@ -21,6 +21,9 @@ Pass probability updates via --updates as a JSON array, or pipe JSON to stdin.
 For a review-first workflow, use "draft" (or "pending-edits") first, then
 submit the trade once a human approves.
 
+Trades are quoted against starting_probability (house line), not
+community_probability.
+
 Updates may identify rows by "submarket_id" or by "label" (optionally with
 "group"/"projection_group" when labels are ambiguous).
 

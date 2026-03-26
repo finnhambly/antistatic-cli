@@ -52,6 +52,12 @@ antistatic status
 
 ## Usage
 
+### Pricing model
+
+Trades are quoted against `starting_probability` (the house line), not the community aggregate.
+
+`community_probability` is contextual sentiment data and does not set trade prices.
+
 ### Browse markets
 
 ```sh
@@ -78,6 +84,9 @@ antistatic show us-troop --fuzzy
 # Overview of a market's forecast (group index for large markets)
 antistatic forecast us-troops-iran
 
+# Include community aggregate values in rendered output
+antistatic forecast us-troops-iran --with-community
+
 # Filter by projection group
 antistatic forecast us-troops-iran --group 2026-08
 
@@ -95,6 +104,9 @@ antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
 
 # ASCII chart + monotonicity sanity check in terminal
 antistatic forecast us-troops-iran --group 2026-08 --ascii
+
+# ASCII chart using community aggregate basis instead of starting_probability
+antistatic forecast us-troops-iran --group 2026-08 --ascii --ascii-basis community
 
 # Compact ASCII summary (one line per group, using each group's latest point)
 antistatic forecast us-troops-iran --ascii --summary
@@ -165,6 +177,8 @@ antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-group
 ```sh
 # Place a trade
 antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
+
+# Pricing reminder: trades are quoted against starting_probability (not community_probability)
 
 # Resolve by submarket label instead of ID
 antistatic trade us-troops-iran --updates '[{"label":"By Dec 2026","group":"2026","probability":0.015}]'
@@ -270,9 +284,10 @@ antistatic forecast nuke-det --json | jq '.forecast'
 Agent-friendly JSON notes:
 
 - `forecast --json` now includes:
+  - `pricing_basis` (`trade_reference_field=starting_probability`, `counterparty=house`)
   - `forecast` (grouped map, existing shape)
   - `forecast_by_group` (alias of grouped map)
-  - `submarkets` (flat list with `group`, `projection_group`, `probability`, `community_probability`)
+  - `submarkets` (flat list with `group`, `projection_group`, `probability`, `trade_probability`, and optional `community_probability` via `--with-community`)
 - `positions --json` supports `--market`, and `--summary` for one row per market (`position_count`, `net_shares`, `net_cost`).
 - `positions --json --market <code> --group-summary` returns one aggregated row per projection group.
 - `markets --json --unforecasted` lists open markets where you currently hold no positions.

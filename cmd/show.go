@@ -65,6 +65,7 @@ Resolution criteria are shown by default with a safe length cap.`,
 			{"Title", market.Title},
 			{"Status", market.Status},
 			{"Type", market.Type},
+			{"Pricing", "Trades are quoted against starting_probability (house line)"},
 		}
 		if market.SubmarketCount > 0 {
 			pairs = append(pairs, [2]string{"Submarkets", fmt.Sprintf("%d", market.SubmarketCount)})
