@@ -21,6 +21,9 @@ Pass probability updates via --updates as a JSON array, or pipe JSON to stdin.
 For a review-first workflow, use "draft" (or "pending-edits") first, then
 submit the trade once a human approves.
 
+Updates may identify rows by "submarket_id" or by "label" (optionally with
+"group"/"projection_group" when labels are ambiguous).
+
 Example:
   antistatic trade my-market --updates '[{"submarket_id": 42, "probability": 0.75}]'
   echo '{"updates": [...]}' | antistatic trade my-market`,
@@ -34,6 +37,8 @@ Example:
 		updatesJSON, _ := cmd.Flags().GetString("updates")
 		fromDraft, _ := cmd.Flags().GetBool("from-draft")
 		noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		estimateCost, _ := cmd.Flags().GetBool("estimate-cost")
 		autoShape := !noAutoShape
 		remainderRequest, err := parseMulticountRemainderRequest(cmd)
 		if err != nil {
@@ -62,6 +67,10 @@ Example:
 			} else {
 				return fmt.Errorf("provide updates via --updates flag or pipe JSON to stdin")
 			}
+		}
+
+		if err := resolveUpdateLabelsInBody(code, body); err != nil {
+			return err
 		}
 
 		updates, err := parseProbabilityUpdatesFromBody(body)
@@ -100,6 +109,33 @@ Example:
 		}
 		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 		body["updates"] = probabilityUpdatesToPayload(updates)
+
+		estimatedCost := 0.0
+		hasEstimate := false
+		if len(updates) > 0 && (output.IsTTY() || dryRun || estimateCost) {
+			totalCost, quoteErr := previewTradeCost(code, updates)
+			if quoteErr == nil {
+				estimatedCost = totalCost
+				hasEstimate = true
+				if output.IsTTY() {
+					fmt.Printf("Estimated cost: %.4f points across %d submarket(s).\n", estimatedCost, len(updates))
+				}
+			}
+		}
+
+		if dryRun {
+			preview := map[string]interface{}{
+				"market_code": code,
+				"updates":     body["updates"],
+				"dry_run":     true,
+			}
+			if hasEstimate {
+				preview["estimated_cost"] = estimatedCost
+			}
+			raw, _ := json.Marshal(preview)
+			output.JSON(raw)
+			return nil
+		}
 
 		// Confirm if TTY and not --yes
 		yes, _ := cmd.Flags().GetBool("yes")
@@ -148,6 +184,8 @@ func init() {
 	tradeCmd.Flags().String("updates", "", "Probability updates as JSON array")
 	tradeCmd.Flags().Bool("from-draft", false, "Treat input as draft planner output ({\"updates\": [...]})")
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
+	tradeCmd.Flags().Bool("dry-run", false, "Preview shaped updates (and estimated cost) without placing a trade")
+	tradeCmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost before submission")
 	tradeCmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 	addMulticountRemainderFlags(tradeCmd)
 

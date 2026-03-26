@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/finnhambly/antistatic-cli/internal/output"
@@ -19,7 +20,8 @@ If a market code is given, shows positions for that market only.
 Otherwise, shows all positions across all markets.
 
 Use --market to filter without positional args (agent-friendly).
-Use --summary for one aggregated row per market.`,
+Use --summary for one aggregated row per market.
+Use --group-summary (with a market code) for one row per projection group.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(); err != nil {
@@ -28,6 +30,7 @@ Use --summary for one aggregated row per market.`,
 
 		marketFlag, _ := cmd.Flags().GetString("market")
 		summary, _ := cmd.Flags().GetBool("summary")
+		groupSummary, _ := cmd.Flags().GetBool("group-summary")
 		marketCode := strings.TrimSpace(marketFlag)
 
 		if len(args) == 1 {
@@ -35,6 +38,12 @@ Use --summary for one aggregated row per market.`,
 				return fmt.Errorf("provide market either as positional arg or --market, not both")
 			}
 			marketCode = strings.TrimSpace(args[0])
+		}
+		if summary && groupSummary {
+			return fmt.Errorf("use either --summary or --group-summary")
+		}
+		if groupSummary && marketCode == "" {
+			return fmt.Errorf("--group-summary requires a market code (positional arg or --market)")
 		}
 
 		path := "/positions"
@@ -63,7 +72,39 @@ Use --summary for one aggregated row per market.`,
 		}
 
 		if jsonOutput || !output.IsTTY() {
+			if groupSummary {
+				summaries, err := buildGroupSummaries(marketCode, data)
+				if err != nil {
+					return err
+				}
+				raw, _ := json.Marshal(summaries)
+				output.JSON(raw)
+				return nil
+			}
 			output.JSON(data)
+			return nil
+		}
+
+		if groupSummary {
+			summaries, err := buildGroupSummaries(marketCode, data)
+			if err != nil {
+				return err
+			}
+			if len(summaries) == 0 {
+				fmt.Println("No positions.")
+				return nil
+			}
+			headers := []string{"GROUP", "POSITIONS", "SHARES", "COST"}
+			rows := make([][]string, len(summaries))
+			for i, row := range summaries {
+				rows[i] = []string{
+					row.Group,
+					fmt.Sprintf("%d", row.PositionCount),
+					fmt.Sprintf("%.2f", row.NetShares),
+					fmt.Sprintf("%.2f", row.NetCost),
+				}
+			}
+			output.Table(headers, rows)
 			return nil
 		}
 
@@ -169,6 +210,114 @@ Use --summary for one aggregated row per market.`,
 func init() {
 	positionsCmd.Flags().String("market", "", "Filter positions to a market code")
 	positionsCmd.Flags().Bool("summary", false, "Show one aggregated row per market")
+	positionsCmd.Flags().Bool("group-summary", false, "With a market code, show one aggregated row per projection group")
 
 	rootCmd.AddCommand(positionsCmd)
+}
+
+type groupedPositionSummary struct {
+	Group         string  `json:"group"`
+	PositionCount int     `json:"position_count"`
+	NetShares     float64 `json:"net_shares"`
+	NetCost       float64 `json:"net_cost"`
+}
+
+func buildGroupSummaries(code string, positionsData json.RawMessage) ([]groupedPositionSummary, error) {
+	var positions []struct {
+		SubmarketID int      `json:"submarket_id"`
+		NetShares   *float64 `json:"net_shares"`
+		NetCost     *float64 `json:"net_cost"`
+		Shares      *float64 `json:"shares"`
+		Cost        *float64 `json:"cost"`
+	}
+	if err := json.Unmarshal(positionsData, &positions); err != nil {
+		return nil, fmt.Errorf("parsing positions for group summary: %w", err)
+	}
+	if len(positions) == 0 {
+		return nil, nil
+	}
+
+	groupBySubmarket, err := fetchSubmarketGroups(code)
+	if err != nil {
+		return nil, err
+	}
+
+	acc := make(map[string]groupedPositionSummary)
+	for _, position := range positions {
+		group := groupBySubmarket[position.SubmarketID]
+		if group == "" {
+			group = "ungrouped"
+		}
+		row := acc[group]
+		row.Group = group
+		row.PositionCount++
+
+		shares := 0.0
+		if position.NetShares != nil {
+			shares = *position.NetShares
+		} else if position.Shares != nil {
+			shares = *position.Shares
+		}
+
+		cost := 0.0
+		if position.NetCost != nil {
+			cost = *position.NetCost
+		} else if position.Cost != nil {
+			cost = *position.Cost
+		}
+
+		row.NetShares += shares
+		row.NetCost += cost
+		acc[group] = row
+	}
+
+	out := make([]groupedPositionSummary, 0, len(acc))
+	for _, row := range acc {
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Group < out[j].Group
+	})
+	return out, nil
+}
+
+func fetchSubmarketGroups(code string) (map[int]string, error) {
+	params := url.Values{}
+	params.Set("include", "full")
+	params.Set("limit", "0")
+	params.Set("mode", "full")
+
+	resp, err := client.Get("/markets/"+code+"/forecast", params)
+	if err != nil {
+		return nil, err
+	}
+	data, err := resp.Data()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload struct {
+		ResponseMode string `json:"response_mode"`
+		Submarkets   []struct {
+			ID              int    `json:"id"`
+			Group           string `json:"group"`
+			ProjectionGroup string `json:"projection_group"`
+		} `json:"submarkets"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("parsing forecast groups for positions summary: %w", err)
+	}
+	if payload.ResponseMode == "summary_index" {
+		return nil, fmt.Errorf("forecast returned summary index; cannot build group summary")
+	}
+
+	out := make(map[int]string, len(payload.Submarkets))
+	for _, submarket := range payload.Submarkets {
+		group := submarket.ProjectionGroup
+		if group == "" {
+			group = submarket.Group
+		}
+		out[submarket.ID] = group
+	}
+	return out, nil
 }

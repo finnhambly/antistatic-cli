@@ -119,7 +119,8 @@ func shapeProbabilityUpdates(
 			continue
 		}
 
-		interpolateLadder(ladder, anchorIndices, baseline, current, anchor)
+		pinOuterToBaseline := marketType == "count"
+		interpolateLadder(ladder, anchorIndices, baseline, current, anchor, pinOuterToBaseline)
 
 		switch {
 		case marketType == "count":
@@ -341,19 +342,55 @@ func interpolateLadder(
 	baseline map[int]float64,
 	current map[int]float64,
 	anchor map[int]bool,
+	pinOuterToBaseline bool,
 ) {
-	if len(ids) < 3 {
+	if len(ids) < 2 {
 		return
 	}
 
-	boundaries := make([]int, 0, len(anchorIndices)+2)
-	boundaries = append(boundaries, 0)
-	boundaries = append(boundaries, anchorIndices...)
-	last := len(ids) - 1
-	if boundaries[len(boundaries)-1] != last {
-		boundaries = append(boundaries, last)
+	sortedAnchors := uniqueSortedInts(append([]int(nil), anchorIndices...))
+	if len(sortedAnchors) == 0 {
+		return
 	}
-	boundaries = uniqueSortedInts(boundaries)
+
+	last := len(ids) - 1
+
+	// Extrapolate the nearest anchor delta to ladder edges for date markets so
+	// untouched tails do not snap back to baseline.
+	if !pinOuterToBaseline {
+		firstAnchor := sortedAnchors[0]
+		firstID := ids[firstAnchor]
+		firstDelta := probToBits(current[firstID]) - probToBits(baseline[firstID])
+		for idx := 0; idx < firstAnchor; idx++ {
+			id := ids[idx]
+			if anchor[id] {
+				continue
+			}
+			current[id] = clampProb(bitsToProb(probToBits(baseline[id]) + firstDelta))
+		}
+
+		lastAnchor := sortedAnchors[len(sortedAnchors)-1]
+		lastID := ids[lastAnchor]
+		lastDelta := probToBits(current[lastID]) - probToBits(baseline[lastID])
+		for idx := lastAnchor + 1; idx <= last; idx++ {
+			id := ids[idx]
+			if anchor[id] {
+				continue
+			}
+			current[id] = clampProb(bitsToProb(probToBits(baseline[id]) + lastDelta))
+		}
+	}
+
+	boundaries := sortedAnchors
+	if pinOuterToBaseline {
+		boundaries = make([]int, 0, len(sortedAnchors)+2)
+		boundaries = append(boundaries, 0)
+		boundaries = append(boundaries, sortedAnchors...)
+		if boundaries[len(boundaries)-1] != last {
+			boundaries = append(boundaries, last)
+		}
+		boundaries = uniqueSortedInts(boundaries)
+	}
 
 	for i := 0; i < len(boundaries)-1; i++ {
 		left := boundaries[i]

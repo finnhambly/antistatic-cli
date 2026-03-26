@@ -51,7 +51,8 @@ and devices. They are not yet submitted as trades.
 
 Without flags, shows current pending edits.
 Use --clear to delete all pending edits.
-Use --updates to set or merge edits (pipe JSON or use the flag).`,
+Use --updates to set or merge edits (pipe JSON or use the flag).
+Updates may use submarket_id or label (optionally group/projection_group).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
 }
@@ -66,7 +67,9 @@ that should run updates by a human before submitting a trade.
 
 Use --submit-pending to submit existing pending edits as a trade
 without running the draft planner. This avoids needing --threshold
-and --probability when you've already staged edits.`,
+and --probability when you've already staged edits.
+
+Use --submit with --updates to place a shaped trade directly.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
 }
@@ -143,6 +146,10 @@ func updatePendingEditsBody(
 	usePendingBaseline bool,
 	remainderRequest multicountRemainderRequest,
 ) error {
+	if err := resolveUpdateLabelsInBody(code, body); err != nil {
+		return err
+	}
+
 	updates, err := parseProbabilityUpdatesFromBody(body)
 	if err != nil {
 		return err
@@ -230,7 +237,9 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	autoShape := !noAutoShape
 	submit, _ := cmd.Flags().GetBool("submit")
 	submitPending, _ := cmd.Flags().GetBool("submit-pending")
-	plannerMode := isDraftPlannerMode(cmd)
+	apply, _ := cmd.Flags().GetBool("apply")
+	estimateCost, _ := cmd.Flags().GetBool("estimate-cost")
+	plannerMode := hasDraftPlannerInputs(cmd)
 	remainderRequest, err := parseMulticountRemainderRequest(cmd)
 	if err != nil {
 		return err
@@ -255,15 +264,22 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if updatesJSON != "" {
 			return fmt.Errorf("use either draft planning flags or --updates JSON, not both")
 		}
-		return runDraftPlanner(cmd, code, mode, autoShape, remainderRequest)
-	}
-
-	if submit {
-		return fmt.Errorf("--submit requires draft planning flags")
+		return runDraftPlanner(cmd, code, mode, autoShape, remainderRequest, estimateCost)
 	}
 
 	if updatesJSON != "" {
-		return updatePendingEditsWithRemainder(code, updatesJSON, mode, autoShape, remainderRequest)
+		body, err := parseTradePayloadBytes([]byte(updatesJSON), false)
+		if err != nil {
+			return fmt.Errorf("invalid --updates JSON: %w", err)
+		}
+		if mode != "" {
+			body["mode"] = mode
+		}
+		if submit {
+			yes, _ := cmd.Flags().GetBool("yes")
+			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
+		}
+		return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
 	}
 
 	// Check stdin
@@ -273,7 +289,25 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("reading stdin: %w", err)
 		}
-		return updatePendingEditsWithRemainder(code, string(stdinData), mode, autoShape, remainderRequest)
+		body, err := parseTradePayloadBytes(stdinData, false)
+		if err != nil {
+			return fmt.Errorf("invalid JSON from stdin: %w", err)
+		}
+		if mode != "" {
+			body["mode"] = mode
+		}
+		if submit {
+			yes, _ := cmd.Flags().GetBool("yes")
+			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
+		}
+		return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
+	}
+
+	if submit {
+		return fmt.Errorf("--submit requires draft planning flags or --updates JSON")
+	}
+	if apply {
+		return fmt.Errorf("--apply requires draft planning flags or --updates JSON")
 	}
 
 	if remainderRequest.Enabled() {
@@ -288,7 +322,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	return showPendingEdits(code)
 }
 
-func isDraftPlannerMode(cmd *cobra.Command) bool {
+func hasDraftPlannerInputs(cmd *cobra.Command) bool {
 	flags := []string{
 		"threshold",
 		"probability",
@@ -300,7 +334,7 @@ func isDraftPlannerMode(cmd *cobra.Command) bool {
 		"to-group",
 		"next-groups",
 		"threshold-tolerance",
-		"submit",
+		"apply",
 	}
 
 	for _, name := range flags {
@@ -317,6 +351,7 @@ func runDraftPlanner(
 	mode string,
 	autoShape bool,
 	remainderRequest multicountRemainderRequest,
+	estimateCost bool,
 ) error {
 	distribution, _ := cmd.Flags().GetString("distribution")
 	distribution = strings.ToLower(strings.TrimSpace(distribution))
@@ -355,12 +390,20 @@ func runDraftPlanner(
 	}
 
 	useDistribution := distribution != "" || cmd.Flags().Changed("distribution")
+	marketType, _, marketInfoErr := fetchMarketShapeInfo(code)
+	if marketInfoErr != nil {
+		return marketInfoErr
+	}
+
 	if useDistribution {
 		if distribution == "" {
 			return fmt.Errorf("--distribution is required when using distribution mode")
 		}
 		if distribution != "lognormal" {
 			return fmt.Errorf("--distribution currently supports only: lognormal")
+		}
+		if marketType == "date" {
+			return fmt.Errorf("distribution planner currently supports count markets only; for date markets use --updates with submarket_id or label")
 		}
 		if cmd.Flags().Changed("threshold") || cmd.Flags().Changed("probability") || cmd.Flags().Changed("interpolate-to") {
 			return fmt.Errorf("distribution mode cannot be combined with --threshold/--probability/--interpolate-to")
@@ -372,6 +415,9 @@ func runDraftPlanner(
 			return fmt.Errorf("--sigma must be > 0")
 		}
 	} else {
+		if marketType == "date" {
+			return fmt.Errorf("--threshold planner currently supports count markets only; for date markets use --updates with submarket_id or label")
+		}
 		if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
 			return fmt.Errorf("draft planner requires both --threshold and --probability")
 		}
@@ -470,6 +516,13 @@ func runDraftPlanner(
 	}
 
 	if (jsonOutput || !output.IsTTY()) && !submit {
+		var estimatedCost *float64
+		if estimateCost {
+			if totalCost, quoteErr := previewTradeCost(code, updates); quoteErr == nil {
+				estimatedCost = &totalCost
+			}
+		}
+
 		preview := map[string]interface{}{
 			"selected_groups":      selectedGroups,
 			"missing_groups":       missingGroups,
@@ -480,6 +533,9 @@ func runDraftPlanner(
 		}
 		if remainderReport.IsMulticount {
 			preview["group_expected_values"] = buildGroupExpectedValuesJSON(code, true)
+		}
+		if estimatedCost != nil {
+			preview["estimated_cost"] = *estimatedCost
 		}
 
 		data, _ := json.Marshal(preview)
@@ -523,6 +579,11 @@ func runDraftPlanner(
 			})
 		}
 		output.Table(headers, rows)
+		if estimateCost {
+			if totalCost, quoteErr := previewTradeCost(code, updates); quoteErr == nil {
+				fmt.Printf("Estimated cost: %.4f points.\n", totalCost)
+			}
+		}
 
 		if remainderReport.IsMulticount {
 			printMulticountGroupBreakdown(code, true)
@@ -830,6 +891,59 @@ func draftPlanAsProbabilityUpdates(plan []draftPlanLine) []probabilityUpdate {
 	return updates
 }
 
+func submitRawUpdatesAsTrade(
+	code string,
+	body map[string]interface{},
+	autoShape bool,
+	remainderRequest multicountRemainderRequest,
+	yes bool,
+) error {
+	if err := resolveUpdateLabelsInBody(code, body); err != nil {
+		return err
+	}
+
+	updates, err := parseProbabilityUpdatesFromBody(body)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		return fmt.Errorf("no valid updates found in --updates payload")
+	}
+
+	if autoShape {
+		shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+			UsePendingBaseline: true,
+		})
+		if err != nil {
+			return err
+		}
+		if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
+			fmt.Printf(
+				"Auto-shaped updates: %d input -> %d applied.\n",
+				report.InputCount,
+				report.OutputCount,
+			)
+		}
+		updates = shaped
+	}
+
+	updates, remainderReport, err := applyMulticountRemainder(
+		code,
+		updates,
+		true,
+		remainderRequest,
+	)
+	if err != nil {
+		return err
+	}
+	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
+		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
+	}
+	printMulticountRemainderNotice(code, remainderReport, remainderRequest)
+
+	return submitTradeFromDraft(code, updates, yes)
+}
+
 func roundProbability(value float64) float64 {
 	return math.Round(value*1_000_000) / 1_000_000
 }
@@ -987,8 +1101,9 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Int("next-groups", 0, "Draft planner: select next N groups (from --from-group or current period)")
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")
-	cmd.Flags().Bool("submit", false, "Draft planner: submit planned updates directly as a trade")
+	cmd.Flags().Bool("submit", false, "Submit planned updates (or --updates JSON) directly as a trade")
 	cmd.Flags().Bool("submit-pending", false, "Submit existing pending edits as a trade (no planning flags needed)")
+	cmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost during preview")
 	cmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt when using --submit or --submit-pending")
 	cmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
 	addMulticountRemainderFlags(cmd)

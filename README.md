@@ -118,6 +118,9 @@ antistatic positions --summary
 # Market-filtered summary
 antistatic positions --market us-troops-iran --summary
 
+# Market-filtered per-group summary (e.g. yearly buckets)
+antistatic positions --market us-troops-iran --group-summary
+
 # P&L scenarios (what you gain/lose under each outcome)
 antistatic points us-troops-iran
 ```
@@ -163,8 +166,14 @@ antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-group
 # Place a trade
 antistatic trade us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.75}]'
 
+# Resolve by submarket label instead of ID
+antistatic trade us-troops-iran --updates '[{"label":"By Dec 2026","group":"2026","probability":0.015}]'
+
 # Skip confirmation prompt
 antistatic trade us-troops-iran --updates '[...]' -y
+
+# Preview shaped updates + estimated cost without submitting
+antistatic trade us-troops-iran --updates '[...]' --dry-run --json
 
 # Submit from draft preview JSON (stdin or --updates)
 antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --json \
@@ -188,6 +197,12 @@ antistatic pending-edits us-troops-iran
 # Update pending edits directly
 antistatic draft us-troops-iran --updates '[{"submarket_id": 42, "probability": 0.6}]'
 
+# Directly submit --updates as a shaped trade
+antistatic draft us-troops-iran --updates '[...]' --submit -y
+
+# Optional cost estimate during planner preview
+antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 6 --estimate-cost
+
 # Plan contiguous weekly edits (dry run)
 antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 6
 
@@ -196,6 +211,9 @@ antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-
 
 # Parametric full distribution fit
 antistatic draft us-troops-iran --distribution lognormal --median 3100 --sigma 0.35 --next-groups 6
+
+# Date markets: use explicit anchors by ID or label (threshold planner is count-only)
+antistatic draft some-date-market --updates '[{"label":"By Dec 2027","group":"2027","probability":0.08}]'
 
 # Plan and submit in one command
 antistatic draft us-troops-iran --threshold 70 --probability 0.20 --next-groups 6 --submit -y
@@ -256,6 +274,7 @@ Agent-friendly JSON notes:
   - `forecast_by_group` (alias of grouped map)
   - `submarkets` (flat list with `group`, `projection_group`, `probability`, `community_probability`)
 - `positions --json` supports `--market`, and `--summary` for one row per market (`position_count`, `net_shares`, `net_cost`).
+- `positions --json --market <code> --group-summary` returns one aggregated row per projection group.
 - `markets --json --unforecasted` lists open markets where you currently hold no positions.
 
 ## Configuration
