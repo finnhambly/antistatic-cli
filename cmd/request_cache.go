@@ -50,6 +50,22 @@ func setCachedMarketShape(code string, shape marketShapeSnapshot) {
 	requestCache.mu.Unlock()
 }
 
+func getCachedPendingEditStates(code string) (map[int]pendingEditState, bool) {
+	requestCache.mu.RLock()
+	states, ok := requestCache.pendingEdits[code]
+	requestCache.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return clonePendingEditStateMap(states), true
+}
+
+func setCachedPendingEditStates(code string, states map[int]pendingEditState) {
+	requestCache.mu.Lock()
+	requestCache.pendingEdits[code] = clonePendingEditStateMap(states)
+	requestCache.mu.Unlock()
+}
+
 func clonePendingEditStateMap(input map[int]pendingEditState) map[int]pendingEditState {
 	out := make(map[int]pendingEditState, len(input))
 	for key, value := range input {

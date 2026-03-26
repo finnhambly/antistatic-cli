@@ -233,6 +233,10 @@ func fetchMulticountForecastEnvelope(code string) (multicountForecastEnvelope, e
 }
 
 func fetchPendingEditStates(code string) (map[int]pendingEditState, error) {
+	if cached, ok := getCachedPendingEditStates(code); ok {
+		return cached, nil
+	}
+
 	resp, err := client.Get("/markets/"+code+"/pending-edits", nil)
 	if err != nil {
 		return nil, err
@@ -270,7 +274,8 @@ func fetchPendingEditStates(code string) (map[int]pendingEditState, error) {
 		out[id] = state
 	}
 
-	return out, nil
+	setCachedPendingEditStates(code, out)
+	return clonePendingEditStateMap(out), nil
 }
 
 func normalizeDisplayedRemainderDelta(value float64) float64 {
