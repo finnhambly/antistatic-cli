@@ -15,15 +15,29 @@ var marketsCmd = &cobra.Command{
 	Short: "List open markets",
 	Long: `List open markets on Antistatic Exchange.
 
-By default, lists markets ordered by activity. Use --query to search.`,
+By default, lists markets ordered by activity. Use --query to search.
+Use --unforecasted (authenticated) to list open markets where you
+currently hold no positions.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query, _ := cmd.Flags().GetString("query")
 		limit, _ := cmd.Flags().GetInt("limit")
 		offset, _ := cmd.Flags().GetInt("offset")
+		unforecasted, _ := cmd.Flags().GetBool("unforecasted")
+
+		if unforecasted && query != "" {
+			return fmt.Errorf("--unforecasted cannot be combined with --query")
+		}
+		if unforecasted {
+			if err := requireAuth(); err != nil {
+				return err
+			}
+		}
 
 		params := url.Values{}
 		if query != "" {
 			params.Set("q", query)
+		} else if unforecasted {
+			params.Set("unforecasted", "1")
 		} else {
 			params.Set("open", "1")
 		}
@@ -63,6 +77,8 @@ By default, lists markets ordered by activity. Use --query to search.`,
 		if len(markets) == 0 {
 			if query != "" {
 				fmt.Printf("No markets found matching %q.\n", query)
+			} else if unforecasted {
+				fmt.Println("No unforecasted open markets.")
 			} else {
 				fmt.Println("No open markets.")
 			}
@@ -145,6 +161,7 @@ func init() {
 	marketsCmd.Flags().StringP("query", "q", "", "Search query")
 	marketsCmd.Flags().IntP("limit", "l", 0, "Maximum number of results")
 	marketsCmd.Flags().IntP("offset", "o", 0, "Number of results to skip")
+	marketsCmd.Flags().Bool("unforecasted", false, "List open markets where you currently hold no positions")
 
 	searchCmd.Flags().IntP("limit", "l", 0, "Maximum number of results")
 

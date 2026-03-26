@@ -16,7 +16,8 @@ var forecastCmd = &cobra.Command{
 
 Use --for to query a specific point (date or threshold).
 Use --group to filter by projection group (e.g. "2026-08").
-Use --include to control detail level (summary, liquidity, full).`,
+Use --include to control detail level (summary, liquidity, full).
+Use --ascii --summary for compact one-line group summaries.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		code := args[0]
@@ -29,6 +30,7 @@ Use --include to control detail level (summary, liquidity, full).`,
 		requireFull, _ := cmd.Flags().GetBool("require-full")
 		includeIDs, _ := cmd.Flags().GetBool("include-ids")
 		ascii, _ := cmd.Flags().GetBool("ascii")
+		asciiSummary, _ := cmd.Flags().GetBool("summary")
 		asciiWidth, _ := cmd.Flags().GetInt("ascii-width")
 		asciiMaxGroups, _ := cmd.Flags().GetInt("ascii-max-groups")
 		asciiMaxPoints, _ := cmd.Flags().GetInt("ascii-max-points")
@@ -42,6 +44,9 @@ Use --include to control detail level (summary, liquidity, full).`,
 		}
 		if includeIDs && ascii {
 			return fmt.Errorf("--include-ids cannot be combined with --ascii")
+		}
+		if asciiSummary && !ascii {
+			return fmt.Errorf("--summary is only supported with --ascii")
 		}
 
 		// Agent/machine consumers usually need a stable full response shape.
@@ -108,6 +113,7 @@ Use --include to control detail level (summary, liquidity, full).`,
 				Width:     asciiWidth,
 				MaxGroups: asciiMaxGroups,
 				MaxPoints: asciiMaxPoints,
+				Summary:   asciiSummary,
 			})
 		}
 
@@ -234,6 +240,7 @@ func init() {
 	forecastCmd.Flags().Bool("require-full", false, "Require full grouped forecast rows (mode=full)")
 	forecastCmd.Flags().Bool("include-ids", false, "Force full forecast rows with submarket IDs for agent trading flows")
 	forecastCmd.Flags().Bool("ascii", false, "Render ASCII bars with monotonicity checks")
+	forecastCmd.Flags().Bool("summary", false, "With --ascii, show compact one-line summaries per group")
 	forecastCmd.Flags().Int("ascii-width", 32, "ASCII chart width in characters")
 	forecastCmd.Flags().Int("ascii-max-groups", 6, "Maximum groups to render in ASCII mode")
 	forecastCmd.Flags().Int("ascii-max-points", 60, "Maximum points per group to print in ASCII mode")

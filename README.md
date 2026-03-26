@@ -59,6 +59,9 @@ antistatic status
 # Includes private markets you have access to when authenticated
 antistatic markets
 
+# List open markets you haven't forecasted on yet (requires auth)
+antistatic markets --unforecasted
+
 # Search by keyword
 antistatic search iran
 
@@ -92,6 +95,9 @@ antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
 
 # ASCII chart + monotonicity sanity check in terminal
 antistatic forecast us-troops-iran --group 2026-08 --ascii
+
+# Compact ASCII summary (one line per group, using each group's latest point)
+antistatic forecast us-troops-iran --ascii --summary
 ```
 
 ### Positions & P/L
@@ -102,6 +108,15 @@ antistatic positions
 
 # Positions for a specific market
 antistatic positions us-troops-iran
+
+# Equivalent explicit filter flag (useful for agent workflows)
+antistatic positions --market us-troops-iran
+
+# Compact one-row-per-market summary
+antistatic positions --summary
+
+# Market-filtered summary
+antistatic positions --market us-troops-iran --summary
 
 # P&L scenarios (what you gain/lose under each outcome)
 antistatic points us-troops-iran
@@ -233,6 +248,15 @@ Force JSON output with `--json`:
 ```sh
 antistatic forecast nuke-det --json | jq '.forecast'
 ```
+
+Agent-friendly JSON notes:
+
+- `forecast --json` now includes:
+  - `forecast` (grouped map, existing shape)
+  - `forecast_by_group` (alias of grouped map)
+  - `submarkets` (flat list with `group`, `projection_group`, `probability`, `community_probability`)
+- `positions --json` supports `--market`, and `--summary` for one row per market (`position_count`, `net_shares`, `net_cost`).
+- `markets --json --unforecasted` lists open markets where you currently hold no positions.
 
 ## Configuration
 

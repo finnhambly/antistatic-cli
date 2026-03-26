@@ -13,6 +13,7 @@ type asciiRenderOptions struct {
 	Width     int
 	MaxGroups int
 	MaxPoints int
+	Summary   bool
 }
 
 type asciiPoint struct {
@@ -105,6 +106,10 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 	maxRenderedGroups := 0
 
 	if len(groupMap) > 0 {
+		if opts.Summary {
+			return renderASCIISummaryGroups(groupMap, width, maxGroups)
+		}
+
 		groupNames := make([]string, 0, len(groupMap))
 		for name := range groupMap {
 			groupNames = append(groupNames, name)
@@ -124,9 +129,74 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 		return nil
 	}
 
+	if opts.Summary {
+		return renderASCIISummarySeries("curve", singleSeries, width)
+	}
+
 	sortASCIIPoints(singleSeries)
 	renderASCIIGroup("curve", singleSeries, width, maxPoints, monotonicDirection, cumulative)
 	return nil
+}
+
+func renderASCIISummaryGroups(groupMap map[string][]asciiPoint, width, maxGroups int) error {
+	groupNames := make([]string, 0, len(groupMap))
+	for name := range groupMap {
+		groupNames = append(groupNames, name)
+	}
+	sort.Strings(groupNames)
+
+	fmt.Println("\nASCII summary (last point per group):")
+	rendered := 0
+	for _, groupName := range groupNames {
+		if rendered >= maxGroups {
+			fmt.Printf("(only first %d groups shown; increase --ascii-max-groups)\n", maxGroups)
+			break
+		}
+		points := append([]asciiPoint(nil), groupMap[groupName]...)
+		sortASCIIPoints(points)
+		printASCIISummaryLine(groupName, points, width)
+		rendered++
+	}
+	return nil
+}
+
+func renderASCIISummarySeries(name string, points []asciiPoint, width int) error {
+	fmt.Println("\nASCII summary:")
+	sortASCIIPoints(points)
+	printASCIISummaryLine(name, points, width)
+	return nil
+}
+
+func printASCIISummaryLine(groupName string, points []asciiPoint, width int) {
+	if len(points) == 0 {
+		fmt.Printf("%-12s n/a\n", groupName)
+		return
+	}
+
+	last := points[len(points)-1]
+	prob := clampProb(last.CommunityProbability)
+	barCount := int(math.Round(prob * float64(width)))
+	if barCount < 0 {
+		barCount = 0
+	}
+	if barCount > width {
+		barCount = width
+	}
+	bar := strings.Repeat("#", barCount) + strings.Repeat(".", width-barCount)
+
+	label := last.Label
+	if len(label) > 24 {
+		label = label[:21] + "..."
+	}
+
+	fmt.Printf(
+		"%-12s %6.2f%% |%s|  %s (%d points)\n",
+		groupName,
+		prob*100,
+		bar,
+		label,
+		len(points),
+	)
 }
 
 func parseForecastForASCII(raw json.RawMessage) (map[string][]asciiPoint, []asciiPoint, error) {
