@@ -166,6 +166,10 @@ func shapeProbabilityUpdates(
 }
 
 func fetchMarketShapeInfo(code string) (string, bool, error) {
+	if cached, ok := getCachedMarketShape(code); ok {
+		return cached.MarketType, cached.Cumulative, nil
+	}
+
 	resp, err := client.Get("/markets/"+code, nil)
 	if err != nil {
 		return "", false, err
@@ -183,11 +187,21 @@ func fetchMarketShapeInfo(code string) (string, bool, error) {
 	if err := json.Unmarshal(data, &market); err != nil {
 		return "", false, fmt.Errorf("parsing market metadata: %w", err)
 	}
+
+	setCachedMarketShape(code, marketShapeSnapshot{
+		MarketType: market.Type,
+		Cumulative: market.Cumulative,
+	})
+
 	return market.Type, market.Cumulative, nil
 }
 
 // fetchFullForecastData fetches the full forecast JSON for a market.
 func fetchFullForecastData(code string) (json.RawMessage, error) {
+	if cached, ok := getCachedFullForecast(code); ok {
+		return cached, nil
+	}
+
 	params := url.Values{}
 	params.Set("include", "full")
 	params.Set("limit", "0")
@@ -208,6 +222,8 @@ func fetchFullForecastData(code string) (json.RawMessage, error) {
 	if json.Unmarshal(data, &meta) == nil && meta.ResponseMode == "summary_index" {
 		return nil, fmt.Errorf("received summary_index forecast; expected full data")
 	}
+
+	setCachedFullForecast(code, data)
 	return data, nil
 }
 
