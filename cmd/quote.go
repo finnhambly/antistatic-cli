@@ -303,28 +303,11 @@ func parseFloatField(m map[string]interface{}, name string) (float64, error) {
 }
 
 func parseFloatAny(value interface{}, name string) (float64, error) {
-	switch v := value.(type) {
-	case float64:
-		return v, nil
-	case int:
-		return float64(v), nil
-	case int64:
-		return float64(v), nil
-	case json.Number:
-		f, err := v.Float64()
-		if err != nil {
-			return 0, fmt.Errorf("%s must be a number", name)
-		}
-		return f, nil
-	case string:
-		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		if err != nil {
-			return 0, fmt.Errorf("%s must be a number", name)
-		}
-		return f, nil
-	default:
+	v, ok := toFloat(value)
+	if !ok {
 		return 0, fmt.Errorf("%s must be a number", name)
 	}
+	return v, nil
 }
 
 func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {

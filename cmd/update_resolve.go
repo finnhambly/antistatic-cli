@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 )
@@ -116,31 +115,17 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 }
 
 func fetchUpdateLookupPoints(code string) ([]updateLookupPoint, error) {
-	params := url.Values{}
-	params.Set("include", "full")
-	params.Set("limit", "0")
-	params.Set("mode", "full")
-
-	resp, err := client.Get("/markets/"+code+"/forecast", params)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := resp.Data()
+	data, err := fetchFullForecastData(code)
 	if err != nil {
 		return nil, err
 	}
 
 	var payload struct {
-		ResponseMode string                         `json:"response_mode"`
-		Submarkets   []updateLookupPoint            `json:"submarkets"`
-		Forecast     map[string][]updateLookupPoint `json:"forecast"`
+		Submarkets []updateLookupPoint            `json:"submarkets"`
+		Forecast   map[string][]updateLookupPoint `json:"forecast"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast payload for label lookup: %w", err)
-	}
-	if payload.ResponseMode == "summary_index" {
-		return nil, fmt.Errorf("forecast summary index cannot resolve labels; retry with full forecast data")
 	}
 
 	if len(payload.Submarkets) > 0 {

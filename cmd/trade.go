@@ -81,34 +81,11 @@ Example:
 			return err
 		}
 
-		if autoShape && len(updates) > 0 {
-			shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-				UsePendingBaseline: false,
-			})
-			if err != nil {
-				return err
-			}
-			if output.IsTTY() && report.OutputCount != report.InputCount {
-				fmt.Printf(
-					"Auto-shaped updates: %d input -> %d applied.\n",
-					report.InputCount,
-					report.OutputCount,
-				)
-			}
-			updates = shaped
-		}
-
-		updates, remainderReport, err := applyMulticountRemainder(
-			code,
-			updates,
-			false,
-			remainderRequest,
+		updates, remainderReport, err := shapeAndApplyRemainder(
+			code, updates, autoShape, false, remainderRequest,
 		)
 		if err != nil {
 			return err
-		}
-		if remainderRequest.Enabled() && !remainderReport.IsMulticount {
-			return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
 		}
 		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 		body["updates"] = probabilityUpdatesToPayload(updates)

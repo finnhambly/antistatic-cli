@@ -282,23 +282,13 @@ func buildGroupSummaries(code string, positionsData json.RawMessage) ([]groupedP
 }
 
 func fetchSubmarketGroups(code string) (map[int]string, error) {
-	params := url.Values{}
-	params.Set("include", "full")
-	params.Set("limit", "0")
-	params.Set("mode", "full")
-
-	resp, err := client.Get("/markets/"+code+"/forecast", params)
-	if err != nil {
-		return nil, err
-	}
-	data, err := resp.Data()
+	data, err := fetchFullForecastData(code)
 	if err != nil {
 		return nil, err
 	}
 
 	var payload struct {
-		ResponseMode string `json:"response_mode"`
-		Submarkets   []struct {
+		Submarkets []struct {
 			ID              int    `json:"id"`
 			Group           string `json:"group"`
 			ProjectionGroup string `json:"projection_group"`
@@ -306,9 +296,6 @@ func fetchSubmarketGroups(code string) (map[int]string, error) {
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast groups for positions summary: %w", err)
-	}
-	if payload.ResponseMode == "summary_index" {
-		return nil, fmt.Errorf("forecast returned summary index; cannot build group summary")
 	}
 
 	out := make(map[int]string, len(payload.Submarkets))

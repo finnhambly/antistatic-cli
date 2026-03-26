@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -158,37 +157,11 @@ func updatePendingEditsBody(
 		return err
 	}
 
-	if autoShape {
-		if len(updates) > 0 {
-			shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-				UsePendingBaseline: usePendingBaseline,
-			})
-			if err != nil {
-				return err
-			}
-			body["updates"] = probabilityUpdatesToPayload(shaped)
-			if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
-				fmt.Printf(
-					"Auto-shaped updates: %d input -> %d applied.\n",
-					report.InputCount,
-					report.OutputCount,
-				)
-			}
-			updates = shaped
-		}
-	}
-
-	updates, remainderReport, err := applyMulticountRemainder(
-		code,
-		updates,
-		usePendingBaseline,
-		remainderRequest,
+	updates, remainderReport, err := shapeAndApplyRemainder(
+		code, updates, autoShape, usePendingBaseline, remainderRequest,
 	)
 	if err != nil {
 		return err
-	}
-	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
-		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
 	}
 	printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 
@@ -492,27 +465,11 @@ func runDraftPlanner(
 	}
 
 	updates := draftPlanAsProbabilityUpdates(plan)
-	if autoShape {
-		shaped, _, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-			UsePendingBaseline: true,
-		})
-		if err != nil {
-			return err
-		}
-		updates = shaped
-	}
-
-	updates, remainderReport, err := applyMulticountRemainder(
-		code,
-		updates,
-		true,
-		remainderRequest,
+	updates, remainderReport, err := shapeAndApplyRemainder(
+		code, updates, autoShape, true, remainderRequest,
 	)
 	if err != nil {
 		return err
-	}
-	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
-		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
 	}
 	if remainderRequest.Enabled() || !apply {
 		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
@@ -749,30 +706,16 @@ func buildDraftDistributionPlan(
 }
 
 func fetchDraftForecastGroups(code string) (map[string][]draftForecastPoint, error) {
-	params := url.Values{}
-	params.Set("include", "full")
-	params.Set("limit", "0")
-	params.Set("mode", "full")
-
-	resp, err := client.Get("/markets/"+code+"/forecast", params)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := resp.Data()
+	data, err := fetchFullForecastData(code)
 	if err != nil {
 		return nil, err
 	}
 
 	var forecast struct {
-		ResponseMode string                          `json:"response_mode"`
-		Forecast     map[string][]draftForecastPoint `json:"forecast"`
+		Forecast map[string][]draftForecastPoint `json:"forecast"`
 	}
 	if err := json.Unmarshal(data, &forecast); err != nil {
 		return nil, fmt.Errorf("parsing forecast response: %w", err)
-	}
-	if forecast.ResponseMode == "summary_index" {
-		return nil, fmt.Errorf("received summary_index forecast; retry with include=full and limit=0")
 	}
 	return forecast.Forecast, nil
 }
@@ -913,34 +856,11 @@ func submitRawUpdatesAsTrade(
 		return fmt.Errorf("no valid updates found in --updates payload")
 	}
 
-	if autoShape {
-		shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-			UsePendingBaseline: true,
-		})
-		if err != nil {
-			return err
-		}
-		if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
-			fmt.Printf(
-				"Auto-shaped updates: %d input -> %d applied.\n",
-				report.InputCount,
-				report.OutputCount,
-			)
-		}
-		updates = shaped
-	}
-
-	updates, remainderReport, err := applyMulticountRemainder(
-		code,
-		updates,
-		true,
-		remainderRequest,
+	updates, remainderReport, err := shapeAndApplyRemainder(
+		code, updates, autoShape, true, remainderRequest,
 	)
 	if err != nil {
 		return err
-	}
-	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
-		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
 	}
 	printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 
@@ -986,34 +906,11 @@ func submitPendingEditsAsTrade(
 		return fmt.Errorf("pending edits contain no probability updates")
 	}
 
-	if autoShape {
-		shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-			UsePendingBaseline: false,
-		})
-		if err != nil {
-			return err
-		}
-		if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
-			fmt.Printf(
-				"Auto-shaped updates: %d input -> %d applied.\n",
-				report.InputCount,
-				report.OutputCount,
-			)
-		}
-		updates = shaped
-	}
-
-	updates, remainderReport, err := applyMulticountRemainder(
-		code,
-		updates,
-		false,
-		remainderRequest,
+	updates, remainderReport, err := shapeAndApplyRemainder(
+		code, updates, autoShape, false, remainderRequest,
 	)
 	if err != nil {
 		return err
-	}
-	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
-		return fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
 	}
 	printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 

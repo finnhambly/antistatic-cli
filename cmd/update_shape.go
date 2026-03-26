@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
-	"time"
+	"strings"
+
+	"github.com/finnhambly/antistatic-cli/internal/output"
 )
 
 const shapeEpsilon = 1.0e-9
@@ -58,20 +60,10 @@ func shapeProbabilityUpdates(
 	}
 
 	baseline := make(map[int]float64, len(forecast))
-	groupByID := make(map[int]string, len(forecast))
-	thresholdByID := make(map[int]float64, len(forecast))
-	thresholdDateByID := make(map[int]string, len(forecast))
 
-	for group, points := range forecast {
+	for _, points := range forecast {
 		for _, point := range points {
 			baseline[point.ID] = clampProb(point.CommunityProbability)
-			groupByID[point.ID] = group
-			if point.Threshold != nil {
-				thresholdByID[point.ID] = *point.Threshold
-			}
-			if point.ThresholdDate != "" {
-				thresholdDateByID[point.ID] = point.ThresholdDate
-			}
 		}
 	}
 
@@ -107,7 +99,7 @@ func shapeProbabilityUpdates(
 		}
 	}
 
-	ladders := buildLadders(marketType, cumulative, forecast, thresholdDateByID)
+	ladders := buildLadders(marketType, cumulative, forecast)
 	for _, ladder := range ladders {
 		anchorIndices := make([]int, 0)
 		for i, id := range ladder {
@@ -170,8 +162,6 @@ func shapeProbabilityUpdates(
 	sort.Slice(result, func(i, j int) bool { return result[i].SubmarketID < result[j].SubmarketID })
 
 	report.OutputCount = len(result)
-	_ = groupByID
-	_ = thresholdByID
 	return result, report, nil
 }
 
@@ -196,7 +186,8 @@ func fetchMarketShapeInfo(code string) (string, bool, error) {
 	return market.Type, market.Cumulative, nil
 }
 
-func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
+// fetchFullForecastData fetches the full forecast JSON for a market.
+func fetchFullForecastData(code string) (json.RawMessage, error) {
 	params := url.Values{}
 	params.Set("include", "full")
 	params.Set("limit", "0")
@@ -206,21 +197,31 @@ func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	data, err := resp.Data()
 	if err != nil {
 		return nil, err
 	}
 
+	var meta struct {
+		ResponseMode string `json:"response_mode"`
+	}
+	if json.Unmarshal(data, &meta) == nil && meta.ResponseMode == "summary_index" {
+		return nil, fmt.Errorf("received summary_index forecast; expected full data")
+	}
+	return data, nil
+}
+
+func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
+	data, err := fetchFullForecastData(code)
+	if err != nil {
+		return nil, err
+	}
+
 	var payload struct {
-		ResponseMode string                     `json:"response_mode"`
-		Forecast     map[string][]forecastPoint `json:"forecast"`
+		Forecast map[string][]forecastPoint `json:"forecast"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast payload: %w", err)
-	}
-	if payload.ResponseMode == "summary_index" {
-		return nil, fmt.Errorf("received summary_index forecast while shaping updates")
 	}
 
 	return payload.Forecast, nil
@@ -246,7 +247,6 @@ func buildLadders(
 	marketType string,
 	cumulative bool,
 	forecast map[string][]forecastPoint,
-	thresholdDateByID map[int]string,
 ) [][]int {
 	ladders := make([][]int, 0)
 
@@ -323,7 +323,6 @@ func buildLadders(
 		}
 	}
 
-	_ = thresholdDateByID
 	return ladders
 }
 
@@ -520,6 +519,49 @@ func parseProbabilityUpdates(raw interface{}) ([]probabilityUpdate, error) {
 	return updates, nil
 }
 
+// shapeAndApplyRemainder runs the common shape → multicount remainder pipeline.
+// It returns the processed updates and the remainder report. If remainderRequest
+// is enabled on a non-multicount market, it returns an error.
+func shapeAndApplyRemainder(
+	code string,
+	updates []probabilityUpdate,
+	autoShape bool,
+	usePendingBaseline bool,
+	remainderRequest multicountRemainderRequest,
+) ([]probabilityUpdate, multicountRemainderReport, error) {
+	if autoShape && len(updates) > 0 {
+		shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
+			UsePendingBaseline: usePendingBaseline,
+		})
+		if err != nil {
+			return nil, multicountRemainderReport{}, err
+		}
+		if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
+			fmt.Printf(
+				"Auto-shaped updates: %d input -> %d applied.\n",
+				report.InputCount,
+				report.OutputCount,
+			)
+		}
+		updates = shaped
+	}
+
+	updates, remainderReport, err := applyMulticountRemainder(
+		code,
+		updates,
+		usePendingBaseline,
+		remainderRequest,
+	)
+	if err != nil {
+		return nil, remainderReport, err
+	}
+	if remainderRequest.Enabled() && !remainderReport.IsMulticount {
+		return nil, remainderReport, fmt.Errorf("--fill-remainder/--remove-remainder are only supported for multicount markets")
+	}
+
+	return updates, remainderReport, nil
+}
+
 func probabilityUpdatesToPayload(updates []probabilityUpdate) []map[string]interface{} {
 	payload := make([]map[string]interface{}, 0, len(updates))
 	for _, update := range updates {
@@ -589,20 +631,13 @@ func toFloat(value interface{}) (float64, bool) {
 		v, err := typed.Float64()
 		return v, err == nil
 	case string:
-		if typed == "" {
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
 			return 0, false
 		}
-		v, err := strconv.ParseFloat(typed, 64)
+		v, err := strconv.ParseFloat(trimmed, 64)
 		return v, err == nil
 	default:
 		return 0, false
 	}
-}
-
-func parseRFC3339(value string) time.Time {
-	parsed, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return time.Time{}
-	}
-	return parsed
 }
