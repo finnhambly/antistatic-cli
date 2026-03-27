@@ -306,7 +306,7 @@ func init() {
 	forecastCmd.Flags().Bool("include-ids", false, "Force full forecast rows with submarket IDs for agent trading flows")
 	forecastCmd.Flags().Bool("ascii", false, "Render ASCII bars with monotonicity checks")
 	forecastCmd.Flags().Bool("summary", false, "With --ascii, show compact one-line summaries per group")
-	forecastCmd.Flags().Int("ascii-width", 32, "ASCII chart width in characters")
+	forecastCmd.Flags().Int("ascii-width", 50, "ASCII chart width in characters")
 	forecastCmd.Flags().Int("ascii-max-groups", 6, "Maximum groups to render in ASCII mode")
 	forecastCmd.Flags().Int("ascii-max-points", 60, "Maximum points per group to print in ASCII mode")
 	forecastCmd.Flags().String("ascii-basis", "starting", "With --ascii, probability basis: starting or community")

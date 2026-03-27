@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -192,18 +193,18 @@ func printASCIISummaryLine(groupName string, points []asciiPoint, width int, bas
 	if barCount > width {
 		barCount = width
 	}
-	bar := strings.Repeat("#", barCount) + strings.Repeat(".", width-barCount)
+	bar := strings.Repeat("█", barCount) + strings.Repeat("░", width-barCount)
 
-	label := last.Label
-	if len(label) > 24 {
-		label = label[:21] + "..."
+	label := compactASCIIPointLabel(last)
+	if len(label) > 18 {
+		label = label[:15] + "..."
 	}
 
 	fmt.Printf(
-		"%-12s %6.2f%% |%s|  %s (%d points)\n",
+		"%-12s │%s│ %5.1f%%  %s (%d)\n",
 		groupName,
-		prob*100,
 		bar,
+		prob*100,
 		label,
 		len(points),
 	)
@@ -268,25 +269,11 @@ func renderASCIIGroup(
 	cumulative bool,
 	basis string,
 ) {
-	fmt.Printf("\nGroup: %s\n", groupName)
-	fmt.Printf("Display basis: %s\n", basisLabel(basis))
-	printMonotonicExpectation(direction, cumulative)
+	fmt.Printf("\nGroup: %s\n", friendlyASCIIGroupName(groupName, points))
 
 	violations := monotonicViolations(points, direction, basis)
-	if len(violations) == 0 {
-		fmt.Println("Monotonic check: ok")
-	} else {
-		fmt.Printf("Monotonic check: %d violation(s)\n", len(violations))
-		preview := violations
-		if len(preview) > 8 {
-			preview = preview[:8]
-		}
-		for _, v := range preview {
-			fmt.Printf("  ! idx %d -> %d (%.2f%% -> %.2f%%)\n", v.prevIndex, v.currIndex, v.prevProb*100, v.currProb*100)
-		}
-		if len(violations) > len(preview) {
-			fmt.Printf("  ... %d more\n", len(violations)-len(preview))
-		}
+	if len(violations) > 0 {
+		fmt.Printf("Warning: %d monotonicity violation(s) for %s.\n", len(violations), basisLabel(basis))
 	}
 
 	printPoints := points
@@ -294,11 +281,28 @@ func renderASCIIGroup(
 		printPoints = printPoints[:maxPoints]
 	}
 
-	for idx, point := range printPoints {
-		label := point.Label
-		if len(label) > 30 {
-			label = label[:27] + "..."
+	maxLabelWidth := 0
+	labels := make([]string, 0, len(printPoints))
+	for _, point := range printPoints {
+		label := compactASCIIPointLabel(point)
+		if label == "" {
+			label = "?"
 		}
+		labels = append(labels, label)
+		if len(label) > maxLabelWidth {
+			maxLabelWidth = len(label)
+		}
+	}
+	if maxLabelWidth > 22 {
+		maxLabelWidth = 22
+	}
+
+	for idx, point := range printPoints {
+		label := labels[idx]
+		if len(label) > maxLabelWidth {
+			label = label[:maxLabelWidth]
+		}
+
 		prob := clampProb(pointProbabilityForBasis(point, basis))
 		barCount := int(math.Round(prob * float64(width)))
 		if barCount < 0 {
@@ -307,19 +311,21 @@ func renderASCIIGroup(
 		if barCount > width {
 			barCount = width
 		}
-		bar := strings.Repeat("#", barCount) + strings.Repeat(".", width-barCount)
+		bar := strings.Repeat("█", barCount) + strings.Repeat("░", width-barCount)
 		fmt.Printf(
-			"[%02d] %-30s %6.2f%% |%s|\n",
-			idx,
+			"  %-*s │%s│ %5.1f%%\n",
+			maxLabelWidth,
 			label,
-			prob*100,
 			bar,
+			prob*100,
 		)
 	}
 
 	if len(points) > len(printPoints) {
 		fmt.Printf("(showing first %d/%d points; increase --ascii-max-points)\n", len(printPoints), len(points))
 	}
+
+	_ = cumulative
 }
 
 type monotonicViolation struct {
@@ -397,17 +403,48 @@ func basisLabel(basis string) string {
 	return "community aggregate (context only)"
 }
 
-func printMonotonicExpectation(direction string, cumulative bool) {
-	switch direction {
-	case "down":
-		fmt.Println("Expected monotonicity: non-increasing (higher thresholds should not have higher probabilities)")
-	case "up":
-		if cumulative {
-			fmt.Println("Expected monotonicity: non-decreasing (later dates should not have lower probabilities)")
-		} else {
-			fmt.Println("Expected monotonicity: non-decreasing")
-		}
-	default:
-		fmt.Println("Expected monotonicity: n/a")
+func friendlyASCIIGroupName(groupName string, points []asciiPoint) string {
+	if len(points) == 0 {
+		return groupName
 	}
+	prefix := labelPrefixBeforeComma(points[0].Label)
+	if prefix != "" && looksLikeTimestampGroup(groupName) {
+		return prefix
+	}
+	return groupName
+}
+
+func compactASCIIPointLabel(point asciiPoint) string {
+	label := strings.TrimSpace(point.Label)
+	if label == "" {
+		if point.Threshold != nil {
+			return fmt.Sprintf("%.3g", *point.Threshold)
+		}
+		return ""
+	}
+
+	if idx := strings.LastIndex(label, ","); idx >= 0 {
+		label = strings.TrimSpace(label[idx+1:])
+	}
+
+	re := regexp.MustCompile(`^(>=|<=|>|<)\s*`)
+	label = re.ReplaceAllString(label, "")
+	label = strings.TrimSpace(label)
+	label = strings.Join(strings.Fields(label), " ")
+	return label
+}
+
+func labelPrefixBeforeComma(label string) string {
+	idx := strings.Index(label, ",")
+	if idx <= 0 {
+		return ""
+	}
+	return strings.TrimSpace(label[:idx])
+}
+
+func looksLikeTimestampGroup(groupName string) bool {
+	if len(groupName) < 10 {
+		return false
+	}
+	return strings.Contains(groupName, "T") && strings.Count(groupName, "-") >= 2
 }
