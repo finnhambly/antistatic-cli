@@ -41,11 +41,11 @@ Use --with-community to include community aggregates in output.`,
 		asciiMaxPoints, _ := cmd.Flags().GetInt("ascii-max-points")
 		asciiBasis, _ := cmd.Flags().GetString("ascii-basis")
 		withCommunity, _ := cmd.Flags().GetBool("with-community")
-		machineOutput := jsonOutput || !output.IsTTY()
 		asciiBasis = strings.ToLower(strings.TrimSpace(asciiBasis))
 		if asciiBasis == "" {
 			asciiBasis = "starting"
 		}
+		machineOutput := jsonOutput || (!output.IsTTY() && !ascii)
 
 		if ascii && jsonOutput {
 			return fmt.Errorf("--ascii cannot be combined with --json")
@@ -73,6 +73,9 @@ Use --with-community to include community aggregates in output.`,
 			params.Set("for", forParam)
 		}
 		if group != "" {
+			if resolved, ok := resolveForecastGroupAlias(code, group); ok {
+				group = resolved
+			}
 			params.Set("group", group)
 		}
 		if year != "" {
@@ -259,6 +262,9 @@ Use --with-community to include community aggregates in output.`,
 			rows := make([][]string, 0, len(forecast.Groups))
 			for _, row := range forecast.Groups {
 				group := fmt.Sprintf("%v", row["group"])
+				if groupLabel, ok := row["group_label"].(string); ok && strings.TrimSpace(groupLabel) != "" {
+					group = fmt.Sprintf("%s (%s)", group, strings.TrimSpace(groupLabel))
+				}
 				submarketCount := fmt.Sprintf("%v", row["submarkets"])
 				rangeText := "context hidden"
 				if withCommunity {
@@ -291,7 +297,7 @@ Use --with-community to include community aggregates in output.`,
 
 func init() {
 	forecastCmd.Flags().String("for", "", "Query specific point (date or threshold value)")
-	forecastCmd.Flags().String("group", "", "Filter by projection group (e.g. 2026-08)")
+	forecastCmd.Flags().String("group", "", "Filter by projection group (ISO id, fiscal label, or year; e.g. 2026-08, 2026/27, 2027)")
 	forecastCmd.Flags().String("year", "", "Filter by year")
 	forecastCmd.Flags().String("include", "", "Detail level: summary, liquidity, or full")
 	forecastCmd.Flags().Bool("curve", false, "Return all submarkets up to the queried point")
@@ -321,30 +327,110 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 		"context_reference_field": "community_probability",
 		"note":                    "Trades are quoted against starting_probability (house line), not community aggregate values.",
 	}
+	delete(payload, "budget")
 
 	if rawSubmarkets, ok := payload["submarkets"].([]interface{}); ok {
+		groupLabels := make(map[string]string)
+		cleanedSubmarkets := make([]interface{}, 0, len(rawSubmarkets))
 		for _, item := range rawSubmarkets {
 			submarket, ok := item.(map[string]interface{})
 			if !ok {
 				continue
 			}
+
+			cleaned := map[string]interface{}{}
+			copyMapField(cleaned, submarket, "id")
+			copyMapField(cleaned, submarket, "label")
+			copyMapField(cleaned, submarket, "group")
+			copyMapField(cleaned, submarket, "projection_group")
+			copyMapField(cleaned, submarket, "threshold")
+			copyMapField(cleaned, submarket, "threshold_date")
+			copyMapField(cleaned, submarket, "end_date")
+
 			if p, ok := firstProbabilityValue(submarket["starting_probability"], submarket["probability"]); ok {
-				submarket["trade_probability"] = p
+				cleaned["starting_probability"] = p
+				cleaned["trade_probability"] = p
+			}
+
+			if p, ok := firstProbabilityValue(submarket["probability"]); ok {
+				cleaned["probability"] = p
+			}
+
+			if withCommunity {
+				if p, ok := firstProbabilityValue(submarket["community_probability"]); ok {
+					cleaned["community_probability"] = p
+				}
+			}
+
+			if label, ok := submarket["label"].(string); ok {
+				if groupLabel := groupLabelFromSubmarketLabel(label); groupLabel != "" {
+					cleaned["group_label"] = groupLabel
+
+					groupName := fmt.Sprintf("%v", submarket["projection_group"])
+					if strings.TrimSpace(groupName) == "" {
+						groupName = fmt.Sprintf("%v", submarket["group"])
+					}
+					if groupName != "" && groupLabels[groupName] == "" {
+						groupLabels[groupName] = groupLabel
+					}
+				}
+			}
+
+			cleanedSubmarkets = append(cleanedSubmarkets, cleaned)
+		}
+		payload["submarkets"] = cleanedSubmarkets
+		if len(groupLabels) > 0 {
+			payload["group_labels"] = groupLabels
+		}
+	}
+
+	if rawGroups, ok := payload["groups"].([]interface{}); ok {
+		groupLabels, _ := payload["group_labels"].(map[string]string)
+		for _, raw := range rawGroups {
+			groupRow, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
 			}
 			if !withCommunity {
-				delete(submarket, "community_probability")
+				delete(groupRow, "prob_range")
+			}
+			if len(groupLabels) > 0 {
+				groupName := fmt.Sprintf("%v", groupRow["group"])
+				if groupLabel, exists := groupLabels[groupName]; exists {
+					groupRow["group_label"] = groupLabel
+				}
 			}
 		}
 	}
 
 	if matched, ok := payload["matched"].(map[string]interface{}); ok {
+		cleanedMatched := map[string]interface{}{}
+		copyMapField(cleanedMatched, matched, "id")
+		copyMapField(cleanedMatched, matched, "label")
+		copyMapField(cleanedMatched, matched, "group")
+		copyMapField(cleanedMatched, matched, "projection_group")
+		copyMapField(cleanedMatched, matched, "threshold")
+		copyMapField(cleanedMatched, matched, "threshold_date")
+		copyMapField(cleanedMatched, matched, "end_date")
+
 		if p, ok := firstProbabilityValue(matched["starting_probability"], matched["probability"]); ok {
-			matched["trade_probability"] = p
+			cleanedMatched["starting_probability"] = p
+			cleanedMatched["trade_probability"] = p
 		}
-		if !withCommunity {
-			delete(matched, "community_probability")
+		if p, ok := firstProbabilityValue(matched["probability"]); ok {
+			cleanedMatched["probability"] = p
 		}
-		payload["matched"] = matched
+		if withCommunity {
+			if p, ok := firstProbabilityValue(matched["community_probability"]); ok {
+				cleanedMatched["community_probability"] = p
+			}
+		}
+		if label, ok := matched["label"].(string); ok {
+			if groupLabel := groupLabelFromSubmarketLabel(label); groupLabel != "" {
+				cleanedMatched["group_label"] = groupLabel
+			}
+		}
+		payload["matched"] = cleanedMatched
 	}
 
 	encoded, err := json.Marshal(payload)
@@ -361,6 +447,14 @@ func firstProbabilityValue(values ...interface{}) (float64, bool) {
 			return typed, true
 		case float32:
 			return float64(typed), true
+		case *float64:
+			if typed != nil {
+				return *typed, true
+			}
+		case *float32:
+			if typed != nil {
+				return float64(*typed), true
+			}
 		case int:
 			return float64(typed), true
 		case int64:
@@ -370,4 +464,58 @@ func firstProbabilityValue(values ...interface{}) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func copyMapField(dst, src map[string]interface{}, key string) {
+	value, ok := src[key]
+	if !ok {
+		return
+	}
+	dst[key] = value
+}
+
+func resolveForecastGroupAlias(code, group string) (string, bool) {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return group, false
+	}
+
+	data, err := fetchFullForecastData(code)
+	if err != nil {
+		return group, false
+	}
+
+	var payload struct {
+		Submarkets []struct {
+			Group           string `json:"group"`
+			ProjectionGroup string `json:"projection_group"`
+			Label           string `json:"label"`
+		} `json:"submarkets"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return group, false
+	}
+
+	groupSet := make(map[string]struct{})
+	groupLabels := make(map[string]string)
+	for _, row := range payload.Submarkets {
+		groupName := strings.TrimSpace(row.ProjectionGroup)
+		if groupName == "" {
+			groupName = strings.TrimSpace(row.Group)
+		}
+		if groupName == "" {
+			continue
+		}
+		groupSet[groupName] = struct{}{}
+		if groupLabels[groupName] == "" {
+			groupLabels[groupName] = groupLabelFromSubmarketLabel(row.Label)
+		}
+	}
+
+	aliases := buildGroupAliasIndex(sortedGroupKeys(groupSet), groupLabels)
+	resolved, ok := resolveGroupAlias(aliases, group)
+	if !ok {
+		return group, false
+	}
+	return resolved, true
 }

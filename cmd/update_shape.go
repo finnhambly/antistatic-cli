@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +34,8 @@ type forecastPoint struct {
 	ID                   int      `json:"id"`
 	Threshold            *float64 `json:"threshold"`
 	ThresholdDate        string   `json:"threshold_date"`
+	StartingProbability  *float64 `json:"starting_probability"`
+	Probability          *float64 `json:"probability"`
 	CommunityProbability float64  `json:"community_probability"`
 }
 
@@ -63,7 +66,15 @@ func shapeProbabilityUpdates(
 
 	for _, points := range forecast {
 		for _, point := range points {
-			baseline[point.ID] = clampProb(point.CommunityProbability)
+			probability := 0.5
+			if p, ok := firstProbabilityValue(
+				point.StartingProbability,
+				point.Probability,
+				point.CommunityProbability,
+			); ok {
+				probability = clampProb(p)
+			}
+			baseline[point.ID] = probability
 		}
 	}
 
@@ -488,9 +499,9 @@ func parseProbabilityUpdatesFromBody(body map[string]interface{}) ([]probability
 }
 
 func parseProbabilityUpdates(raw interface{}) ([]probabilityUpdate, error) {
-	list, ok := raw.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("updates must be an array")
+	list, err := normalizeUpdatesArray(raw)
+	if err != nil {
+		return nil, err
 	}
 
 	updates := make([]probabilityUpdate, 0, len(list))
@@ -533,6 +544,30 @@ func parseProbabilityUpdates(raw interface{}) ([]probabilityUpdate, error) {
 		updates = append(updates, update)
 	}
 	return updates, nil
+}
+
+func normalizeUpdatesArray(raw interface{}) ([]interface{}, error) {
+	switch typed := raw.(type) {
+	case []interface{}:
+		return typed, nil
+	case []map[string]interface{}:
+		out := make([]interface{}, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, item)
+		}
+		return out, nil
+	}
+
+	value := reflect.ValueOf(raw)
+	if !value.IsValid() || value.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("updates must be an array")
+	}
+
+	out := make([]interface{}, 0, value.Len())
+	for i := 0; i < value.Len(); i++ {
+		out = append(out, value.Index(i).Interface())
+	}
+	return out, nil
 }
 
 // shapeAndApplyRemainder runs the common shape → multicount remainder pipeline.

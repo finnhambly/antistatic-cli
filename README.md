@@ -90,6 +90,9 @@ antistatic forecast us-troops-iran --with-community
 # Filter by projection group
 antistatic forecast us-troops-iran --group 2026-08
 
+# Fiscal/year shorthand is also accepted when available (e.g. 2026/27, 2027)
+antistatic forecast tnuos --group 2026/27
+
 # Query a specific threshold
 antistatic forecast us-troops-iran --for 5000 --group 2026-08
 
@@ -135,6 +138,9 @@ antistatic positions --market us-troops-iran --group-summary
 
 # P&L scenarios (what you gain/lose under each outcome)
 antistatic points us-troops-iran
+
+# Scenario alias for --at
+antistatic points us-troops-iran --scenario 5000
 ```
 
 ### Profile analytics
@@ -156,19 +162,22 @@ antistatic profile liquidity-decay --limit 20
 # 1) Inspect current forecast and submarket IDs
 antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
 
-# 2) Plan draft edits across contiguous groups (preview only by default)
+# 2) Read comments/context before placing trades
+antistatic comments us-troops-iran --sort hot --limit 20
+
+# 3) Plan draft edits across contiguous groups (preview only by default)
 antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --interpolate-to 0.60
 
-# 3) Optional: fit a full threshold distribution in one shot
+# 4) Optional: fit a full threshold distribution in one shot
 antistatic draft us-troops-iran --distribution lognormal --median 3100 --sigma 0.35 --next-groups 6
 
-# 4) For multicount markets, optionally fill/remove remainder in one group
+# 5) For multicount markets, optionally fill/remove remainder in one group
 antistatic draft eng-le --fill-remainder --multicount-group labour
 
-# 5) Optional: estimate cost if needed
+# 6) Optional: estimate cost if needed
 antistatic quote us-troops-iran --submarket-id 42 --probability 0.75
 
-# 6) Submit directly from draft planning once approved
+# 7) Submit directly from draft planning once approved
 antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --next-groups 6 --submit -y
 ```
 
@@ -225,6 +234,9 @@ antistatic draft us-troops-iran --threshold 70 --probability 0.35 --interpolate-
 
 # Parametric full distribution fit
 antistatic draft us-troops-iran --distribution lognormal --median 3100 --sigma 0.35 --next-groups 6
+
+# Fiscal/year group shorthand for planner ranges
+antistatic draft tnuos --distribution lognormal --median 7.61 --sigma 0.025 --from-group 2026/27 --to-group 2028/29
 
 # Date markets: use explicit anchors by ID or label (threshold planner is count-only)
 antistatic draft some-date-market --updates '[{"label":"By Dec 2027","group":"2027","probability":0.08}]'

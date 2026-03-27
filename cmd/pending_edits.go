@@ -35,9 +35,25 @@ type draftPlanLine struct {
 }
 
 type draftForecastPoint struct {
-	ID        int      `json:"id"`
-	Label     string   `json:"label"`
-	Threshold *float64 `json:"threshold"`
+	ID                   int      `json:"id"`
+	Label                string   `json:"label"`
+	Group                string   `json:"group"`
+	ProjectionGroup      string   `json:"projection_group"`
+	Threshold            *float64 `json:"threshold"`
+	StartingProbability  *float64 `json:"starting_probability"`
+	Probability          *float64 `json:"probability"`
+	CommunityProbability *float64 `json:"community_probability"`
+}
+
+type draftPreviewRow struct {
+	SubmarketID          int      `json:"submarket_id"`
+	Group                string   `json:"group,omitempty"`
+	GroupLabel           string   `json:"group_label,omitempty"`
+	Label                string   `json:"label,omitempty"`
+	Threshold            *float64 `json:"threshold,omitempty"`
+	StartingProbability  *float64 `json:"starting_probability,omitempty"`
+	CommunityProbability *float64 `json:"community_probability,omitempty"`
+	PlannedProbability   float64  `json:"planned_probability"`
 }
 
 var pendingEditsCmd = &cobra.Command{
@@ -475,6 +491,10 @@ func runDraftPlanner(
 		printMulticountRemainderNotice(code, remainderReport, remainderRequest)
 	}
 
+	forecastByID, _ := fetchDraftForecastPointsByID(code)
+	previewRows := buildDraftPreviewRows(updates, forecastByID)
+	selectedGroupLabels := selectedGroupLabelsFromPreviewRows(selectedGroups, previewRows)
+
 	if (jsonOutput || !output.IsTTY()) && !submit {
 		var estimatedCost *float64
 		if estimateCost {
@@ -487,9 +507,13 @@ func runDraftPlanner(
 			"selected_groups":      selectedGroups,
 			"missing_groups":       missingGroups,
 			"updates":              probabilityUpdatesToPayload(updates),
+			"preview_rows":         previewRows,
 			"mode":                 mode,
 			"apply":                apply,
 			"multicount_remainder": multicountRemainderReportJSON(remainderReport),
+		}
+		if len(selectedGroupLabels) > 0 {
+			preview["selected_group_labels"] = selectedGroupLabels
 		}
 		if remainderReport.IsMulticount {
 			preview["group_expected_values"] = buildGroupExpectedValuesJSON(code, true)
@@ -530,15 +554,47 @@ func runDraftPlanner(
 			)
 		}
 
-		headers := []string{"SUBMARKET ID", "PROBABILITY"}
-		rows := make([][]string, 0, len(updates))
-		for _, line := range updates {
-			rows = append(rows, []string{
-				fmt.Sprintf("%d", line.SubmarketID),
-				fmt.Sprintf("%.2f%%", line.Probability*100),
-			})
+		if len(previewRows) > 0 {
+			headers := []string{"GROUP", "LABEL", "HOUSE", "TARGET"}
+			rows := make([][]string, 0, len(previewRows))
+			for _, row := range previewRows {
+				group := row.Group
+				if row.GroupLabel != "" {
+					group = fmt.Sprintf("%s (%s)", group, row.GroupLabel)
+				}
+				if group == "" {
+					group = "-"
+				}
+
+				label := row.Label
+				if label == "" {
+					label = fmt.Sprintf("submarket %d", row.SubmarketID)
+				}
+
+				house := "-"
+				if row.StartingProbability != nil {
+					house = fmt.Sprintf("%.2f%%", (*row.StartingProbability)*100)
+				}
+
+				rows = append(rows, []string{
+					group,
+					label,
+					house,
+					fmt.Sprintf("%.2f%%", row.PlannedProbability*100),
+				})
+			}
+			output.Table(headers, rows)
+		} else {
+			headers := []string{"SUBMARKET ID", "PROBABILITY"}
+			rows := make([][]string, 0, len(updates))
+			for _, line := range updates {
+				rows = append(rows, []string{
+					fmt.Sprintf("%d", line.SubmarketID),
+					fmt.Sprintf("%.2f%%", line.Probability*100),
+				})
+			}
+			output.Table(headers, rows)
 		}
-		output.Table(headers, rows)
 		if estimateCost {
 			if totalCost, quoteErr := previewTradeCost(code, updates); quoteErr == nil {
 				fmt.Printf("Estimated cost: %.4f points.\n", totalCost)
@@ -582,8 +638,10 @@ func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []stri
 		groups = append(groups, group)
 	}
 	sort.Strings(groups)
+	groupLabels := groupLabelsFromDraftForecast(forecastGroups)
+	groupAliases := buildGroupAliasIndex(groups, groupLabels)
 
-	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups)
+	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups, groupAliases)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -652,8 +710,10 @@ func buildDraftDistributionPlan(
 		groups = append(groups, group)
 	}
 	sort.Strings(groups)
+	groupLabels := groupLabelsFromDraftForecast(forecastGroups)
+	groupAliases := buildGroupAliasIndex(groups, groupLabels)
 
-	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups)
+	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups, groupAliases)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -720,6 +780,67 @@ func fetchDraftForecastGroups(code string) (map[string][]draftForecastPoint, err
 	return forecast.Forecast, nil
 }
 
+func fetchDraftForecastPointsByID(code string) (map[int]draftForecastPoint, error) {
+	data, err := fetchFullForecastData(code)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload struct {
+		Submarkets []draftForecastPoint            `json:"submarkets"`
+		Forecast   map[string][]draftForecastPoint `json:"forecast"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("parsing forecast response: %w", err)
+	}
+
+	out := make(map[int]draftForecastPoint)
+	if len(payload.Submarkets) > 0 {
+		for _, point := range payload.Submarkets {
+			if point.ID <= 0 {
+				continue
+			}
+			if point.Group == "" {
+				point.Group = point.ProjectionGroup
+			}
+			out[point.ID] = point
+		}
+		return out, nil
+	}
+
+	for group, points := range payload.Forecast {
+		for _, point := range points {
+			if point.ID <= 0 {
+				continue
+			}
+			if point.Group == "" {
+				point.Group = group
+			}
+			if point.ProjectionGroup == "" {
+				point.ProjectionGroup = point.Group
+			}
+			out[point.ID] = point
+		}
+	}
+
+	return out, nil
+}
+
+func groupLabelsFromDraftForecast(forecastGroups map[string][]draftForecastPoint) map[string]string {
+	groupLabels := make(map[string]string)
+	for group, points := range forecastGroups {
+		for _, point := range points {
+			label := groupLabelFromSubmarketLabel(point.Label)
+			if label == "" {
+				continue
+			}
+			groupLabels[group] = label
+			break
+		}
+	}
+	return groupLabels
+}
+
 func lognormalSurvivalProbability(threshold, median, sigma float64) float64 {
 	if threshold <= 0 {
 		return 1
@@ -730,14 +851,20 @@ func lognormalSurvivalProbability(threshold, median, sigma float64) float64 {
 	return 1 - cdf
 }
 
-func selectDraftPlanGroups(groups []string, fromGroup, toGroup string, nextGroups int) ([]string, error) {
+func selectDraftPlanGroups(
+	groups []string,
+	fromGroup, toGroup string,
+	nextGroups int,
+	groupAliases map[string]string,
+) ([]string, error) {
 	if len(groups) == 0 {
 		return nil, fmt.Errorf("market has no projection groups")
 	}
 
 	startIdx := 0
 	if fromGroup != "" {
-		idx := findGroupIndex(groups, fromGroup)
+		resolvedFromGroup := resolveSelectedGroup(fromGroup, groups, groupAliases)
+		idx := findGroupIndex(groups, resolvedFromGroup)
 		if idx < 0 {
 			return nil, fmt.Errorf("from-group %q not found", fromGroup)
 		}
@@ -756,7 +883,8 @@ func selectDraftPlanGroups(groups []string, fromGroup, toGroup string, nextGroup
 
 	endIdx := len(groups) - 1
 	if toGroup != "" {
-		idx := findGroupIndex(groups, toGroup)
+		resolvedToGroup := resolveSelectedGroup(toGroup, groups, groupAliases)
+		idx := findGroupIndex(groups, resolvedToGroup)
 		if idx < 0 {
 			return nil, fmt.Errorf("to-group %q not found", toGroup)
 		}
@@ -768,6 +896,20 @@ func selectDraftPlanGroups(groups []string, fromGroup, toGroup string, nextGroup
 	}
 
 	return groups[startIdx : endIdx+1], nil
+}
+
+func resolveSelectedGroup(input string, groups []string, groupAliases map[string]string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return ""
+	}
+	if idx := findGroupIndex(groups, input); idx >= 0 {
+		return groups[idx]
+	}
+	if resolved, ok := resolveGroupAlias(groupAliases, input); ok {
+		return resolved
+	}
+	return input
 }
 
 func defaultNextGroupStartIndex(groups []string) int {
@@ -835,6 +977,87 @@ func draftPlanAsProbabilityUpdates(plan []draftPlanLine) []probabilityUpdate {
 		})
 	}
 	return updates
+}
+
+func buildDraftPreviewRows(
+	updates []probabilityUpdate,
+	forecastByID map[int]draftForecastPoint,
+) []draftPreviewRow {
+	rows := make([]draftPreviewRow, 0, len(updates))
+	for _, update := range updates {
+		row := draftPreviewRow{
+			SubmarketID:        update.SubmarketID,
+			PlannedProbability: roundProbability(update.Probability),
+		}
+
+		if point, ok := forecastByID[update.SubmarketID]; ok {
+			row.Group = point.ProjectionGroup
+			if row.Group == "" {
+				row.Group = point.Group
+			}
+			row.GroupLabel = groupLabelFromSubmarketLabel(point.Label)
+			row.Label = point.Label
+			row.Threshold = point.Threshold
+			row.StartingProbability = point.StartingProbability
+			row.CommunityProbability = point.CommunityProbability
+		}
+
+		rows = append(rows, row)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Group != rows[j].Group {
+			return rows[i].Group < rows[j].Group
+		}
+		left := math.Inf(1)
+		if rows[i].Threshold != nil {
+			left = *rows[i].Threshold
+		}
+		right := math.Inf(1)
+		if rows[j].Threshold != nil {
+			right = *rows[j].Threshold
+		}
+		if left != right {
+			return left < right
+		}
+		return rows[i].SubmarketID < rows[j].SubmarketID
+	})
+
+	return rows
+}
+
+func selectedGroupLabelsFromPreviewRows(
+	selectedGroups []string,
+	previewRows []draftPreviewRow,
+) map[string]string {
+	if len(selectedGroups) == 0 {
+		return nil
+	}
+
+	labels := make(map[string]string)
+	for _, group := range selectedGroups {
+		labels[group] = ""
+	}
+
+	for _, row := range previewRows {
+		if row.Group == "" || row.GroupLabel == "" {
+			continue
+		}
+		if _, ok := labels[row.Group]; ok && labels[row.Group] == "" {
+			labels[row.Group] = row.GroupLabel
+		}
+	}
+
+	out := make(map[string]string)
+	for group, label := range labels {
+		if label != "" {
+			out[group] = label
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func submitRawUpdatesAsTrade(
@@ -996,8 +1219,8 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().String("distribution", "", "Draft planner: parametric distribution to fit across thresholds (currently: lognormal)")
 	cmd.Flags().Float64("median", 0, "Draft planner distribution mode: median parameter")
 	cmd.Flags().Float64("sigma", 0, "Draft planner distribution mode: sigma parameter")
-	cmd.Flags().String("from-group", "", "Draft planner: first projection group (inclusive)")
-	cmd.Flags().String("to-group", "", "Draft planner: last projection group (inclusive)")
+	cmd.Flags().String("from-group", "", "Draft planner: first projection group (inclusive; accepts ISO id, fiscal label, or year)")
+	cmd.Flags().String("to-group", "", "Draft planner: last projection group (inclusive; accepts ISO id, fiscal label, or year)")
 	cmd.Flags().Int("next-groups", 0, "Draft planner: select next N groups (from --from-group or current period)")
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")

@@ -20,9 +20,9 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 		return nil
 	}
 
-	updates, ok := raw.([]interface{})
-	if !ok {
-		return fmt.Errorf("updates must be an array")
+	updates, err := normalizeUpdatesArray(raw)
+	if err != nil {
+		return err
 	}
 
 	needsLookup := false
@@ -51,6 +51,23 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 	if len(points) == 0 {
 		return fmt.Errorf("could not resolve labels: forecast returned no submarkets")
 	}
+
+	groupLabels := make(map[string]string)
+	groupSet := make(map[string]struct{})
+	for _, point := range points {
+		group := point.ProjectionGroup
+		if group == "" {
+			group = point.Group
+		}
+		if group == "" {
+			continue
+		}
+		groupSet[group] = struct{}{}
+		if groupLabels[group] == "" {
+			groupLabels[group] = groupLabelFromSubmarketLabel(point.Label)
+		}
+	}
+	groupAliases := buildGroupAliasIndex(sortedGroupKeys(groupSet), groupLabels)
 
 	byLabel := make(map[string][]updateLookupPoint)
 	for _, point := range points {
@@ -81,14 +98,16 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 		}
 
 		groupHint := updateGroupHint(entry)
+		resolvedHint := ""
+		if groupHint != "" {
+			if resolved, ok := resolveGroupAlias(groupAliases, groupHint); ok {
+				resolvedHint = resolved
+			}
+		}
 		if groupHint != "" {
 			filtered := make([]updateLookupPoint, 0, len(candidates))
 			for _, candidate := range candidates {
-				group := candidate.ProjectionGroup
-				if group == "" {
-					group = candidate.Group
-				}
-				if strings.EqualFold(strings.TrimSpace(group), groupHint) {
+				if lookupPointMatchesGroupHint(candidate, groupHint, resolvedHint) {
 					filtered = append(filtered, candidate)
 				}
 			}
@@ -186,8 +205,29 @@ func uniqueCandidateGroups(points []updateLookupPoint) []string {
 			continue
 		}
 		seen[group] = true
-		groups = append(groups, group)
+		display := group
+		if groupLabel := groupLabelFromSubmarketLabel(point.Label); groupLabel != "" {
+			display = fmt.Sprintf("%s (%s)", group, groupLabel)
+		}
+		groups = append(groups, display)
 	}
 	sort.Strings(groups)
 	return groups
+}
+
+func lookupPointMatchesGroupHint(point updateLookupPoint, rawHint, resolvedHint string) bool {
+	group := point.ProjectionGroup
+	if group == "" {
+		group = point.Group
+	}
+	aliases := groupAliasTokenSet(group, groupLabelFromSubmarketLabel(point.Label))
+
+	if resolvedHint != "" {
+		if _, ok := aliases[normalizeGroupKey(resolvedHint)]; ok {
+			return true
+		}
+	}
+
+	_, ok := aliases[normalizeGroupKey(rawHint)]
+	return ok
 }

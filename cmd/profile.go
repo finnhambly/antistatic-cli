@@ -96,9 +96,9 @@ var profileSummaryCmd = &cobra.Command{
 
 		output.KeyValue([][2]string{
 			{"User ID", strconv.Itoa(summary.UserID)},
-			{"Forecasting points", signed(summary.ForecastingPoints)},
-			{"Private-market points", signed(summary.PrivateForecastingPoints)},
-			{"Tipping points", signed(summary.TippingProfit)},
+			{"Forecasting P&L (cumulative)", signed(summary.ForecastingPoints)},
+			{"Private-market P&L (cumulative)", signed(summary.PrivateForecastingPoints)},
+			{"Tipping points (cumulative)", signed(summary.TippingProfit)},
 		})
 		return nil
 	},
