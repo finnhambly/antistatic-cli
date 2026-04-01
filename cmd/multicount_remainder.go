@@ -620,10 +620,8 @@ func buildProbabilityUpdatesFromState(
 			SubmarketID: id,
 			Probability: roundProbability(current),
 		}
-		if fixedChanged {
-			fixed := currentFixed[id]
-			update.IsFixed = &fixed
-		}
+		fixed := currentFixed[id]
+		update.IsFixed = &fixed
 		updatesByID[id] = update
 	}
 

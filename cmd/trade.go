@@ -76,7 +76,8 @@ Example:
 			return err
 		}
 
-		updates, err := parseProbabilityUpdatesFromBody(body)
+		defaultFixed := true
+		updates, err := parseProbabilityUpdatesFromBodyWithDefault(body, &defaultFixed)
 		if err != nil {
 			return err
 		}

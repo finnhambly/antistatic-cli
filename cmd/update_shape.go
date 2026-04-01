@@ -133,44 +133,14 @@ func shapeProbabilityUpdates(
 		}
 	}
 
-	updatesByID := make(map[int]probabilityUpdate)
-	for id, base := range baseline {
-		value := current[id]
-		if math.Abs(value-base) <= shapeEpsilon {
-			continue
-		}
-		updatesByID[id] = probabilityUpdate{
-			SubmarketID: id,
-			Probability: roundProbability(value),
-		}
-	}
-
-	for _, update := range input {
-		if update.IsFixed == nil {
-			continue
-		}
-		if existing, ok := updatesByID[update.SubmarketID]; ok {
-			existing.IsFixed = update.IsFixed
-			updatesByID[update.SubmarketID] = existing
-			continue
-		}
-		if value, ok := current[update.SubmarketID]; ok {
-			updatesByID[update.SubmarketID] = probabilityUpdate{
-				SubmarketID: update.SubmarketID,
-				Probability: roundProbability(value),
-				IsFixed:     update.IsFixed,
-			}
-			continue
-		}
-		updatesByID[update.SubmarketID] = update
-	}
-
-	result := make([]probabilityUpdate, 0, len(updatesByID)+len(unknownAnchors))
-	for _, update := range updatesByID {
-		result = append(result, update)
-	}
-	result = append(result, unknownAnchors...)
-	sort.Slice(result, func(i, j int) bool { return result[i].SubmarketID < result[j].SubmarketID })
+	result := buildShapedProbabilityUpdates(
+		baseline,
+		current,
+		anchor,
+		isFixedByID,
+		input,
+		unknownAnchors,
+	)
 
 	report.OutputCount = len(result)
 	return result, report, nil
@@ -490,15 +460,117 @@ func enforceDirectionalMonotonicity(
 	}
 }
 
+func buildShapedProbabilityUpdates(
+	baseline map[int]float64,
+	current map[int]float64,
+	anchor map[int]bool,
+	anchorFixed map[int]bool,
+	input []probabilityUpdate,
+	unknownAnchors []probabilityUpdate,
+) []probabilityUpdate {
+	updatesByID := make(map[int]probabilityUpdate)
+	for id, base := range baseline {
+		value := current[id]
+		if math.Abs(value-base) <= shapeEpsilon {
+			continue
+		}
+
+		fixed := false
+		if anchor[id] {
+			if explicit, ok := anchorFixed[id]; ok {
+				fixed = explicit
+			} else {
+				// Explicitly targeted bars are fixed by default.
+				fixed = true
+			}
+		}
+
+		fixedCopy := fixed
+		updatesByID[id] = probabilityUpdate{
+			SubmarketID: id,
+			Probability: roundProbability(value),
+			IsFixed:     &fixedCopy,
+		}
+	}
+
+	for _, update := range input {
+		if update.IsFixed == nil {
+			continue
+		}
+		if existing, ok := updatesByID[update.SubmarketID]; ok {
+			existing.IsFixed = update.IsFixed
+			updatesByID[update.SubmarketID] = existing
+			continue
+		}
+		if value, ok := current[update.SubmarketID]; ok {
+			updatesByID[update.SubmarketID] = probabilityUpdate{
+				SubmarketID: update.SubmarketID,
+				Probability: roundProbability(value),
+				IsFixed:     update.IsFixed,
+			}
+			continue
+		}
+		updatesByID[update.SubmarketID] = update
+	}
+
+	for _, update := range input {
+		if update.IsFixed != nil {
+			continue
+		}
+		if !anchor[update.SubmarketID] {
+			continue
+		}
+
+		fixed := true
+		if existing, ok := updatesByID[update.SubmarketID]; ok {
+			existing.IsFixed = &fixed
+			updatesByID[update.SubmarketID] = existing
+			continue
+		}
+		if value, ok := current[update.SubmarketID]; ok {
+			updatesByID[update.SubmarketID] = probabilityUpdate{
+				SubmarketID: update.SubmarketID,
+				Probability: roundProbability(value),
+				IsFixed:     &fixed,
+			}
+			continue
+		}
+		update.IsFixed = &fixed
+		updatesByID[update.SubmarketID] = update
+	}
+
+	result := make([]probabilityUpdate, 0, len(updatesByID)+len(unknownAnchors))
+	for _, update := range updatesByID {
+		result = append(result, update)
+	}
+	result = append(result, unknownAnchors...)
+	sort.Slice(result, func(i, j int) bool { return result[i].SubmarketID < result[j].SubmarketID })
+	return result
+}
+
 func parseProbabilityUpdatesFromBody(body map[string]interface{}) ([]probabilityUpdate, error) {
+	return parseProbabilityUpdatesFromBodyWithDefault(body, nil)
+}
+
+func parseProbabilityUpdatesFromBodyWithDefault(
+	body map[string]interface{},
+	defaultFixed *bool,
+) ([]probabilityUpdate, error) {
 	raw, ok := body["updates"]
 	if !ok {
 		return nil, nil
 	}
-	return parseProbabilityUpdates(raw)
+	return parseProbabilityUpdatesWithDefault(raw, defaultFixed)
 }
 
 func parseProbabilityUpdates(raw interface{}) ([]probabilityUpdate, error) {
+	return parseProbabilityUpdatesWithDefault(raw, nil)
+}
+
+func parseProbabilityUpdatesWithDefault(
+	raw interface{},
+	defaultFixed *bool,
+) ([]probabilityUpdate, error) {
 	list, err := normalizeUpdatesArray(raw)
 	if err != nil {
 		return nil, err
@@ -543,7 +615,23 @@ func parseProbabilityUpdates(raw interface{}) ([]probabilityUpdate, error) {
 
 		updates = append(updates, update)
 	}
+
+	if defaultFixed != nil {
+		updates = applyDefaultIsFixed(updates, *defaultFixed)
+	}
+
 	return updates, nil
+}
+
+func applyDefaultIsFixed(updates []probabilityUpdate, defaultFixed bool) []probabilityUpdate {
+	for i := range updates {
+		if updates[i].IsFixed != nil {
+			continue
+		}
+		fixed := defaultFixed
+		updates[i].IsFixed = &fixed
+	}
+	return updates
 }
 
 func normalizeUpdatesArray(raw interface{}) ([]interface{}, error) {

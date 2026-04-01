@@ -32,6 +32,7 @@ type draftPlanLine struct {
 	SubmarketID int
 	Threshold   float64
 	Probability float64
+	IsAnchor    bool
 }
 
 type draftForecastPoint struct {
@@ -154,7 +155,7 @@ func updatePendingEditsWithRemainder(
 		body["mode"] = mode
 	}
 
-	return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
+	return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
 }
 
 func updatePendingEditsBody(
@@ -162,13 +163,20 @@ func updatePendingEditsBody(
 	body map[string]interface{},
 	autoShape bool,
 	usePendingBaseline bool,
+	applyManualFixedDefaults bool,
 	remainderRequest multicountRemainderRequest,
 ) error {
 	if err := resolveUpdateLabelsInBody(code, body); err != nil {
 		return err
 	}
 
-	updates, err := parseProbabilityUpdatesFromBody(body)
+	var defaultFixed *bool
+	if applyManualFixedDefaults {
+		fixed := true
+		defaultFixed = &fixed
+	}
+
+	updates, err := parseProbabilityUpdatesFromBodyWithDefault(body, defaultFixed)
 	if err != nil {
 		return err
 	}
@@ -271,7 +279,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			yes, _ := cmd.Flags().GetBool("yes")
 			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
 		}
-		return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
+		return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
 	}
 
 	// Check stdin
@@ -292,7 +300,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			yes, _ := cmd.Flags().GetBool("yes")
 			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
 		}
-		return updatePendingEditsBody(code, body, autoShape, true, remainderRequest)
+		return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
 	}
 
 	if submit {
@@ -307,7 +315,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			"updates": []interface{}{},
 			"mode":    mode,
 		}
-		return updatePendingEditsBody(code, body, false, true, remainderRequest)
+		return updatePendingEditsBody(code, body, false, true, false, remainderRequest)
 	}
 
 	// Default: show pending edits
@@ -621,7 +629,7 @@ func runDraftPlanner(
 		"updates": probabilityUpdatesToPayload(updates),
 		"mode":    mode,
 	}
-	return updatePendingEditsBody(code, body, false, true, multicountRemainderRequest{})
+	return updatePendingEditsBody(code, body, false, true, false, multicountRemainderRequest{})
 }
 
 func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []string, []string, error) {
@@ -690,7 +698,17 @@ func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []stri
 		}
 	}
 
+	markDraftPlanInterpolationAnchors(lines, opts.InterpolateTo != nil)
+
 	return lines, selectedGroups, missingGroups, nil
+}
+
+func markDraftPlanInterpolationAnchors(lines []draftPlanLine, interpolate bool) {
+	if !interpolate || len(lines) == 0 {
+		return
+	}
+	lines[0].IsAnchor = true
+	lines[len(lines)-1].IsAnchor = true
 }
 
 func buildDraftDistributionPlan(
@@ -971,9 +989,11 @@ func matchThresholdSubmarket(
 func draftPlanAsProbabilityUpdates(plan []draftPlanLine) []probabilityUpdate {
 	updates := make([]probabilityUpdate, 0, len(plan))
 	for _, line := range plan {
+		fixed := line.IsAnchor
 		updates = append(updates, probabilityUpdate{
 			SubmarketID: line.SubmarketID,
 			Probability: line.Probability,
+			IsFixed:     &fixed,
 		})
 	}
 	return updates
@@ -1071,7 +1091,8 @@ func submitRawUpdatesAsTrade(
 		return err
 	}
 
-	updates, err := parseProbabilityUpdatesFromBody(body)
+	defaultFixed := true
+	updates, err := parseProbabilityUpdatesFromBodyWithDefault(body, &defaultFixed)
 	if err != nil {
 		return err
 	}

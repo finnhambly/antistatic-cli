@@ -66,6 +66,73 @@ func TestInterpolateLadder_DateExtrapolatesOuterSegments(t *testing.T) {
 	)
 }
 
+func TestBuildShapedProbabilityUpdates_AssignsFixedForAnchorsAndGenerated(t *testing.T) {
+	baseline := map[int]float64{
+		1: 0.20,
+		2: 0.30,
+		3: 0.40,
+	}
+	current := map[int]float64{
+		1: 0.25,
+		2: 0.35,
+		3: 0.45,
+	}
+	anchor := map[int]bool{
+		1: true,
+		3: true,
+	}
+	anchorFixed := map[int]bool{
+		1: false,
+	}
+
+	input := []probabilityUpdate{
+		{SubmarketID: 1, Probability: 0.25, IsFixed: boolPtr(false)},
+		{SubmarketID: 3, Probability: 0.45},
+	}
+
+	updates := buildShapedProbabilityUpdates(baseline, current, anchor, anchorFixed, input, nil)
+	if len(updates) != 3 {
+		t.Fatalf("expected three updates, got %d", len(updates))
+	}
+
+	byID := make(map[int]probabilityUpdate, len(updates))
+	for _, update := range updates {
+		byID[update.SubmarketID] = update
+	}
+
+	if byID[1].IsFixed == nil || *byID[1].IsFixed {
+		t.Fatalf("anchor with explicit fixed=false should remain false")
+	}
+	if byID[2].IsFixed == nil || *byID[2].IsFixed {
+		t.Fatalf("generated non-anchor should be explicit is_fixed=false")
+	}
+	if byID[3].IsFixed == nil || !*byID[3].IsFixed {
+		t.Fatalf("anchor without explicit fixed should default to true")
+	}
+}
+
+func TestBuildShapedProbabilityUpdates_DefaultsUnspecifiedAnchorToFixed(t *testing.T) {
+	baseline := map[int]float64{1: 0.20}
+	current := map[int]float64{1: 0.20}
+	anchor := map[int]bool{1: true}
+
+	input := []probabilityUpdate{
+		{SubmarketID: 1, Probability: 0.20},
+	}
+
+	updates := buildShapedProbabilityUpdates(baseline, current, anchor, map[int]bool{}, input, nil)
+	if len(updates) != 1 {
+		t.Fatalf("expected one update, got %d", len(updates))
+	}
+	if updates[0].IsFixed == nil || !*updates[0].IsFixed {
+		t.Fatalf("expected unchanged anchor to be emitted as is_fixed=true")
+	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
 func assertAlmostEqual(t *testing.T, got, want float64, message string) {
 	t.Helper()
 	if math.Abs(got-want) > 1.0e-9 {
