@@ -11,9 +11,9 @@ import (
 )
 
 var forecastCmd = &cobra.Command{
-	Use:   "forecast <code>",
-	Short: "Get forecast data for a market",
-	Long: `Retrieve forecast lines for a market.
+	Use:   "odds <code>",
+	Short: "Get market odds data",
+	Long: `Retrieve market odds lines for a market.
 
 Trading is quoted against starting probabilities (starting_probability).
 Community aggregate probabilities are contextual and non-pricing.
@@ -51,7 +51,7 @@ Use --with-community to include community aggregates in output.`,
 			return fmt.Errorf("--ascii cannot be combined with --json")
 		}
 		if ascii && forParam != "" && !curve {
-			return fmt.Errorf("--ascii requires grouped or curve forecast data; omit --for or add --curve")
+			return fmt.Errorf("--ascii requires grouped or curve odds data; omit --for or add --curve")
 		}
 		if includeIDs && ascii {
 			return fmt.Errorf("--include-ids cannot be combined with --ascii")
@@ -285,7 +285,7 @@ Use --with-community to include community aggregates in output.`,
 			if forecast.Hint != "" {
 				fmt.Printf("\n%s\n", forecast.Hint)
 			}
-			fmt.Println("Tip: re-run with --require-full (or --include-ids) for stable row-level forecast data.")
+			fmt.Println("Tip: re-run with --require-full (or --include-ids) for stable row-level odds data.")
 			return nil
 		}
 
@@ -302,8 +302,8 @@ func init() {
 	forecastCmd.Flags().String("include", "", "Detail level: summary, liquidity, or full")
 	forecastCmd.Flags().Bool("curve", false, "Return all submarkets up to the queried point")
 	forecastCmd.Flags().IntP("limit", "l", 0, "Maximum submarkets per group")
-	forecastCmd.Flags().Bool("require-full", false, "Require full grouped forecast rows (mode=full)")
-	forecastCmd.Flags().Bool("include-ids", false, "Force full forecast rows with submarket IDs for agent trading flows")
+	forecastCmd.Flags().Bool("require-full", false, "Require full grouped odds rows (mode=full)")
+	forecastCmd.Flags().Bool("include-ids", false, "Force full odds rows with submarket IDs for agent trading flows")
 	forecastCmd.Flags().Bool("ascii", false, "Render ASCII bars with monotonicity checks")
 	forecastCmd.Flags().Bool("summary", false, "With --ascii, show compact one-line summaries per group")
 	forecastCmd.Flags().Int("ascii-width", 50, "ASCII chart width in characters")

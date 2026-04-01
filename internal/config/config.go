@@ -21,8 +21,6 @@ type Config struct {
 	OAuthClientID     string `json:"oauth_client_id,omitempty"`
 	OAuthRefreshToken string `json:"oauth_refresh_token,omitempty"`
 	OAuthTokenExpiry  string `json:"oauth_token_expiry,omitempty"`
-	UpdateCheckedAt   string `json:"update_checked_at,omitempty"`
-	UpdateLatest      string `json:"update_latest,omitempty"`
 }
 
 // configDir returns the OS-appropriate config directory.

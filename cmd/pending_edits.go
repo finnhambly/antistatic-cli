@@ -88,6 +88,12 @@ Use --submit-pending to submit existing pending edits as a trade
 without running the draft planner. This avoids needing --threshold
 and --probability when you've already staged edits.
 
+Use --interpolate-to to ramp smoothly between group endpoints
+instead of setting each group manually.
+
+For date markets, interpolation across selected groups is typically
+the easiest way to avoid editing each point one-by-one.
+
 Use --submit with --updates to place a shaped trade directly.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
@@ -1236,7 +1242,7 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().String("mode", "merge", "Update mode: merge (default) or replace")
 	cmd.Flags().Float64("threshold", 0, "Draft planner: threshold to target (e.g. 70)")
 	cmd.Flags().Float64("probability", 0, "Draft planner: target probability for selected groups (0..1)")
-	cmd.Flags().Float64("interpolate-to", 0, "Draft planner: optional ending probability (0..1) for linear interpolation across selected groups")
+	cmd.Flags().Float64("interpolate-to", 0, "Draft planner: optional ending probability (0..1) for linear interpolation across selected groups (recommended to avoid per-group manual edits)")
 	cmd.Flags().String("distribution", "", "Draft planner: parametric distribution to fit across thresholds (currently: lognormal)")
 	cmd.Flags().Float64("median", 0, "Draft planner distribution mode: median parameter")
 	cmd.Flags().Float64("sigma", 0, "Draft planner distribution mode: sigma parameter")

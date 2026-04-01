@@ -5,8 +5,6 @@ import (
 
 	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/config"
-	"github.com/finnhambly/antistatic-cli/internal/output"
-	"github.com/finnhambly/antistatic-cli/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +22,7 @@ var rootCmd = &cobra.Command{
 	Short: "CLI for Antistatic Exchange",
 	Long: `Antistatic is a command-line interface for Antistatic Exchange.
 
-Browse markets, view forecasts, manage positions, and place trades
+Browse markets, view odds, manage positions, and place trades
 from the terminal. Works for both humans and AI agents.
 
 Set ANTISTATIC_TOKEN or run "antistatic login" to authenticate.
@@ -39,10 +37,6 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 		}
 		client = api.NewClient(cfg)
 		return nil
-	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		interactive := output.IsTTY() && !jsonOutput
-		update.MaybeNotify(Version, cfg, interactive)
 	},
 }
 

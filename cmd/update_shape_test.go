@@ -139,3 +139,69 @@ func assertAlmostEqual(t *testing.T, got, want float64, message string) {
 		t.Fatalf("%s: got %.12f want %.12f", message, got, want)
 	}
 }
+
+func TestBuildCountCrossGroupLadders_AlignsThresholdsAcrossGroups(t *testing.T) {
+	groups := []string{"2026-01", "2026-02", "2026-03"}
+	forecast := map[string][]forecastPoint{
+		"2026-01": {
+			{ID: 11, Threshold: floatPtr(10)},
+			{ID: 12, Threshold: floatPtr(20)},
+		},
+		"2026-02": {
+			{ID: 21, Threshold: floatPtr(10)},
+			{ID: 22, Threshold: floatPtr(20)},
+		},
+		"2026-03": {
+			{ID: 31, Threshold: floatPtr(10)},
+			{ID: 32, Threshold: floatPtr(20)},
+		},
+	}
+
+	ladders := buildCountCrossGroupLadders(groups, forecast)
+	if len(ladders) != 2 {
+		t.Fatalf("expected 2 cross-group ladders, got %d", len(ladders))
+	}
+
+	if !equalIntSlice(ladders[0], []int{11, 21, 31}) {
+		t.Fatalf("unexpected first ladder: %#v", ladders[0])
+	}
+	if !equalIntSlice(ladders[1], []int{12, 22, 32}) {
+		t.Fatalf("unexpected second ladder: %#v", ladders[1])
+	}
+}
+
+func TestBuildCountCrossGroupLadders_UsesThresholdQuantization(t *testing.T) {
+	groups := []string{"g1", "g2"}
+	forecast := map[string][]forecastPoint{
+		"g1": {
+			{ID: 1, Threshold: floatPtr(70.0000)},
+		},
+		"g2": {
+			{ID: 2, Threshold: floatPtr(70.0004)},
+		},
+	}
+
+	ladders := buildCountCrossGroupLadders(groups, forecast)
+	if len(ladders) != 1 {
+		t.Fatalf("expected 1 ladder, got %d", len(ladders))
+	}
+	if !equalIntSlice(ladders[0], []int{1, 2}) {
+		t.Fatalf("unexpected ladder: %#v", ladders[0])
+	}
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
+}
+
+func equalIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

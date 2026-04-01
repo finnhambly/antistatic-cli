@@ -30,6 +30,14 @@ type shapeReport struct {
 	OutputCount int
 }
 
+type shapeLadder struct {
+	IDs                      []int
+	MonotonicDirection       string
+	PinOuterToBaseline       bool
+	RequireAtLeastTwoAnchors bool
+	IncludeChangedAsAnchors  bool
+}
+
 type forecastPoint struct {
 	ID                   int      `json:"id"`
 	Threshold            *float64 `json:"threshold"`
@@ -112,24 +120,42 @@ func shapeProbabilityUpdates(
 
 	ladders := buildLadders(marketType, cumulative, forecast)
 	for _, ladder := range ladders {
+		ids := ladder.IDs
 		anchorIndices := make([]int, 0)
-		for i, id := range ladder {
-			if anchor[id] {
+		for i, id := range ids {
+			if anchor[id] || (ladder.IncludeChangedAsAnchors && math.Abs(current[id]-baseline[id]) > shapeEpsilon) {
 				anchorIndices = append(anchorIndices, i)
 			}
 		}
 		if len(anchorIndices) == 0 {
 			continue
 		}
+		if ladder.RequireAtLeastTwoAnchors && len(anchorIndices) < 2 {
+			continue
+		}
 
-		pinOuterToBaseline := marketType == "count"
-		interpolateLadder(ladder, anchorIndices, baseline, current, anchor, pinOuterToBaseline)
+		// For cross-group count ladders, interpolate only between the first and
+		// last anchored groups to avoid unintentionally moving groups outside
+		// the anchored span.
+		if ladder.RequireAtLeastTwoAnchors {
+			left := anchorIndices[0]
+			right := anchorIndices[len(anchorIndices)-1]
+			ids = ids[left : right+1]
 
-		switch {
-		case marketType == "count":
-			enforceDirectionalMonotonicity(ladder, current, anchor, "down")
-		case marketType == "date" && cumulative:
-			enforceDirectionalMonotonicity(ladder, current, anchor, "up")
+			relAnchors := make([]int, 0, len(anchorIndices))
+			for _, idx := range anchorIndices {
+				if idx < left || idx > right {
+					continue
+				}
+				relAnchors = append(relAnchors, idx-left)
+			}
+			anchorIndices = relAnchors
+		}
+
+		interpolateLadder(ids, anchorIndices, baseline, current, anchor, ladder.PinOuterToBaseline)
+
+		if ladder.MonotonicDirection != "" {
+			enforceDirectionalMonotonicity(ids, current, anchor, ladder.MonotonicDirection)
 		}
 	}
 
@@ -244,8 +270,8 @@ func buildLadders(
 	marketType string,
 	cumulative bool,
 	forecast map[string][]forecastPoint,
-) [][]int {
-	ladders := make([][]int, 0)
+) []shapeLadder {
+	ladders := make([]shapeLadder, 0)
 
 	switch marketType {
 	case "count":
@@ -272,8 +298,26 @@ func buildLadders(
 				ids = append(ids, point.ID)
 			}
 			if len(ids) > 1 {
-				ladders = append(ladders, ids)
+				ladders = append(ladders, shapeLadder{
+					IDs:                ids,
+					MonotonicDirection: "down",
+					PinOuterToBaseline: true,
+				})
 			}
+		}
+
+		// Also build ladders that connect equivalent thresholds across groups so
+		// sparse multi-group anchors can interpolate intermediate groups.
+		for _, ids := range buildCountCrossGroupLadders(groups, forecast) {
+			if len(ids) <= 1 {
+				continue
+			}
+			ladders = append(ladders, shapeLadder{
+				IDs:                      ids,
+				PinOuterToBaseline:       true,
+				RequireAtLeastTwoAnchors: true,
+				IncludeChangedAsAnchors:  true,
+			})
 		}
 
 	case "date":
@@ -295,7 +339,10 @@ func buildLadders(
 				ids = append(ids, point.ID)
 			}
 			if len(ids) > 1 {
-				ladders = append(ladders, ids)
+				ladders = append(ladders, shapeLadder{
+					IDs:                ids,
+					MonotonicDirection: "up",
+				})
 			}
 		} else {
 			groups := sortedForecastGroups(forecast)
@@ -314,13 +361,66 @@ func buildLadders(
 					ids = append(ids, point.ID)
 				}
 				if len(ids) > 1 {
-					ladders = append(ladders, ids)
+					ladders = append(ladders, shapeLadder{
+						IDs: ids,
+					})
 				}
 			}
 		}
 	}
 
 	return ladders
+}
+
+const countCrossGroupThresholdQuantum = 0.001
+
+func buildCountCrossGroupLadders(
+	groups []string,
+	forecast map[string][]forecastPoint,
+) [][]int {
+	thresholdToGroupIDs := make(map[int64]map[string]int)
+
+	for _, group := range groups {
+		for _, point := range forecast[group] {
+			if point.Threshold == nil {
+				continue
+			}
+			key := quantizeThreshold(*point.Threshold)
+			if _, ok := thresholdToGroupIDs[key]; !ok {
+				thresholdToGroupIDs[key] = make(map[string]int)
+			}
+			existing, exists := thresholdToGroupIDs[key][group]
+			if !exists || point.ID < existing {
+				thresholdToGroupIDs[key][group] = point.ID
+			}
+		}
+	}
+
+	keys := make([]int64, 0, len(thresholdToGroupIDs))
+	for key := range thresholdToGroupIDs {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	ladders := make([][]int, 0, len(keys))
+	for _, key := range keys {
+		byGroup := thresholdToGroupIDs[key]
+		ids := make([]int, 0, len(groups))
+		for _, group := range groups {
+			if id, ok := byGroup[group]; ok {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 1 {
+			ladders = append(ladders, ids)
+		}
+	}
+
+	return ladders
+}
+
+func quantizeThreshold(value float64) int64 {
+	return int64(math.Round(value / countCrossGroupThresholdQuantum))
 }
 
 func sortedForecastGroups(forecast map[string][]forecastPoint) []string {
