@@ -13,6 +13,9 @@ var commentCmd = &cobra.Command{
 	Short: "Post a comment on a market",
 	Long: `Post a comment on a market. The body supports Markdown formatting.
 
+This is a write action. AI agents should only use it when the user has
+explicitly asked them to post a comment.
+
 Provide the text as arguments, via --body flag, or pipe via stdin.
 For multi-line content (Markdown with headings, lists, etc.), use --body
 or stdin since shell arguments collapse whitespace.

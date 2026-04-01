@@ -158,6 +158,8 @@ antistatic profile liquidity-decay --limit 20
 
 ### Recommended workflow for AI agents
 
+Default posture: read market context, plan edits, and wait for approval. Do not post market comments unless the user has explicitly asked you to comment.
+
 ```sh
 # 1) Inspect current forecast and submarket IDs
 antistatic forecast us-troops-iran --group 2026-08 --include-ids --json
@@ -276,7 +278,7 @@ antistatic comments us-troops-iran --sort newest --limit 10 --max-comments 50 --
 # Continue from next cursor
 antistatic comments us-troops-iran --cursor-inserted-at "2026-03-25T10:00:00Z" --cursor-id 123
 
-# Post a comment
+# Post a comment only when explicitly instructed to do so
 antistatic comment us-troops-iran "I think the raid scenario is underpriced given recent deployments"
 ```
 
@@ -327,6 +329,7 @@ The CLI is designed to work as a tool for AI coding agents and assistants. To gi
 1. Generate a token at https://antistatic.exchange/users/settings#api-tokens
 2. Set `ANTISTATIC_TOKEN` in the agent environment
 3. Prefer `antistatic draft` for review-first workflows, then `antistatic trade` when approved.
+4. Treat `antistatic comment` as an explicit-action tool: agents should read comments for context, but only post when the user has directly asked for a comment.
 
 When the agent pipes output or uses `--json`, it gets structured JSON it can parse directly.
 
