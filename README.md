@@ -72,6 +72,25 @@ antistatic comments us-troops-iran --limit 20
 antistatic comment us-troops-iran "Example comment"
 ```
 
+## Interpolation examples
+
+Count market (threshold planner + cross-group interpolation):
+
+```sh
+# Preview only
+antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
+
+# Persist as pending edits
+antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z --apply
+```
+
+Date market (sparse anchors + auto-shape interpolation):
+
+```sh
+# Set two anchor points; auto-shape interpolates between them
+antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":0.35},{"label":"By Dec 2030","probability":0.55}]'
+```
+
 ## What these mean
 
 - `odds`: market probability data (the current priced odds across outcomes/submarkets).

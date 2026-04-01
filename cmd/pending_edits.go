@@ -94,6 +94,13 @@ instead of setting each group manually.
 For date markets, interpolation across selected groups is typically
 the easiest way to avoid editing each point one-by-one.
 
+Examples:
+  Count market (threshold planner + cross-group interpolation):
+    antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
+
+  Date market (sparse anchors + auto-shape interpolation):
+    antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":0.35},{"label":"By Dec 2030","probability":0.55}]'
+
 Use --submit with --updates to place a shaped trade directly.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
@@ -1238,7 +1245,7 @@ func init() {
 
 func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("clear", false, "Clear all pending edits")
-	cmd.Flags().String("updates", "", "Probability updates as JSON")
+	cmd.Flags().String("updates", "", "Probability updates as JSON (supports sparse-anchor interpolation workflows)")
 	cmd.Flags().String("mode", "merge", "Update mode: merge (default) or replace")
 	cmd.Flags().Float64("threshold", 0, "Draft planner: threshold to target (e.g. 70)")
 	cmd.Flags().Float64("probability", 0, "Draft planner: target probability for selected groups (0..1)")
