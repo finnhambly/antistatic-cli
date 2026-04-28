@@ -780,6 +780,9 @@ func buildDraftDistributionPlan(
 				continue
 			}
 			probability := lognormalSurvivalProbability(*point.Threshold, opts.Median, opts.Sigma)
+			if inferDraftCountDirection(sorted) == "up" {
+				probability = 1 - probability
+			}
 			lines = append(lines, draftPlanLine{
 				Group:       group,
 				SubmarketID: point.ID,
@@ -880,6 +883,47 @@ func lognormalSurvivalProbability(threshold, median, sigma float64) float64 {
 	z := (math.Log(threshold) - mu) / sigma
 	cdf := 0.5 * (1 + math.Erf(z/math.Sqrt2))
 	return 1 - cdf
+}
+
+func inferDraftCountDirection(points []draftForecastPoint) string {
+	up, down := 0, 0
+	var prev float64
+	hasPrev := false
+
+	for _, point := range points {
+		probability, ok := draftPointDirectionProbability(point)
+		if !ok {
+			continue
+		}
+		if hasPrev {
+			switch {
+			case probability > prev+shapeEpsilon:
+				up++
+			case probability+shapeEpsilon < prev:
+				down++
+			}
+		}
+		prev = probability
+		hasPrev = true
+	}
+
+	if up > down {
+		return "up"
+	}
+	return "down"
+}
+
+func draftPointDirectionProbability(point draftForecastPoint) (float64, bool) {
+	if point.StartingProbability != nil {
+		return clampProb(*point.StartingProbability), true
+	}
+	if point.Probability != nil {
+		return clampProb(*point.Probability), true
+	}
+	if point.CommunityProbability != nil {
+		return clampProb(*point.CommunityProbability), true
+	}
+	return 0, false
 }
 
 func selectDraftPlanGroups(

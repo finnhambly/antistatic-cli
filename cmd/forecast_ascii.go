@@ -134,7 +134,8 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 			}
 			points := append([]asciiPoint(nil), groupMap[groupName]...)
 			sortASCIIPoints(points)
-			renderASCIIGroup(groupName, points, width, maxPoints, monotonicDirection, cumulative, basis)
+			groupDirection := inferASCIIDirection(points, basis, marketType, monotonicDirection)
+			renderASCIIGroup(groupName, points, width, maxPoints, groupDirection, cumulative, basis)
 			maxRenderedGroups++
 		}
 		return nil
@@ -145,7 +146,8 @@ func renderASCIIForecast(data json.RawMessage, opts asciiRenderOptions) error {
 	}
 
 	sortASCIIPoints(singleSeries)
-	renderASCIIGroup("curve", singleSeries, width, maxPoints, monotonicDirection, cumulative, basis)
+	seriesDirection := inferASCIIDirection(singleSeries, basis, marketType, monotonicDirection)
+	renderASCIIGroup("curve", singleSeries, width, maxPoints, seriesDirection, cumulative, basis)
 	return nil
 }
 
@@ -258,6 +260,37 @@ func expectedMonotonicDirection(probDirection, marketType string) string {
 		return "down"
 	}
 	return "up"
+}
+
+func inferASCIIDirection(points []asciiPoint, basis, marketType, fallback string) string {
+	if !strings.EqualFold(marketType, "count") {
+		return fallback
+	}
+
+	up, down := 0, 0
+	var prev float64
+	hasPrev := false
+	for _, point := range points {
+		probability := clampProb(pointProbabilityForBasis(point, basis))
+		if hasPrev {
+			switch {
+			case probability > prev+1.0e-9:
+				up++
+			case probability+1.0e-9 < prev:
+				down++
+			}
+		}
+		prev = probability
+		hasPrev = true
+	}
+
+	if up > down {
+		return "up"
+	}
+	if down > up {
+		return "down"
+	}
+	return fallback
 }
 
 func renderASCIIGroup(

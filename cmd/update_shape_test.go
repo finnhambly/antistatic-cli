@@ -190,6 +190,66 @@ func TestBuildCountCrossGroupLadders_UsesThresholdQuantization(t *testing.T) {
 	}
 }
 
+func TestBuildLadders_CountCDFUsesIncreasingMonotonicity(t *testing.T) {
+	forecast := map[string][]forecastPoint{
+		"g1": {
+			{ID: 1, Threshold: floatPtr(100), StartingProbability: floatPtr(0.20)},
+			{ID: 2, Threshold: floatPtr(101), StartingProbability: floatPtr(0.70)},
+			{ID: 3, Threshold: floatPtr(102), StartingProbability: floatPtr(0.90)},
+		},
+	}
+
+	ladders := buildLadders("count", false, forecast)
+	if len(ladders) != 1 {
+		t.Fatalf("expected 1 ladder, got %d", len(ladders))
+	}
+	if ladders[0].MonotonicDirection != "up" {
+		t.Fatalf("expected CDF count ladder to increase, got %q", ladders[0].MonotonicDirection)
+	}
+}
+
+func TestBuildLadders_CountExceedanceUsesDecreasingMonotonicity(t *testing.T) {
+	forecast := map[string][]forecastPoint{
+		"g1": {
+			{ID: 1, Threshold: floatPtr(100), StartingProbability: floatPtr(0.90)},
+			{ID: 2, Threshold: floatPtr(101), StartingProbability: floatPtr(0.70)},
+			{ID: 3, Threshold: floatPtr(102), StartingProbability: floatPtr(0.20)},
+		},
+	}
+
+	ladders := buildLadders("count", false, forecast)
+	if len(ladders) != 1 {
+		t.Fatalf("expected 1 ladder, got %d", len(ladders))
+	}
+	if ladders[0].MonotonicDirection != "down" {
+		t.Fatalf("expected exceedance count ladder to decrease, got %q", ladders[0].MonotonicDirection)
+	}
+}
+
+func TestInferASCIIDirection_CountCDFOverridesAPIHint(t *testing.T) {
+	points := []asciiPoint{
+		{ID: 1, Threshold: floatPtr(100), StartingProbability: floatPtr(0.20)},
+		{ID: 2, Threshold: floatPtr(101), StartingProbability: floatPtr(0.70)},
+		{ID: 3, Threshold: floatPtr(102), StartingProbability: floatPtr(0.90)},
+	}
+
+	if got := inferASCIIDirection(points, "starting", "count", "down"); got != "up" {
+		t.Fatalf("expected CDF ASCII direction to override API hint, got %q", got)
+	}
+}
+
+func TestInferDraftCountDirection_CDF(t *testing.T) {
+	points := []draftForecastPoint{
+		{ID: 1, Threshold: floatPtr(100), StartingProbability: floatPtr(0.20)},
+		{ID: 2, Threshold: floatPtr(101), StartingProbability: floatPtr(0.70)},
+		{ID: 3, Threshold: floatPtr(102), StartingProbability: floatPtr(0.90)},
+	}
+
+	if got := inferDraftCountDirection(points); got != "up" {
+		t.Fatalf("expected CDF draft direction to increase, got %q", got)
+	}
+}
+
 func floatPtr(value float64) *float64 {
 	return &value
 }

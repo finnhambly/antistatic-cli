@@ -300,7 +300,7 @@ func buildLadders(
 			if len(ids) > 1 {
 				ladders = append(ladders, shapeLadder{
 					IDs:                ids,
-					MonotonicDirection: "down",
+					MonotonicDirection: inferCountForecastDirection(points),
 					PinOuterToBaseline: true,
 				})
 			}
@@ -370,6 +370,44 @@ func buildLadders(
 	}
 
 	return ladders
+}
+
+func inferCountForecastDirection(points []forecastPoint) string {
+	up, down := 0, 0
+	var prev float64
+	hasPrev := false
+
+	for _, point := range points {
+		probability, ok := forecastPointDirectionProbability(point)
+		if !ok {
+			continue
+		}
+		if hasPrev {
+			switch {
+			case probability > prev+shapeEpsilon:
+				up++
+			case probability+shapeEpsilon < prev:
+				down++
+			}
+		}
+		prev = probability
+		hasPrev = true
+	}
+
+	if up > down {
+		return "up"
+	}
+	return "down"
+}
+
+func forecastPointDirectionProbability(point forecastPoint) (float64, bool) {
+	if point.StartingProbability != nil {
+		return clampProb(*point.StartingProbability), true
+	}
+	if point.Probability != nil {
+		return clampProb(*point.Probability), true
+	}
+	return 0, false
 }
 
 const countCrossGroupThresholdQuantum = 0.001
