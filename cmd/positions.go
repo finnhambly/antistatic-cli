@@ -31,6 +31,8 @@ Use --group-summary (with a market code) for one row per projection group.`,
 		marketFlag, _ := cmd.Flags().GetString("market")
 		summary, _ := cmd.Flags().GetBool("summary")
 		groupSummary, _ := cmd.Flags().GetBool("group-summary")
+		limit, _ := cmd.Flags().GetInt("limit")
+		offset, _ := cmd.Flags().GetInt("offset")
 		marketCode := strings.TrimSpace(marketFlag)
 
 		if len(args) == 1 {
@@ -48,6 +50,12 @@ Use --group-summary (with a market code) for one row per projection group.`,
 
 		path := "/positions"
 		params := url.Values{}
+		if limit > 0 {
+			params.Set("limit", fmt.Sprintf("%d", limit))
+		}
+		if offset > 0 {
+			params.Set("offset", fmt.Sprintf("%d", offset))
+		}
 
 		// Keep the legacy direct endpoint for positional-arg detail mode.
 		if len(args) == 1 && marketFlag == "" && !summary {
@@ -211,6 +219,8 @@ func init() {
 	positionsCmd.Flags().String("market", "", "Filter positions to a market code")
 	positionsCmd.Flags().Bool("summary", false, "Show one aggregated row per market")
 	positionsCmd.Flags().Bool("group-summary", false, "With a market code, show one aggregated row per projection group")
+	positionsCmd.Flags().IntP("limit", "l", 0, "Maximum number of rows")
+	positionsCmd.Flags().IntP("offset", "o", 0, "Number of rows to skip")
 
 	rootCmd.AddCommand(positionsCmd)
 }

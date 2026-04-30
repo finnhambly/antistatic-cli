@@ -175,7 +175,7 @@ func parseQuoteUpdates(raw []byte) ([]quoteUpdate, error) {
 		if updatesVal, ok := obj["updates"]; ok {
 			return parseQuoteUpdatesValue(updatesVal)
 		}
-		if _, hasID := obj["submarket_id"]; hasID {
+		if hasSubmarketRef(obj) {
 			update, err := parseQuoteUpdateMap(obj)
 			if err != nil {
 				return nil, err
@@ -217,12 +217,13 @@ func parseQuoteUpdatesValue(value interface{}) ([]quoteUpdate, error) {
 }
 
 func parseQuoteUpdateMap(m map[string]interface{}) (quoteUpdate, error) {
-	submarketID, err := parseIntField(m, "submarket_id")
-	if err != nil {
-		return quoteUpdate{}, err
+	submarketRef := m["submarket"]
+	if submarketRef == nil {
+		submarketRef = m["submarket_id"]
 	}
-	if submarketID <= 0 {
-		return quoteUpdate{}, fmt.Errorf("submarket_id must be positive")
+	submarketID, ok := parseSubmarketRef(submarketRef)
+	if !ok {
+		return quoteUpdate{}, fmt.Errorf("submarket must be a positive integer or sm_<integer> reference")
 	}
 
 	probability, err := parseFloatField(m, "probability")
@@ -312,7 +313,7 @@ func parseFloatAny(value interface{}, name string) (float64, error) {
 
 func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 	query := url.Values{}
-	query.Set("submarket_id", strconv.Itoa(update.SubmarketID))
+	query.Set("submarket", formatSubmarketRef(update.SubmarketID))
 	query.Set("to_p", fmt.Sprintf("%.12g", update.Probability))
 	if update.FromProbability != nil {
 		query.Set("from_p", fmt.Sprintf("%.12g", *update.FromProbability))

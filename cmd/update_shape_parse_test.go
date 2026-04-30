@@ -25,6 +25,29 @@ func TestParseProbabilityUpdates_AcceptsTypedMapSlice(t *testing.T) {
 	}
 }
 
+func TestParseProbabilityUpdates_AcceptsSubmarketRefAndDecimalString(t *testing.T) {
+	raw := []map[string]interface{}{
+		{
+			"submarket":   "sm_101",
+			"probability": "0.42",
+		},
+	}
+
+	updates, err := parseProbabilityUpdates(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(updates) != 1 {
+		t.Fatalf("expected one update, got %d", len(updates))
+	}
+	if updates[0].SubmarketID != 101 {
+		t.Fatalf("unexpected submarket id: %d", updates[0].SubmarketID)
+	}
+	if updates[0].Probability != 0.42 {
+		t.Fatalf("unexpected probability: %.6f", updates[0].Probability)
+	}
+}
+
 func TestParseProbabilityUpdatesWithDefault_DefaultsMissingIsFixedTrue(t *testing.T) {
 	defaultFixed := true
 	raw := []map[string]interface{}{

@@ -65,7 +65,7 @@ antistatic points us-troops-iran
 antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --interpolate-to 0.60 --next-groups 6
 
 # Direct trade
-antistatic trade us-troops-iran --updates '[{"submarket_id":42,"probability":0.75}]' -y
+antistatic trade us-troops-iran --updates '[{"submarket":"sm_42","probability":"0.75"}]' -y
 
 # Comments
 antistatic comments us-troops-iran --limit 20
@@ -88,7 +88,7 @@ Date market (sparse anchors + auto-shape interpolation):
 
 ```sh
 # Set two anchor points; auto-shape interpolates between them
-antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":0.35},{"label":"By Dec 2030","probability":0.55}]'
+antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 ```
 
 ## What these mean

@@ -720,16 +720,16 @@ func parseProbabilityUpdatesWithDefault(
 		if !ok {
 			continue
 		}
-		idFloat, ok := toFloat(updateMap["submarket_id"])
+		submarketRef := updateMap["submarket"]
+		if submarketRef == nil {
+			submarketRef = updateMap["submarket_id"]
+		}
+		id, ok := parseSubmarketRef(submarketRef)
 		if !ok {
 			continue
 		}
 		prob, ok := toFloat(updateMap["probability"])
 		if !ok {
-			continue
-		}
-		id := int(idFloat)
-		if id <= 0 {
 			continue
 		}
 		if prob < 0 || prob > 1 {
@@ -843,8 +843,8 @@ func probabilityUpdatesToPayload(updates []probabilityUpdate) []map[string]inter
 	payload := make([]map[string]interface{}, 0, len(updates))
 	for _, update := range updates {
 		entry := map[string]interface{}{
-			"submarket_id": update.SubmarketID,
-			"probability":  roundProbability(update.Probability),
+			"submarket":   formatSubmarketRef(update.SubmarketID),
+			"probability": formatProbabilityDecimal(update.Probability),
 		}
 		if update.IsFixed != nil {
 			entry["is_fixed"] = *update.IsFixed
@@ -852,6 +852,10 @@ func probabilityUpdatesToPayload(updates []probabilityUpdate) []map[string]inter
 		payload = append(payload, entry)
 	}
 	return payload
+}
+
+func formatProbabilityDecimal(value float64) string {
+	return strconv.FormatFloat(roundProbability(value), 'f', -1, 64)
 }
 
 func clampProb(value float64) float64 {

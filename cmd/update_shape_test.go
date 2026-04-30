@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func TestProbabilityUpdatesToPayload_UsesSubmarketRefAndDecimalString(t *testing.T) {
+	payload := probabilityUpdatesToPayload([]probabilityUpdate{
+		{SubmarketID: 42, Probability: 0.75},
+	})
+
+	if got := payload[0]["submarket"]; got != "sm_42" {
+		t.Fatalf("unexpected submarket ref: %v", got)
+	}
+	if got := payload[0]["probability"]; got != "0.75" {
+		t.Fatalf("unexpected probability payload: %v", got)
+	}
+	if _, exists := payload[0]["submarket_id"]; exists {
+		t.Fatalf("payload should prefer submarket over submarket_id")
+	}
+}
+
 func TestInterpolateLadder_CountPinsOuterToBaseline(t *testing.T) {
 	ids := []int{1, 2, 3, 4}
 	baseline := map[int]float64{

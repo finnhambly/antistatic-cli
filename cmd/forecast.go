@@ -340,6 +340,7 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 
 			cleaned := map[string]interface{}{}
 			copyMapField(cleaned, submarket, "id")
+			putSubmarketRef(cleaned, submarket)
 			copyMapField(cleaned, submarket, "label")
 			copyMapField(cleaned, submarket, "group")
 			copyMapField(cleaned, submarket, "projection_group")
@@ -406,6 +407,7 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 	if matched, ok := payload["matched"].(map[string]interface{}); ok {
 		cleanedMatched := map[string]interface{}{}
 		copyMapField(cleanedMatched, matched, "id")
+		putSubmarketRef(cleanedMatched, matched)
 		copyMapField(cleanedMatched, matched, "label")
 		copyMapField(cleanedMatched, matched, "group")
 		copyMapField(cleanedMatched, matched, "projection_group")
@@ -472,6 +474,17 @@ func copyMapField(dst, src map[string]interface{}, key string) {
 		return
 	}
 	dst[key] = value
+}
+
+func putSubmarketRef(dst, src map[string]interface{}) {
+	if ref, ok := src["submarket"].(string); ok && strings.TrimSpace(ref) != "" {
+		dst["submarket"] = ref
+		return
+	}
+
+	if id, ok := parseSubmarketRef(src["id"]); ok {
+		dst["submarket"] = formatSubmarketRef(id)
+	}
 }
 
 func resolveForecastGroupAlias(code, group string) (string, bool) {

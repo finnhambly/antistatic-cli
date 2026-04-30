@@ -31,7 +31,7 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 		if !ok {
 			continue
 		}
-		if _, hasID := entry["submarket_id"]; hasID {
+		if hasSubmarketRef(entry) {
 			continue
 		}
 		if updateLabel(entry) != "" {
@@ -83,7 +83,7 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 		if !ok {
 			continue
 		}
-		if _, hasID := entry["submarket_id"]; hasID {
+		if hasSubmarketRef(entry) {
 			continue
 		}
 
@@ -118,7 +118,7 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 		case 0:
 			return fmt.Errorf("no submarket matched label %q in group %q", label, groupHint)
 		case 1:
-			entry["submarket_id"] = candidates[0].ID
+			entry["submarket"] = formatSubmarketRef(candidates[0].ID)
 		default:
 			available := uniqueCandidateGroups(candidates)
 			return fmt.Errorf(
@@ -131,6 +131,16 @@ func resolveUpdateLabelsInBody(code string, body map[string]interface{}) error {
 
 	body["updates"] = updates
 	return nil
+}
+
+func hasSubmarketRef(entry map[string]interface{}) bool {
+	if _, ok := entry["submarket"]; ok {
+		return true
+	}
+	if _, ok := entry["submarket_id"]; ok {
+		return true
+	}
+	return false
 }
 
 func fetchUpdateLookupPoints(code string) ([]updateLookupPoint, error) {

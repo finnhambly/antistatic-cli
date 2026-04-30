@@ -68,7 +68,7 @@ and devices. They are not yet submitted as trades.
 Without flags, shows current pending edits.
 Use --clear to delete all pending edits.
 Use --updates to set or merge edits (pipe JSON or use the flag).
-Updates may use submarket_id or label (optionally group/projection_group).`,
+Updates may use submarket (sm_<id>), legacy submarket_id, or label (optionally group/projection_group).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
 }
@@ -99,7 +99,7 @@ Examples:
     antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
 
   Date market (sparse anchors + auto-shape interpolation):
-    antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":0.35},{"label":"By Dec 2030","probability":0.55}]'
+    antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 
 Use --submit with --updates to place a shaped trade directly.`,
 	Args: cobra.ExactArgs(1),
@@ -416,7 +416,7 @@ func runDraftPlanner(
 			return fmt.Errorf("--distribution currently supports only: lognormal")
 		}
 		if marketType == "date" {
-			return fmt.Errorf("distribution planner currently supports count markets only; for date markets use --updates with submarket_id or label")
+			return fmt.Errorf("distribution planner currently supports count markets only; for date markets use --updates with submarket or label")
 		}
 		if cmd.Flags().Changed("threshold") || cmd.Flags().Changed("probability") || cmd.Flags().Changed("interpolate-to") {
 			return fmt.Errorf("distribution mode cannot be combined with --threshold/--probability/--interpolate-to")
@@ -429,7 +429,7 @@ func runDraftPlanner(
 		}
 	} else {
 		if marketType == "date" {
-			return fmt.Errorf("--threshold planner currently supports count markets only; for date markets use --updates with submarket_id or label")
+			return fmt.Errorf("--threshold planner currently supports count markets only; for date markets use --updates with submarket or label")
 		}
 		if !cmd.Flags().Changed("threshold") || !cmd.Flags().Changed("probability") {
 			return fmt.Errorf("draft planner requires both --threshold and --probability")

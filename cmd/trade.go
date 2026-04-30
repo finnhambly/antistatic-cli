@@ -24,11 +24,11 @@ submit the trade once a human approves.
 Trades are quoted against starting_probability (house line), not
 community_probability.
 
-Updates may identify rows by "submarket_id" or by "label" (optionally with
+Updates may identify rows by "submarket" (sm_<id>), legacy "submarket_id", or by "label" (optionally with
 "group"/"projection_group" when labels are ambiguous).
 
 Example:
-  antistatic trade my-market --updates '[{"submarket_id": 42, "probability": 0.75}]'
+  antistatic trade my-market --updates '[{"submarket": "sm_42", "probability": "0.75"}]'
   echo '{"updates": [...]}' | antistatic trade my-market`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
