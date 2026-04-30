@@ -55,14 +55,14 @@ antistatic show us-troops-iran
 # Market probabilities (community odds curve)
 antistatic odds us-troops-iran
 antistatic odds us-troops-iran --group 2026-08
-antistatic odds us-troops-iran --group 2026-08 --include-ids --json
+antistatic odds us-troops-iran --group 2026-08 --json
 
 # Your own holdings and payoff scenarios
 antistatic positions
 antistatic points us-troops-iran
 
 # Plan a cross-group ramp (preview by default)
-antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --interpolate-to 0.60 --next-groups 6
+antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --interpolate-to 0.60 --group-count 6
 
 # Direct trade
 antistatic trade us-troops-iran --updates '[{"submarket":"sm_42","probability":"0.75"}]' -y
@@ -78,10 +78,10 @@ Count market (threshold planner + cross-group interpolation):
 
 ```sh
 # Preview only
-antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
+antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026/27 --group-count 2
 
 # Persist as pending edits
-antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z --apply
+antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026/27 --group-count 2 --apply
 ```
 
 Date market (sparse anchors + auto-shape interpolation):

@@ -6,8 +6,8 @@ func TestResolveUpdateLabelsInBody_AcceptsTypedMapSlice(t *testing.T) {
 	body := map[string]interface{}{
 		"updates": []map[string]interface{}{
 			{
-				"submarket_id": 55,
-				"probability":  0.33,
+				"submarket":   "sm_55",
+				"probability": 0.33,
 			},
 		},
 	}

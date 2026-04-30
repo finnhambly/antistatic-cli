@@ -23,7 +23,7 @@ type draftPlanOptions struct {
 	Sigma         float64
 	FromGroup     string
 	ToGroup       string
-	NextGroups    int
+	GroupCount    int
 	Tolerance     float64
 }
 
@@ -47,7 +47,8 @@ type draftForecastPoint struct {
 }
 
 type draftPreviewRow struct {
-	SubmarketID          int      `json:"submarket_id"`
+	Submarket            string   `json:"submarket"`
+	SubmarketID          int      `json:"-"`
 	Group                string   `json:"group,omitempty"`
 	GroupLabel           string   `json:"group_label,omitempty"`
 	Label                string   `json:"label,omitempty"`
@@ -68,7 +69,7 @@ and devices. They are not yet submitted as trades.
 Without flags, shows current pending edits.
 Use --clear to delete all pending edits.
 Use --updates to set or merge edits (pipe JSON or use the flag).
-Updates may use submarket (sm_<id>), legacy submarket_id, or label (optionally group/projection_group).`,
+Updates may use submarket (sm_<id>) or label (optionally group/projection_group).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
 }
@@ -128,7 +129,7 @@ func showPendingEdits(code string) error {
 		return nil
 	}
 
-	headers := []string{"SUBMARKET ID", "PROBABILITY", "FIXED"}
+	headers := []string{"SUBMARKET", "PROBABILITY", "FIXED"}
 	rows := make([][]string, 0)
 	for id, val := range edits {
 		if entry, ok := val.(map[string]interface{}); ok {
@@ -345,7 +346,7 @@ func hasDraftPlannerInputs(cmd *cobra.Command) bool {
 		"sigma",
 		"from-group",
 		"to-group",
-		"next-groups",
+		"group-count",
 		"threshold-tolerance",
 		"apply",
 	}
@@ -375,7 +376,7 @@ func runDraftPlanner(
 	interpolateTo, _ := cmd.Flags().GetFloat64("interpolate-to")
 	fromGroup, _ := cmd.Flags().GetString("from-group")
 	toGroup, _ := cmd.Flags().GetString("to-group")
-	nextGroups, _ := cmd.Flags().GetInt("next-groups")
+	groupCount, _ := cmd.Flags().GetInt("group-count")
 	tolerance, _ := cmd.Flags().GetFloat64("threshold-tolerance")
 	apply, _ := cmd.Flags().GetBool("apply")
 	submit, _ := cmd.Flags().GetBool("submit")
@@ -383,7 +384,7 @@ func runDraftPlanner(
 
 	// --multicount-group doubles as a single-group selector when
 	// --from-group/--to-group are not set
-	if remainderRequest.Group != "" && fromGroup == "" && toGroup == "" && nextGroups == 0 {
+	if remainderRequest.Group != "" && fromGroup == "" && toGroup == "" && groupCount == 0 {
 		fromGroup = remainderRequest.Group
 		toGroup = remainderRequest.Group
 	}
@@ -392,14 +393,14 @@ func runDraftPlanner(
 		return fmt.Errorf("use either --apply (save pending edits) or --submit (place trade), not both")
 	}
 
-	if nextGroups < 0 {
-		return fmt.Errorf("--next-groups must be >= 0")
+	if groupCount < 0 {
+		return fmt.Errorf("--group-count must be >= 0")
 	}
 	if tolerance <= 0 {
 		return fmt.Errorf("--threshold-tolerance must be > 0")
 	}
-	if nextGroups > 0 && toGroup != "" {
-		return fmt.Errorf("use either --next-groups or --to-group")
+	if groupCount > 0 && toGroup != "" {
+		return fmt.Errorf("use either --group-count or --to-group")
 	}
 
 	useDistribution := distribution != "" || cmd.Flags().Changed("distribution")
@@ -453,7 +454,7 @@ func runDraftPlanner(
 		Probability:  probability,
 		FromGroup:    fromGroup,
 		ToGroup:      toGroup,
-		NextGroups:   nextGroups,
+		GroupCount:   groupCount,
 		Tolerance:    tolerance,
 	}
 	if cmd.Flags().Changed("interpolate-to") {
@@ -589,7 +590,10 @@ func runDraftPlanner(
 
 				label := row.Label
 				if label == "" {
-					label = fmt.Sprintf("submarket %d", row.SubmarketID)
+					label = row.Submarket
+				}
+				if label == "" {
+					label = formatSubmarketRef(row.SubmarketID)
 				}
 
 				house := "-"
@@ -606,11 +610,11 @@ func runDraftPlanner(
 			}
 			output.Table(headers, rows)
 		} else {
-			headers := []string{"SUBMARKET ID", "PROBABILITY"}
+			headers := []string{"SUBMARKET", "PROBABILITY"}
 			rows := make([][]string, 0, len(updates))
 			for _, line := range updates {
 				rows = append(rows, []string{
-					fmt.Sprintf("%d", line.SubmarketID),
+					formatSubmarketRef(line.SubmarketID),
 					fmt.Sprintf("%.2f%%", line.Probability*100),
 				})
 			}
@@ -662,7 +666,7 @@ func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []stri
 	groupLabels := groupLabelsFromDraftForecast(forecastGroups)
 	groupAliases := buildGroupAliasIndex(groups, groupLabels)
 
-	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups, groupAliases)
+	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.GroupCount, groupAliases)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -744,7 +748,7 @@ func buildDraftDistributionPlan(
 	groupLabels := groupLabelsFromDraftForecast(forecastGroups)
 	groupAliases := buildGroupAliasIndex(groups, groupLabels)
 
-	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.NextGroups, groupAliases)
+	selectedGroups, err := selectDraftPlanGroups(groups, opts.FromGroup, opts.ToGroup, opts.GroupCount, groupAliases)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -929,7 +933,7 @@ func draftPointDirectionProbability(point draftForecastPoint) (float64, bool) {
 func selectDraftPlanGroups(
 	groups []string,
 	fromGroup, toGroup string,
-	nextGroups int,
+	groupCount int,
 	groupAliases map[string]string,
 ) ([]string, error) {
 	if len(groups) == 0 {
@@ -944,12 +948,12 @@ func selectDraftPlanGroups(
 			return nil, fmt.Errorf("from-group %q not found", fromGroup)
 		}
 		startIdx = idx
-	} else if nextGroups > 0 {
+	} else if groupCount > 0 {
 		startIdx = defaultNextGroupStartIndex(groups)
 	}
 
-	if nextGroups > 0 {
-		end := startIdx + nextGroups
+	if groupCount > 0 {
+		end := startIdx + groupCount
 		if end > len(groups) {
 			end = len(groups)
 		}
@@ -1063,6 +1067,7 @@ func buildDraftPreviewRows(
 	rows := make([]draftPreviewRow, 0, len(updates))
 	for _, update := range updates {
 		row := draftPreviewRow{
+			Submarket:          formatSubmarketRef(update.SubmarketID),
 			SubmarketID:        update.SubmarketID,
 			PlannedProbability: roundProbability(update.Probability),
 		}
@@ -1267,7 +1272,7 @@ func previewTradeCost(code string, updates []probabilityUpdate) (float64, error)
 	totalCost := 0.0
 	for _, update := range updates {
 		qu := quoteUpdate{
-			SubmarketID: update.SubmarketID,
+			Submarket:   formatSubmarketRef(update.SubmarketID),
 			Probability: update.Probability,
 		}
 		line, err := requestSingleQuote(code, qu)
@@ -1299,7 +1304,7 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Float64("sigma", 0, "Draft planner distribution mode: sigma parameter")
 	cmd.Flags().String("from-group", "", "Draft planner: first projection group (inclusive; accepts ISO id, fiscal label, or year)")
 	cmd.Flags().String("to-group", "", "Draft planner: last projection group (inclusive; accepts ISO id, fiscal label, or year)")
-	cmd.Flags().Int("next-groups", 0, "Draft planner: select next N groups (from --from-group or current period)")
+	cmd.Flags().Int("group-count", 0, "Draft planner: number of groups to select from --from-group or current period")
 	cmd.Flags().Float64("threshold-tolerance", 0.001, "Draft planner: threshold match tolerance")
 	cmd.Flags().Bool("apply", false, "Draft planner: apply planned updates (without this, command previews only)")
 	cmd.Flags().Bool("submit", false, "Submit planned updates (or --updates JSON) directly as a trade")

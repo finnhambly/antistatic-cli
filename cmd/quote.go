@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/finnhambly/antistatic-cli/internal/output"
@@ -14,13 +13,13 @@ import (
 )
 
 type quoteUpdate struct {
-	SubmarketID     int
+	Submarket       string
 	Probability     float64
 	FromProbability *float64
 }
 
 type quoteLine struct {
-	SubmarketID        int      `json:"submarket_id"`
+	Submarket          string   `json:"submarket"`
 	FromProbability    *float64 `json:"from_probability,omitempty"`
 	ToProbability      float64  `json:"to_probability"`
 	Cost               float64  `json:"cost"`
@@ -51,7 +50,7 @@ Most agent workflows can skip quote and either:
 1) submit probability updates directly with "trade", or
 2) stage a human-reviewable draft with "draft" / "pending-edits".
 
-For quote, pass one update with --submarket-id/--probability, or provide
+For quote, pass one update with --submarket/--probability, or provide
 JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -75,7 +74,7 @@ JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,
 		for _, update := range updates {
 			line, err := requestSingleQuote(code, update)
 			if err != nil {
-				return fmt.Errorf("quote failed for submarket %d: %w", update.SubmarketID, err)
+				return fmt.Errorf("quote failed for submarket %s: %w", update.Submarket, err)
 			}
 			lines = append(lines, line)
 			payload.TotalCost += line.Cost
@@ -93,11 +92,11 @@ JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,
 			return nil
 		}
 
-		headers := []string{"SUBMARKET ID", "TO", "COST", "SHARES YES", "P/L YES", "P/L NO"}
+		headers := []string{"SUBMARKET", "TO", "COST", "SHARES YES", "P/L YES", "P/L NO"}
 		rows := make([][]string, len(lines))
 		for i, line := range lines {
 			rows[i] = []string{
-				strconv.Itoa(line.SubmarketID),
+				line.Submarket,
 				fmt.Sprintf("%.1f%%", line.ToProbability*100),
 				fmt.Sprintf("%.4f", line.Cost),
 				fmt.Sprintf("%.4f", line.SharesYes),
@@ -116,26 +115,27 @@ JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,
 }
 
 func collectQuoteUpdates(cmd *cobra.Command) ([]quoteUpdate, error) {
-	hasSubmarket := cmd.Flags().Changed("submarket-id")
+	hasSubmarket := cmd.Flags().Changed("submarket")
 	hasProbability := cmd.Flags().Changed("probability")
 	hasFrom := cmd.Flags().Changed("from-probability")
 
 	if hasSubmarket || hasProbability || hasFrom {
 		if !hasSubmarket || !hasProbability {
-			return nil, fmt.Errorf("when using direct flags, both --submarket-id and --probability are required")
+			return nil, fmt.Errorf("when using direct flags, both --submarket and --probability are required")
 		}
 
-		submarketID, _ := cmd.Flags().GetInt("submarket-id")
+		submarket, _ := cmd.Flags().GetString("submarket")
 		probability, _ := cmd.Flags().GetFloat64("probability")
-		if submarketID <= 0 {
-			return nil, fmt.Errorf("--submarket-id must be positive")
+		submarketID, ok := parseSubmarketRef(submarket)
+		if !ok {
+			return nil, fmt.Errorf("--submarket must be an sm_<integer> reference")
 		}
 		if probability < 0 || probability > 1 {
 			return nil, fmt.Errorf("--probability must be between 0 and 1")
 		}
 
 		update := quoteUpdate{
-			SubmarketID: submarketID,
+			Submarket:   formatSubmarketRef(submarketID),
 			Probability: probability,
 		}
 		if hasFrom {
@@ -161,7 +161,7 @@ func collectQuoteUpdates(cmd *cobra.Command) ([]quoteUpdate, error) {
 		return parseQuoteUpdates(stdinData)
 	}
 
-	return nil, fmt.Errorf("provide quote input via --submarket-id/--probability, --updates JSON, or stdin JSON")
+	return nil, fmt.Errorf("provide quote input via --submarket/--probability, --updates JSON, or stdin JSON")
 }
 
 func parseQuoteUpdates(raw []byte) ([]quoteUpdate, error) {
@@ -218,12 +218,9 @@ func parseQuoteUpdatesValue(value interface{}) ([]quoteUpdate, error) {
 
 func parseQuoteUpdateMap(m map[string]interface{}) (quoteUpdate, error) {
 	submarketRef := m["submarket"]
-	if submarketRef == nil {
-		submarketRef = m["submarket_id"]
-	}
 	submarketID, ok := parseSubmarketRef(submarketRef)
 	if !ok {
-		return quoteUpdate{}, fmt.Errorf("submarket must be a positive integer or sm_<integer> reference")
+		return quoteUpdate{}, fmt.Errorf("submarket must be an sm_<integer> reference")
 	}
 
 	probability, err := parseFloatField(m, "probability")
@@ -235,7 +232,7 @@ func parseQuoteUpdateMap(m map[string]interface{}) (quoteUpdate, error) {
 	}
 
 	update := quoteUpdate{
-		SubmarketID: submarketID,
+		Submarket:   formatSubmarketRef(submarketID),
 		Probability: probability,
 	}
 
@@ -262,39 +259,6 @@ func parseQuoteUpdateMap(m map[string]interface{}) (quoteUpdate, error) {
 	return update, nil
 }
 
-func parseIntField(m map[string]interface{}, name string) (int, error) {
-	value, ok := m[name]
-	if !ok {
-		return 0, fmt.Errorf("missing %s", name)
-	}
-	return parseIntAny(value, name)
-}
-
-func parseIntAny(value interface{}, name string) (int, error) {
-	switch v := value.(type) {
-	case float64:
-		return int(v), nil
-	case int:
-		return v, nil
-	case int64:
-		return int(v), nil
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			return 0, fmt.Errorf("%s must be an integer", name)
-		}
-		return int(i), nil
-	case string:
-		i, err := strconv.Atoi(strings.TrimSpace(v))
-		if err != nil {
-			return 0, fmt.Errorf("%s must be an integer", name)
-		}
-		return i, nil
-	default:
-		return 0, fmt.Errorf("%s must be an integer", name)
-	}
-}
-
 func parseFloatField(m map[string]interface{}, name string) (float64, error) {
 	value, ok := m[name]
 	if !ok {
@@ -313,7 +277,7 @@ func parseFloatAny(value interface{}, name string) (float64, error) {
 
 func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 	query := url.Values{}
-	query.Set("submarket", formatSubmarketRef(update.SubmarketID))
+	query.Set("submarket", update.Submarket)
 	query.Set("to_p", fmt.Sprintf("%.12g", update.Probability))
 	if update.FromProbability != nil {
 		query.Set("from_p", fmt.Sprintf("%.12g", *update.FromProbability))
@@ -343,7 +307,7 @@ func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 	}
 
 	return quoteLine{
-		SubmarketID:        update.SubmarketID,
+		Submarket:          update.Submarket,
 		FromProbability:    update.FromProbability,
 		ToProbability:      update.Probability,
 		Cost:               raw.Cost,
@@ -357,7 +321,7 @@ func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 }
 
 func init() {
-	quoteCmd.Flags().Int("submarket-id", 0, "Submarket ID for a single quote")
+	quoteCmd.Flags().String("submarket", "", "Submarket reference for a single quote (sm_<id>)")
 	quoteCmd.Flags().Float64("probability", 0, "Target probability for a single quote (0..1)")
 	quoteCmd.Flags().Float64("from-probability", 0, "Optional starting probability override for a single quote (0..1)")
 	quoteCmd.Flags().String("updates", "", "Quote updates as JSON object/array (or {\"updates\":[...]})")

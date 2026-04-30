@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/finnhambly/antistatic-cli/internal/output"
@@ -253,9 +252,9 @@ func fetchPendingEditStates(code string) (map[int]pendingEditState, error) {
 	}
 
 	out := make(map[int]pendingEditState, len(pending))
-	for rawID, entry := range pending {
-		id, err := strconv.Atoi(rawID)
-		if err != nil {
+	for rawSubmarket, entry := range pending {
+		id, ok := parseSubmarketRef(rawSubmarket)
+		if !ok {
 			continue
 		}
 		state := pendingEditState{}

@@ -137,9 +137,6 @@ func hasSubmarketRef(entry map[string]interface{}) bool {
 	if _, ok := entry["submarket"]; ok {
 		return true
 	}
-	if _, ok := entry["submarket_id"]; ok {
-		return true
-	}
 	return false
 }
 

@@ -57,7 +57,7 @@ Use --group-summary (with a market code) for one row per projection group.`,
 			params.Set("offset", fmt.Sprintf("%d", offset))
 		}
 
-		// Keep the legacy direct endpoint for positional-arg detail mode.
+		// Preserve positional detail mode separately from cross-market listing.
 		if len(args) == 1 && marketFlag == "" && !summary {
 			path = "/markets/" + marketCode + "/positions"
 		} else {
@@ -158,19 +158,20 @@ Use --group-summary (with a market code) for one row per projection group.`,
 		}
 
 		var positions []struct {
-			MarketCode     string  `json:"market_code"`
-			SubmarketLabel string  `json:"submarket_label"`
-			Probability    float64 `json:"probability"`
-			NetShares      float64 `json:"net_shares"`
-			NetCost        float64 `json:"net_cost"`
-			Shares         float64 `json:"shares"`
-			Cost           float64 `json:"cost"`
-			Submarket      *struct {
+			MarketCode       string  `json:"market_code"`
+			SubmarketLabel   string  `json:"submarket_label"`
+			Probability      float64 `json:"probability"`
+			NetShares        float64 `json:"net_shares"`
+			NetCost          float64 `json:"net_cost"`
+			Shares           float64 `json:"shares"`
+			Cost             float64 `json:"cost"`
+			Submarket        string  `json:"submarket"`
+			SubmarketDetails *struct {
 				Label  string `json:"label"`
 				Market *struct {
 					Code string `json:"code"`
 				} `json:"market"`
-			} `json:"submarket"`
+			} `json:"submarket_details"`
 		}
 		if err := json.Unmarshal(data, &positions); err != nil {
 			output.JSON(data)
@@ -186,12 +187,15 @@ Use --group-summary (with a market code) for one row per projection group.`,
 		rows := make([][]string, len(positions))
 		for i, p := range positions {
 			market := p.MarketCode
-			if market == "" && p.Submarket != nil && p.Submarket.Market != nil {
-				market = p.Submarket.Market.Code
+			if market == "" && p.SubmarketDetails != nil && p.SubmarketDetails.Market != nil {
+				market = p.SubmarketDetails.Market.Code
 			}
 			submarket := p.SubmarketLabel
-			if submarket == "" && p.Submarket != nil {
-				submarket = p.Submarket.Label
+			if submarket == "" && p.SubmarketDetails != nil {
+				submarket = p.SubmarketDetails.Label
+			}
+			if submarket == "" {
+				submarket = p.Submarket
 			}
 			shares := p.NetShares
 			if shares == 0 {
@@ -234,11 +238,11 @@ type groupedPositionSummary struct {
 
 func buildGroupSummaries(code string, positionsData json.RawMessage) ([]groupedPositionSummary, error) {
 	var positions []struct {
-		SubmarketID int      `json:"submarket_id"`
-		NetShares   *float64 `json:"net_shares"`
-		NetCost     *float64 `json:"net_cost"`
-		Shares      *float64 `json:"shares"`
-		Cost        *float64 `json:"cost"`
+		Submarket string   `json:"submarket"`
+		NetShares *float64 `json:"net_shares"`
+		NetCost   *float64 `json:"net_cost"`
+		Shares    *float64 `json:"shares"`
+		Cost      *float64 `json:"cost"`
 	}
 	if err := json.Unmarshal(positionsData, &positions); err != nil {
 		return nil, fmt.Errorf("parsing positions for group summary: %w", err)
@@ -254,7 +258,7 @@ func buildGroupSummaries(code string, positionsData json.RawMessage) ([]groupedP
 
 	acc := make(map[string]groupedPositionSummary)
 	for _, position := range positions {
-		group := groupBySubmarket[position.SubmarketID]
+		group := groupBySubmarket[position.Submarket]
 		if group == "" {
 			group = "ungrouped"
 		}
@@ -291,7 +295,7 @@ func buildGroupSummaries(code string, positionsData json.RawMessage) ([]groupedP
 	return out, nil
 }
 
-func fetchSubmarketGroups(code string) (map[int]string, error) {
+func fetchSubmarketGroups(code string) (map[string]string, error) {
 	data, err := fetchFullForecastData(code)
 	if err != nil {
 		return nil, err
@@ -299,7 +303,7 @@ func fetchSubmarketGroups(code string) (map[int]string, error) {
 
 	var payload struct {
 		Submarkets []struct {
-			ID              int    `json:"id"`
+			Submarket       string `json:"submarket"`
 			Group           string `json:"group"`
 			ProjectionGroup string `json:"projection_group"`
 		} `json:"submarkets"`
@@ -308,13 +312,13 @@ func fetchSubmarketGroups(code string) (map[int]string, error) {
 		return nil, fmt.Errorf("parsing forecast groups for positions summary: %w", err)
 	}
 
-	out := make(map[int]string, len(payload.Submarkets))
+	out := make(map[string]string, len(payload.Submarkets))
 	for _, submarket := range payload.Submarkets {
 		group := submarket.ProjectionGroup
 		if group == "" {
 			group = submarket.Group
 		}
-		out[submarket.ID] = group
+		out[submarket.Submarket] = group
 	}
 	return out, nil
 }

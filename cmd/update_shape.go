@@ -715,25 +715,25 @@ func parseProbabilityUpdatesWithDefault(
 	}
 
 	updates := make([]probabilityUpdate, 0, len(list))
-	for _, item := range list {
+	for idx, item := range list {
 		updateMap, ok := item.(map[string]interface{})
 		if !ok {
-			continue
+			return nil, fmt.Errorf("updates[%d] must be an object", idx)
+		}
+		if _, legacy := updateMap["submarket_id"]; legacy {
+			return nil, fmt.Errorf("updates[%d].submarket_id is no longer supported; use submarket: \"sm_<id>\"", idx)
 		}
 		submarketRef := updateMap["submarket"]
-		if submarketRef == nil {
-			submarketRef = updateMap["submarket_id"]
-		}
 		id, ok := parseSubmarketRef(submarketRef)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("updates[%d].submarket must be an sm_<integer> reference", idx)
 		}
 		prob, ok := toFloat(updateMap["probability"])
 		if !ok {
-			continue
+			return nil, fmt.Errorf("updates[%d].probability must be a number or decimal string", idx)
 		}
 		if prob < 0 || prob > 1 {
-			continue
+			return nil, fmt.Errorf("updates[%d].probability must be between 0 and 1", idx)
 		}
 
 		update := probabilityUpdate{

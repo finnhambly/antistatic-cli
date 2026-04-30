@@ -153,10 +153,15 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 			Error struct {
 				Message string `json:"message"`
 				Code    string `json:"code"`
+				Detail  string `json:"detail"`
 			} `json:"error"`
 		}
-		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error.Message != "" {
-			apiErr.Message = errResp.Error.Message
+		if json.Unmarshal(respBody, &errResp) == nil && (errResp.Error.Message != "" || errResp.Error.Detail != "") {
+			message := errResp.Error.Message
+			if errResp.Error.Detail != "" && (message == "" || message == "Invalid request parameters") {
+				message = errResp.Error.Detail
+			}
+			apiErr.Message = message
 			apiErr.Code = errResp.Error.Code
 		} else {
 			apiErr.Message = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, http.StatusText(resp.StatusCode))

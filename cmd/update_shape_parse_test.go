@@ -5,8 +5,8 @@ import "testing"
 func TestParseProbabilityUpdates_AcceptsTypedMapSlice(t *testing.T) {
 	raw := []map[string]interface{}{
 		{
-			"submarket_id": 101,
-			"probability":  0.42,
+			"submarket":   "sm_101",
+			"probability": 0.42,
 		},
 	}
 
@@ -52,8 +52,8 @@ func TestParseProbabilityUpdatesWithDefault_DefaultsMissingIsFixedTrue(t *testin
 	defaultFixed := true
 	raw := []map[string]interface{}{
 		{
-			"submarket_id": 11,
-			"probability":  0.33,
+			"submarket":   "sm_11",
+			"probability": 0.33,
 		},
 	}
 
@@ -76,14 +76,14 @@ func TestParseProbabilityUpdatesWithDefault_PreservesExplicitFalse(t *testing.T)
 	defaultFixed := true
 	raw := []map[string]interface{}{
 		{
-			"submarket_id": 12,
-			"probability":  0.44,
-			"is_fixed":     false,
+			"submarket":   "sm_12",
+			"probability": 0.44,
+			"is_fixed":    false,
 		},
 		{
-			"submarket_id": 13,
-			"probability":  0.55,
-			"isFixed":      false,
+			"submarket":   "sm_13",
+			"probability": 0.55,
+			"isFixed":     false,
 		},
 	}
 
@@ -101,5 +101,18 @@ func TestParseProbabilityUpdatesWithDefault_PreservesExplicitFalse(t *testing.T)
 		if *update.IsFixed {
 			t.Fatalf("update %d: expected explicit false to be preserved", i)
 		}
+	}
+}
+
+func TestParseProbabilityUpdates_RejectsLegacySubmarketID(t *testing.T) {
+	raw := []map[string]interface{}{
+		{
+			"submarket_id": 101,
+			"probability":  0.42,
+		},
+	}
+
+	if _, err := parseProbabilityUpdates(raw); err == nil {
+		t.Fatalf("expected legacy submarket_id payload to be rejected")
 	}
 }
