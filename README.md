@@ -70,6 +70,29 @@ antistatic trade us-troops-iran --updates '[{"submarket":"sm_42","probability":"
 # Comments
 antistatic comments us-troops-iran --limit 20
 antistatic comment us-troops-iran "Example comment"
+
+# Retrocasting: forecast the past under a simulated clock
+antistatic retro status
+antistatic retro advance mrna-2019
+```
+
+## Retrocasting
+
+`antistatic retro status` shows where your retrocasting runs stand: the simulated
+date you are at, the questions open there, and anything still needing a forecast.
+`antistatic retro advance` moves a run on one checkpoint.
+
+The next checkpoint is only ever shown as a date. Its title would say what is
+about to happen, which is exactly what a forecaster at that date should not know.
+
+There is no command here for submitting a retrocasting forecast, and no API for
+it either: an agent may move you through time, but the forecasting is yours to
+do. The server also refuses to advance while a question closing at the next
+checkpoint has neither a forecast nor an explicit skip.
+
+```sh
+antistatic retro status --json          # for agents
+antistatic retro advance --run 3 -y     # when you have several runs
 ```
 
 ## Interpolation examples
