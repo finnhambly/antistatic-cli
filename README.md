@@ -73,7 +73,7 @@ antistatic comment us-troops-iran "Example comment"
 
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
-antistatic retro advance mrna-2019
+antistatic retro advance biology
 ```
 
 ## Retrocasting
@@ -82,8 +82,8 @@ antistatic retro advance mrna-2019
 date you are at, the questions open there, and anything still needing a forecast.
 `antistatic retro advance` moves a run on one checkpoint.
 
-The next checkpoint is only ever shown as a date. Its title would say what is
-about to happen, which is exactly what a forecaster at that date should not know.
+The next checkpoint is shown only as available or complete. Even its date can
+reveal the timing of a selected paper or event.
 
 There is no command here for submitting a retrocasting forecast, and no API for
 it either: an agent may move you through time, but the forecasting is yours to

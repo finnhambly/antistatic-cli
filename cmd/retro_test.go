@@ -32,15 +32,14 @@ func TestTruncateRetro(t *testing.T) {
 	}
 }
 
-// The next checkpoint must never carry a title: knowing that "phase 1
-// immunogenicity readout" is next tells a learner what is about to happen. Guard
-// the shape of the struct we decode into.
-func TestRetroRunHasNoFutureTitle(t *testing.T) {
+// The next checkpoint must carry no learner-facing metadata: even its date can
+// reveal the timing of a selected paper or event. Guard the shape we decode.
+func TestRetroRunHasNoFutureMetadata(t *testing.T) {
 	var run retroRun
 	if _, ok := any(&run).(interface{ NextTitle() string }); ok {
 		t.Fatal("retroRun should not expose a title for the next checkpoint")
 	}
-	if run.NextOccurredAt != "" {
-		t.Fatal("expected zero value")
+	if _, ok := any(&run).(interface{ NextOccurredAt() string }); ok {
+		t.Fatal("retroRun should not expose a date for the next checkpoint")
 	}
 }

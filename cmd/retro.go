@@ -12,12 +12,11 @@ import (
 )
 
 // retroRun is the learner-facing view of a retrocasting run. The server reports
-// the next checkpoint as a bare date and nothing else about it: a title like
-// "phase 1 immunogenicity readout" would tell a learner what is coming.
+// whether another checkpoint exists, but deliberately exposes no metadata about
+// it: even the date can reveal the timing of a selected paper or event.
 type retroRun struct {
 	RunID      int    `json:"run_id"`
 	Status     string `json:"status"`
-	Version    int    `json:"version"`
 	Curriculum struct {
 		Slug  string `json:"slug"`
 		Title string `json:"title"`
@@ -28,9 +27,8 @@ type retroRun struct {
 		OccurredAt string `json:"occurred_at"`
 		Title      string `json:"title"`
 	} `json:"checkpoint"`
-	NextOccurredAt string `json:"next_occurred_at"`
-	Complete       bool   `json:"complete"`
-	Blockers       []struct {
+	Complete bool `json:"complete"`
+	Blockers []struct {
 		Key   string `json:"key"`
 		Title string `json:"title"`
 	} `json:"blockers"`
@@ -150,8 +148,8 @@ learner's behalf to get past that: the point of the exercise is the forecast.`,
 		}
 
 		if !yes && output.IsTTY() {
-			fmt.Printf("Move %s from %s to %s? Anything revealed then cannot be unseen. [y/N] ",
-				run.Curriculum.Slug, formatRetroDate(run.Checkpoint.OccurredAt), formatRetroDate(run.NextOccurredAt))
+			fmt.Printf("Move %s forward one checkpoint? Anything revealed then cannot be unseen. [y/N] ",
+				run.Curriculum.Slug)
 			var answer string
 			fmt.Scanln(&answer)
 			if !strings.EqualFold(strings.TrimSpace(answer), "y") {
@@ -241,7 +239,7 @@ func retroAdvanceError(err error) error {
 
 func printRetroRun(run retroRun) {
 	pairs := [][2]string{
-		{"Set", fmt.Sprintf("%s (v%d)", run.Curriculum.Title, run.Version)},
+		{"Set", run.Curriculum.Title},
 		{"Slug", run.Curriculum.Slug},
 		{"Date", formatRetroDate(run.Checkpoint.OccurredAt)},
 		{"Checkpoint", fmt.Sprintf("%s (%d)", run.Checkpoint.Title, run.Checkpoint.Sequence)},
@@ -250,7 +248,7 @@ func printRetroRun(run retroRun) {
 	if run.Complete {
 		pairs = append(pairs, [2]string{"Next", "complete"})
 	} else {
-		pairs = append(pairs, [2]string{"Next", formatRetroDate(run.NextOccurredAt)})
+		pairs = append(pairs, [2]string{"Next", "available"})
 	}
 	output.KeyValue(pairs)
 
