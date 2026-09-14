@@ -70,11 +70,18 @@ antistatic trade us-troops-iran --updates '[{"submarket":"sm_42","probability":"
 # Comments
 antistatic comments us-troops-iran --limit 20
 antistatic comment us-troops-iran "Example comment"
+antistatic comment us-troops-iran --reply-to 123 --body "Additional context for comment 123"
+antistatic comment-edit us-troops-iran 123 --body "Updated comment"
 
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology
 ```
+
+Replies use the parent comment ID returned by `comments`; the parent must belong
+to the same market. Both comments and replies accept Markdown via `--body` or
+stdin. Omit `--reply-to` to create a top-level comment. `comment-edit` updates
+an existing comment without changing its place in the thread.
 
 ## Retrocasting
 
