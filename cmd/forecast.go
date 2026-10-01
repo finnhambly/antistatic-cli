@@ -526,9 +526,9 @@ func resolveForecastGroupAlias(code, group string) (string, bool) {
 }
 
 // copyResolutionFields keeps the fields that say whether a bar is settled, which
-// ladder it belongs to and the caller's own forecast.
+// curve it belongs to and the caller's own forecast.
 func copyResolutionFields(dst, src map[string]interface{}) {
-	for _, key := range []string{"status", "resolved_yes", "resolved_at", "ladder", "my_probability"} {
+	for _, key := range []string{"status", "resolved_yes", "resolved_at", "curve", "my_probability"} {
 		copyMapField(dst, src, key)
 	}
 }

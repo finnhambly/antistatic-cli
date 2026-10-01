@@ -98,14 +98,15 @@ Examples:
   Count market (threshold planner + cross-group interpolation):
     antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
 
-  Date market (sparse anchors, other bars moved only as far as order needs):
-    antistatic draft taiwan-inv --repair fill --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
+  Date market (two bars set, the others kept in order):
+    antistatic draft taiwan-inv --rest-of-curve keep-in-order --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 
-  Date market (sparse anchors, interpolating between them):
-    antistatic draft taiwan-inv --interpolate --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
+  Date market (two bars set, the bars between them on a straight line):
+    antistatic draft taiwan-inv --rest-of-curve interpolate --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 
-Bars that would break a ladder's order are rejected unless you pass
---repair fill (keep your bars, move the others minimally) or --interpolate.
+Bars on each curve must stay in order. Updates that would break that are
+refused unless you pass --rest-of-curve keep-in-order or interpolate; your
+own bars are always kept as sent.
 
 Use --submit with --updates to place the trade directly.`,
 	Args: cobra.ExactArgs(1),
@@ -153,34 +154,9 @@ func showPendingEdits(code string) error {
 	return nil
 }
 
-func updatePendingEditsWithRemainder(
-	code,
-	updatesRaw,
-	mode string,
-	autoShape bool,
-	remainderRequest multicountRemainderRequest,
-) error {
-	var body map[string]interface{}
-	if err := json.Unmarshal([]byte(updatesRaw), &body); err != nil {
-		// Try as array of updates
-		var updates []interface{}
-		if err2 := json.Unmarshal([]byte(updatesRaw), &updates); err2 != nil {
-			return fmt.Errorf("invalid JSON: %w", err)
-		}
-		body = map[string]interface{}{"updates": updates}
-	}
-
-	if mode != "" {
-		body["mode"] = mode
-	}
-
-	return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
-}
-
 func updatePendingEditsBody(
 	code string,
 	body map[string]interface{},
-	autoShape bool,
 	usePendingBaseline bool,
 	applyManualFixedDefaults bool,
 	remainderRequest multicountRemainderRequest,
@@ -201,7 +177,7 @@ func updatePendingEditsBody(
 	}
 
 	updates, remainderReport, err := shapeAndApplyRemainder(
-		code, updates, autoShape, usePendingBaseline, remainderRequest,
+		code, updates, usePendingBaseline, remainderRequest,
 	)
 	if err != nil {
 		return err
@@ -212,9 +188,9 @@ func updatePendingEditsBody(
 		body["updates"] = probabilityUpdatesToPayload(updates)
 	}
 
-	resp, err := client.Put("/markets/"+code+"/pending-edits", withRepair(body))
+	resp, err := client.Put("/markets/"+code+"/pending-edits", withRestOfCurve(body))
 	if err != nil {
-		return ladderHint(err)
+		return outOfOrderHint(err)
 	}
 
 	data, err := resp.Data()
@@ -252,7 +228,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	clear, _ := cmd.Flags().GetBool("clear")
 	updatesJSON, _ := cmd.Flags().GetString("updates")
 	mode, _ := cmd.Flags().GetString("mode")
-	autoShape, err := readLadderFlags(cmd)
+	err := readRestOfCurveFlag(cmd)
 	if err != nil {
 		return err
 	}
@@ -278,14 +254,14 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("--submit-pending submits existing pending edits and cannot be combined with planning flags or --updates")
 		}
 		yes, _ := cmd.Flags().GetBool("yes")
-		return submitPendingEditsAsTrade(code, autoShape, remainderRequest, yes)
+		return submitPendingEditsAsTrade(code, remainderRequest, yes)
 	}
 
 	if plannerMode {
 		if updatesJSON != "" {
 			return fmt.Errorf("use either draft planning flags or --updates JSON, not both")
 		}
-		return runDraftPlanner(cmd, code, mode, autoShape, remainderRequest, estimateCost)
+		return runDraftPlanner(cmd, code, mode, remainderRequest, estimateCost)
 	}
 
 	if updatesJSON != "" {
@@ -298,9 +274,9 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		}
 		if submit {
 			yes, _ := cmd.Flags().GetBool("yes")
-			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
+			return submitRawUpdatesAsTrade(code, body, remainderRequest, yes)
 		}
-		return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
+		return updatePendingEditsBody(code, body, true, true, remainderRequest)
 	}
 
 	// Check stdin
@@ -319,9 +295,9 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 		}
 		if submit {
 			yes, _ := cmd.Flags().GetBool("yes")
-			return submitRawUpdatesAsTrade(code, body, autoShape, remainderRequest, yes)
+			return submitRawUpdatesAsTrade(code, body, remainderRequest, yes)
 		}
-		return updatePendingEditsBody(code, body, autoShape, true, true, remainderRequest)
+		return updatePendingEditsBody(code, body, true, true, remainderRequest)
 	}
 
 	if submit {
@@ -336,7 +312,7 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 			"updates": []interface{}{},
 			"mode":    mode,
 		}
-		return updatePendingEditsBody(code, body, false, true, false, remainderRequest)
+		return updatePendingEditsBody(code, body, true, false, remainderRequest)
 	}
 
 	// Default: show pending edits
@@ -370,7 +346,6 @@ func runDraftPlanner(
 	cmd *cobra.Command,
 	code,
 	mode string,
-	autoShape bool,
 	remainderRequest multicountRemainderRequest,
 	estimateCost bool,
 ) error {
@@ -511,7 +486,7 @@ func runDraftPlanner(
 
 	updates := draftPlanAsProbabilityUpdates(plan)
 	updates, remainderReport, err := shapeAndApplyRemainder(
-		code, updates, autoShape, true, remainderRequest,
+		code, updates, true, remainderRequest,
 	)
 	if err != nil {
 		return err
@@ -653,7 +628,7 @@ func runDraftPlanner(
 		"updates": probabilityUpdatesToPayload(updates),
 		"mode":    mode,
 	}
-	return updatePendingEditsBody(code, body, false, true, false, multicountRemainderRequest{})
+	return updatePendingEditsBody(code, body, true, false, multicountRemainderRequest{})
 }
 
 func buildDraftPlan(code string, opts draftPlanOptions) ([]draftPlanLine, []string, []string, error) {
@@ -1149,7 +1124,6 @@ func selectedGroupLabelsFromPreviewRows(
 func submitRawUpdatesAsTrade(
 	code string,
 	body map[string]interface{},
-	autoShape bool,
 	remainderRequest multicountRemainderRequest,
 	yes bool,
 ) error {
@@ -1167,7 +1141,7 @@ func submitRawUpdatesAsTrade(
 	}
 
 	updates, remainderReport, err := shapeAndApplyRemainder(
-		code, updates, autoShape, true, remainderRequest,
+		code, updates, true, remainderRequest,
 	)
 	if err != nil {
 		return err
@@ -1183,7 +1157,6 @@ func roundProbability(value float64) float64 {
 
 func submitPendingEditsAsTrade(
 	code string,
-	autoShape bool,
 	remainderRequest multicountRemainderRequest,
 	yes bool,
 ) error {
@@ -1217,7 +1190,7 @@ func submitPendingEditsAsTrade(
 	}
 
 	updates, remainderReport, err := shapeAndApplyRemainder(
-		code, updates, autoShape, false, remainderRequest,
+		code, updates, false, remainderRequest,
 	)
 	if err != nil {
 		return err
@@ -1253,9 +1226,9 @@ func submitTradeFromDraft(code string, updates []probabilityUpdate, yes bool) er
 		}
 	}
 
-	resp, err := client.Post("/markets/"+code+"/positions", withRepair(body))
+	resp, err := client.Post("/markets/"+code+"/positions", withRestOfCurve(body))
 	if err != nil {
-		return ladderHint(err)
+		return outOfOrderHint(err)
 	}
 
 	data, err := resp.Data()
@@ -1315,6 +1288,6 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("submit-pending", false, "Submit existing pending edits as a trade (no planning flags needed)")
 	cmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost during preview")
 	cmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt when using --submit or --submit-pending")
-	addLadderFlags(cmd)
+	addRestOfCurveFlag(cmd)
 	addMulticountRemainderFlags(cmd)
 }

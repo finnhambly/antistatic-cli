@@ -41,7 +41,7 @@ Example:
 		fromDraft, _ := cmd.Flags().GetBool("from-draft")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		estimateCost, _ := cmd.Flags().GetBool("estimate-cost")
-		autoShape, err := readLadderFlags(cmd)
+		err := readRestOfCurveFlag(cmd)
 		if err != nil {
 			return err
 		}
@@ -85,7 +85,7 @@ Example:
 		}
 
 		updates, remainderReport, err := shapeAndApplyRemainder(
-			code, updates, autoShape, false, remainderRequest,
+			code, updates, false, remainderRequest,
 		)
 		if err != nil {
 			return err
@@ -132,9 +132,9 @@ Example:
 			}
 		}
 
-		resp, err := client.Post("/markets/"+code+"/positions", withRepair(body))
+		resp, err := client.Post("/markets/"+code+"/positions", withRestOfCurve(body))
 		if err != nil {
-			return ladderHint(err)
+			return outOfOrderHint(err)
 		}
 
 		data, err := resp.Data()
@@ -169,7 +169,7 @@ func init() {
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	tradeCmd.Flags().Bool("dry-run", false, "Preview shaped updates (and estimated cost) without placing a trade")
 	tradeCmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost before submission")
-	addLadderFlags(tradeCmd)
+	addRestOfCurveFlag(tradeCmd)
 	addMulticountRemainderFlags(tradeCmd)
 
 	rootCmd.AddCommand(tradeCmd)

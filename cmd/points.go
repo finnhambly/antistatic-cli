@@ -13,7 +13,7 @@ var pointsCmd = &cobra.Command{
 	Use:   "points <code>",
 	Short: "Show points won or lost under each outcome",
 	Long: `Show the points you would win or lose under every possible resolution
-outcome for a market, one table per ladder. Outcomes already ruled out by
+outcome for a market, one table per curve. Outcomes already ruled out by
 resolved bars are marked.
 
 Use --at (or --scenario) to query a specific resolution point.
@@ -59,7 +59,7 @@ This reports scenario points, not an account balance.`,
 			Scenarios []pointsScenario `json:"scenarios"`
 			Groups    []struct {
 				Group     string           `json:"group"`
-				Ladder    string           `json:"ladder"`
+				Curve     string           `json:"curve"`
 				Scenarios []pointsScenario `json:"scenarios"`
 			} `json:"groups"`
 		}
@@ -73,7 +73,7 @@ This reports scenario points, not an account balance.`,
 			for _, group := range result.Groups {
 				title := group.Group
 				if title == "" {
-					title = group.Ladder
+					title = group.Curve
 				}
 				fmt.Printf("\n%s\n", title)
 				printPointsScenarios(group.Scenarios, showAll)

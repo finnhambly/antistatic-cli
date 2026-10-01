@@ -9,34 +9,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/finnhambly/antistatic-cli/internal/output"
 )
 
 const shapeEpsilon = 1.0e-9
-
-type probabilityUpdate struct {
-	SubmarketID int
-	Probability float64
-	IsFixed     *bool
-}
-
-type shapeOptions struct {
-	UsePendingBaseline bool
-}
-
-type shapeReport struct {
-	InputCount  int
-	OutputCount int
-}
-
-type shapeLadder struct {
-	IDs                      []int
-	MonotonicDirection       string
-	PinOuterToBaseline       bool
-	RequireAtLeastTwoAnchors bool
-	IncludeChangedAsAnchors  bool
-}
 
 type forecastPoint struct {
 	ID                   int      `json:"id"`
@@ -47,131 +22,10 @@ type forecastPoint struct {
 	CommunityProbability float64  `json:"community_probability"`
 }
 
-func shapeProbabilityUpdates(
-	code string,
-	input []probabilityUpdate,
-	opts shapeOptions,
-) ([]probabilityUpdate, shapeReport, error) {
-	report := shapeReport{InputCount: len(input), OutputCount: len(input)}
-	if len(input) == 0 {
-		return input, report, nil
-	}
-
-	marketType, cumulative, err := fetchMarketShapeInfo(code)
-	if err != nil {
-		return nil, report, err
-	}
-
-	forecast, err := fetchForecastPoints(code)
-	if err != nil {
-		return nil, report, err
-	}
-	if len(forecast) == 0 {
-		return input, report, nil
-	}
-
-	baseline := make(map[int]float64, len(forecast))
-
-	for _, points := range forecast {
-		for _, point := range points {
-			probability := 0.5
-			// Untouched bars keep the user's own forecast; the house line only
-			// stands in where they have none.
-			if p, ok := firstProbabilityValue(
-				point.MyProbability,
-				point.StartingProbability,
-				point.CommunityProbability,
-			); ok {
-				probability = clampProb(p)
-			}
-			baseline[point.ID] = probability
-		}
-	}
-
-	if opts.UsePendingBaseline {
-		pending, err := fetchPendingEditProbabilities(code)
-		if err == nil {
-			for id, p := range pending {
-				if _, ok := baseline[id]; ok {
-					baseline[id] = clampProb(p)
-				}
-			}
-		}
-	}
-
-	current := make(map[int]float64, len(baseline))
-	for id, p := range baseline {
-		current[id] = p
-	}
-
-	anchor := make(map[int]bool, len(input))
-	isFixedByID := make(map[int]bool)
-	unknownAnchors := make([]probabilityUpdate, 0)
-
-	for _, update := range input {
-		if _, ok := current[update.SubmarketID]; !ok {
-			unknownAnchors = append(unknownAnchors, update)
-			continue
-		}
-		current[update.SubmarketID] = clampProb(update.Probability)
-		anchor[update.SubmarketID] = true
-		if update.IsFixed != nil {
-			isFixedByID[update.SubmarketID] = *update.IsFixed
-		}
-	}
-
-	ladders := buildLadders(marketType, cumulative, forecast)
-	for _, ladder := range ladders {
-		ids := ladder.IDs
-		anchorIndices := make([]int, 0)
-		for i, id := range ids {
-			if anchor[id] || (ladder.IncludeChangedAsAnchors && math.Abs(current[id]-baseline[id]) > shapeEpsilon) {
-				anchorIndices = append(anchorIndices, i)
-			}
-		}
-		if len(anchorIndices) == 0 {
-			continue
-		}
-		if ladder.RequireAtLeastTwoAnchors && len(anchorIndices) < 2 {
-			continue
-		}
-
-		// For cross-group count ladders, interpolate only between the first and
-		// last anchored groups to avoid unintentionally moving groups outside
-		// the anchored span.
-		if ladder.RequireAtLeastTwoAnchors {
-			left := anchorIndices[0]
-			right := anchorIndices[len(anchorIndices)-1]
-			ids = ids[left : right+1]
-
-			relAnchors := make([]int, 0, len(anchorIndices))
-			for _, idx := range anchorIndices {
-				if idx < left || idx > right {
-					continue
-				}
-				relAnchors = append(relAnchors, idx-left)
-			}
-			anchorIndices = relAnchors
-		}
-
-		interpolateLadder(ids, anchorIndices, baseline, current, anchor, ladder.PinOuterToBaseline)
-
-		if ladder.MonotonicDirection != "" {
-			enforceDirectionalMonotonicity(ids, current, anchor, ladder.MonotonicDirection)
-		}
-	}
-
-	result := buildShapedProbabilityUpdates(
-		baseline,
-		current,
-		anchor,
-		isFixedByID,
-		input,
-		unknownAnchors,
-	)
-
-	report.OutputCount = len(result)
-	return result, report, nil
+type probabilityUpdate struct {
+	SubmarketID int
+	Probability float64
+	IsFixed     *bool
 }
 
 func fetchMarketShapeInfo(code string) (string, bool, error) {
@@ -236,229 +90,7 @@ func fetchFullForecastData(code string) (json.RawMessage, error) {
 	return data, nil
 }
 
-func fetchForecastPoints(code string) (map[string][]forecastPoint, error) {
-	data, err := fetchFullForecastData(code)
-	if err != nil {
-		return nil, err
-	}
-
-	var payload struct {
-		Forecast map[string][]forecastPoint `json:"forecast"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil, fmt.Errorf("parsing forecast payload: %w", err)
-	}
-
-	return payload.Forecast, nil
-}
-
-func fetchPendingEditProbabilities(code string) (map[int]float64, error) {
-	states, err := fetchPendingEditStates(code)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(map[int]float64, len(states))
-	for id, state := range states {
-		if !state.HasProbability {
-			continue
-		}
-		out[id] = clampProb(state.Probability)
-	}
-	return out, nil
-}
-
-func buildLadders(
-	marketType string,
-	cumulative bool,
-	forecast map[string][]forecastPoint,
-) []shapeLadder {
-	ladders := make([]shapeLadder, 0)
-
-	switch marketType {
-	case "count":
-		groups := sortedForecastGroups(forecast)
-		for _, group := range groups {
-			points := append([]forecastPoint(nil), forecast[group]...)
-			sort.Slice(points, func(i, j int) bool {
-				li := math.Inf(1)
-				if points[i].Threshold != nil {
-					li = *points[i].Threshold
-				}
-				lj := math.Inf(1)
-				if points[j].Threshold != nil {
-					lj = *points[j].Threshold
-				}
-				if li == lj {
-					return points[i].ID < points[j].ID
-				}
-				return li < lj
-			})
-
-			ids := make([]int, 0, len(points))
-			for _, point := range points {
-				ids = append(ids, point.ID)
-			}
-			if len(ids) > 1 {
-				ladders = append(ladders, shapeLadder{
-					IDs:                ids,
-					MonotonicDirection: inferCountForecastDirection(points),
-					PinOuterToBaseline: true,
-				})
-			}
-		}
-
-		// Also build ladders that connect equivalent thresholds across groups so
-		// sparse multi-group anchors can interpolate intermediate groups.
-		for _, ids := range buildCountCrossGroupLadders(groups, forecast) {
-			if len(ids) <= 1 {
-				continue
-			}
-			ladders = append(ladders, shapeLadder{
-				IDs:                      ids,
-				PinOuterToBaseline:       true,
-				RequireAtLeastTwoAnchors: true,
-				IncludeChangedAsAnchors:  true,
-			})
-		}
-
-	case "date":
-		if cumulative {
-			all := make([]forecastPoint, 0)
-			for _, points := range forecast {
-				all = append(all, points...)
-			}
-			sort.Slice(all, func(i, j int) bool {
-				di := all[i].ThresholdDate
-				dj := all[j].ThresholdDate
-				if di == dj {
-					return all[i].ID < all[j].ID
-				}
-				return di < dj
-			})
-			ids := make([]int, 0, len(all))
-			for _, point := range all {
-				ids = append(ids, point.ID)
-			}
-			if len(ids) > 1 {
-				ladders = append(ladders, shapeLadder{
-					IDs:                ids,
-					MonotonicDirection: "up",
-				})
-			}
-		} else {
-			groups := sortedForecastGroups(forecast)
-			for _, group := range groups {
-				points := append([]forecastPoint(nil), forecast[group]...)
-				sort.Slice(points, func(i, j int) bool {
-					di := points[i].ThresholdDate
-					dj := points[j].ThresholdDate
-					if di == dj {
-						return points[i].ID < points[j].ID
-					}
-					return di < dj
-				})
-				ids := make([]int, 0, len(points))
-				for _, point := range points {
-					ids = append(ids, point.ID)
-				}
-				if len(ids) > 1 {
-					ladders = append(ladders, shapeLadder{
-						IDs: ids,
-					})
-				}
-			}
-		}
-	}
-
-	return ladders
-}
-
-func inferCountForecastDirection(points []forecastPoint) string {
-	up, down := 0, 0
-	var prev float64
-	hasPrev := false
-
-	for _, point := range points {
-		probability, ok := forecastPointDirectionProbability(point)
-		if !ok {
-			continue
-		}
-		if hasPrev {
-			switch {
-			case probability > prev+shapeEpsilon:
-				up++
-			case probability+shapeEpsilon < prev:
-				down++
-			}
-		}
-		prev = probability
-		hasPrev = true
-	}
-
-	if up > down {
-		return "up"
-	}
-	return "down"
-}
-
-func forecastPointDirectionProbability(point forecastPoint) (float64, bool) {
-	if point.StartingProbability != nil {
-		return clampProb(*point.StartingProbability), true
-	}
-	return 0, false
-}
-
 const countCrossGroupThresholdQuantum = 0.001
-
-func buildCountCrossGroupLadders(
-	groups []string,
-	forecast map[string][]forecastPoint,
-) [][]int {
-	thresholdToGroupIDs := make(map[int64]map[string]int)
-
-	for _, group := range groups {
-		for _, point := range forecast[group] {
-			if point.Threshold == nil {
-				continue
-			}
-			key := quantizeThreshold(*point.Threshold)
-			if _, ok := thresholdToGroupIDs[key]; !ok {
-				thresholdToGroupIDs[key] = make(map[string]int)
-			}
-			existing, exists := thresholdToGroupIDs[key][group]
-			if !exists || point.ID < existing {
-				thresholdToGroupIDs[key][group] = point.ID
-			}
-		}
-	}
-
-	keys := make([]int64, 0, len(thresholdToGroupIDs))
-	for key := range thresholdToGroupIDs {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-
-	ladders := make([][]int, 0, len(keys))
-	for _, key := range keys {
-		byGroup := thresholdToGroupIDs[key]
-		ids := make([]int, 0, len(groups))
-		for _, group := range groups {
-			if id, ok := byGroup[group]; ok {
-				ids = append(ids, id)
-			}
-		}
-		if len(ids) > 1 {
-			ladders = append(ladders, ids)
-		}
-	}
-
-	return ladders
-}
-
-func quantizeThreshold(value float64) int64 {
-	return int64(math.Round(value / countCrossGroupThresholdQuantum))
-}
 
 func sortedForecastGroups(forecast map[string][]forecastPoint) []string {
 	groups := make([]string, 0, len(forecast))
@@ -467,87 +99,6 @@ func sortedForecastGroups(forecast map[string][]forecastPoint) []string {
 	}
 	sort.Strings(groups)
 	return groups
-}
-
-func interpolateLadder(
-	ids []int,
-	anchorIndices []int,
-	baseline map[int]float64,
-	current map[int]float64,
-	anchor map[int]bool,
-	pinOuterToBaseline bool,
-) {
-	if len(ids) < 2 {
-		return
-	}
-
-	sortedAnchors := uniqueSortedInts(append([]int(nil), anchorIndices...))
-	if len(sortedAnchors) == 0 {
-		return
-	}
-
-	last := len(ids) - 1
-
-	// Extrapolate the nearest anchor delta to ladder edges for date markets so
-	// untouched tails do not snap back to baseline.
-	if !pinOuterToBaseline {
-		firstAnchor := sortedAnchors[0]
-		firstID := ids[firstAnchor]
-		firstDelta := probToBits(current[firstID]) - probToBits(baseline[firstID])
-		for idx := 0; idx < firstAnchor; idx++ {
-			id := ids[idx]
-			if anchor[id] {
-				continue
-			}
-			current[id] = clampProb(bitsToProb(probToBits(baseline[id]) + firstDelta))
-		}
-
-		lastAnchor := sortedAnchors[len(sortedAnchors)-1]
-		lastID := ids[lastAnchor]
-		lastDelta := probToBits(current[lastID]) - probToBits(baseline[lastID])
-		for idx := lastAnchor + 1; idx <= last; idx++ {
-			id := ids[idx]
-			if anchor[id] {
-				continue
-			}
-			current[id] = clampProb(bitsToProb(probToBits(baseline[id]) + lastDelta))
-		}
-	}
-
-	boundaries := sortedAnchors
-	if pinOuterToBaseline {
-		boundaries = make([]int, 0, len(sortedAnchors)+2)
-		boundaries = append(boundaries, 0)
-		boundaries = append(boundaries, sortedAnchors...)
-		if boundaries[len(boundaries)-1] != last {
-			boundaries = append(boundaries, last)
-		}
-		boundaries = uniqueSortedInts(boundaries)
-	}
-
-	for i := 0; i < len(boundaries)-1; i++ {
-		left := boundaries[i]
-		right := boundaries[i+1]
-		if right-left <= 1 {
-			continue
-		}
-
-		leftID := ids[left]
-		rightID := ids[right]
-		leftDelta := probToBits(current[leftID]) - probToBits(baseline[leftID])
-		rightDelta := probToBits(current[rightID]) - probToBits(baseline[rightID])
-		span := float64(right - left)
-
-		for idx := left + 1; idx < right; idx++ {
-			id := ids[idx]
-			if anchor[id] {
-				continue
-			}
-			fraction := float64(idx-left) / span
-			delta := leftDelta + (rightDelta-leftDelta)*fraction
-			current[id] = clampProb(bitsToProb(probToBits(baseline[id]) + delta))
-		}
-	}
 }
 
 func enforceDirectionalMonotonicity(
@@ -595,98 +146,6 @@ func enforceDirectionalMonotonicity(
 			break
 		}
 	}
-}
-
-func buildShapedProbabilityUpdates(
-	baseline map[int]float64,
-	current map[int]float64,
-	anchor map[int]bool,
-	anchorFixed map[int]bool,
-	input []probabilityUpdate,
-	unknownAnchors []probabilityUpdate,
-) []probabilityUpdate {
-	updatesByID := make(map[int]probabilityUpdate)
-	for id, base := range baseline {
-		value := current[id]
-		if math.Abs(value-base) <= shapeEpsilon {
-			continue
-		}
-
-		fixed := false
-		if anchor[id] {
-			if explicit, ok := anchorFixed[id]; ok {
-				fixed = explicit
-			} else {
-				// Explicitly targeted bars are fixed by default.
-				fixed = true
-			}
-		}
-
-		fixedCopy := fixed
-		updatesByID[id] = probabilityUpdate{
-			SubmarketID: id,
-			Probability: roundProbability(value),
-			IsFixed:     &fixedCopy,
-		}
-	}
-
-	for _, update := range input {
-		if update.IsFixed == nil {
-			continue
-		}
-		if existing, ok := updatesByID[update.SubmarketID]; ok {
-			existing.IsFixed = update.IsFixed
-			updatesByID[update.SubmarketID] = existing
-			continue
-		}
-		if value, ok := current[update.SubmarketID]; ok {
-			updatesByID[update.SubmarketID] = probabilityUpdate{
-				SubmarketID: update.SubmarketID,
-				Probability: roundProbability(value),
-				IsFixed:     update.IsFixed,
-			}
-			continue
-		}
-		updatesByID[update.SubmarketID] = update
-	}
-
-	for _, update := range input {
-		if update.IsFixed != nil {
-			continue
-		}
-		if !anchor[update.SubmarketID] {
-			continue
-		}
-
-		fixed := true
-		if existing, ok := updatesByID[update.SubmarketID]; ok {
-			existing.IsFixed = &fixed
-			updatesByID[update.SubmarketID] = existing
-			continue
-		}
-		if value, ok := current[update.SubmarketID]; ok {
-			updatesByID[update.SubmarketID] = probabilityUpdate{
-				SubmarketID: update.SubmarketID,
-				Probability: roundProbability(value),
-				IsFixed:     &fixed,
-			}
-			continue
-		}
-		update.IsFixed = &fixed
-		updatesByID[update.SubmarketID] = update
-	}
-
-	result := make([]probabilityUpdate, 0, len(updatesByID)+len(unknownAnchors))
-	for _, update := range updatesByID {
-		result = append(result, update)
-	}
-	result = append(result, unknownAnchors...)
-	sort.Slice(result, func(i, j int) bool { return result[i].SubmarketID < result[j].SubmarketID })
-	return result
-}
-
-func parseProbabilityUpdatesFromBody(body map[string]interface{}) ([]probabilityUpdate, error) {
-	return parseProbabilityUpdatesFromBodyWithDefault(body, nil)
 }
 
 func parseProbabilityUpdatesFromBodyWithDefault(
@@ -795,33 +254,15 @@ func normalizeUpdatesArray(raw interface{}) ([]interface{}, error) {
 	return out, nil
 }
 
-// shapeAndApplyRemainder runs the common shape → multicount remainder pipeline.
+// shapeAndApplyRemainder applies the multicount remainder request to updates.
 // It returns the processed updates and the remainder report. If remainderRequest
 // is enabled on a non-multicount market, it returns an error.
 func shapeAndApplyRemainder(
 	code string,
 	updates []probabilityUpdate,
-	autoShape bool,
 	usePendingBaseline bool,
 	remainderRequest multicountRemainderRequest,
 ) ([]probabilityUpdate, multicountRemainderReport, error) {
-	if autoShape && len(updates) > 0 {
-		shaped, report, err := shapeProbabilityUpdates(code, updates, shapeOptions{
-			UsePendingBaseline: usePendingBaseline,
-		})
-		if err != nil {
-			return nil, multicountRemainderReport{}, err
-		}
-		if output.IsTTY() && !jsonOutput && report.OutputCount != report.InputCount {
-			fmt.Printf(
-				"Auto-shaped updates: %d input -> %d applied.\n",
-				report.InputCount,
-				report.OutputCount,
-			)
-		}
-		updates = shaped
-	}
-
 	updates, remainderReport, err := applyMulticountRemainder(
 		code,
 		updates,
@@ -881,20 +322,6 @@ func probToBits(p float64) float64 {
 func bitsToProb(bits float64) float64 {
 	odds := math.Pow(2, bits)
 	return odds / (1 + odds)
-}
-
-func uniqueSortedInts(values []int) []int {
-	if len(values) == 0 {
-		return values
-	}
-	sort.Ints(values)
-	out := values[:1]
-	for _, value := range values[1:] {
-		if value != out[len(out)-1] {
-			out = append(out, value)
-		}
-	}
-	return out
 }
 
 func toFloat(value interface{}) (float64, bool) {
