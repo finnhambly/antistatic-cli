@@ -99,10 +99,16 @@ Examples:
   Count market (threshold planner + cross-group interpolation):
     antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026-08-31T23:59:59Z --to-group 2027-02-28T23:59:59Z
 
-  Date market (sparse anchors + auto-shape interpolation):
-    antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
+  Date market (sparse anchors, other bars moved only as far as order needs):
+    antistatic draft taiwan-inv --repair fill --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 
-Use --submit with --updates to place a shaped trade directly.`,
+  Date market (sparse anchors, interpolating between them):
+    antistatic draft taiwan-inv --interpolate --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
+
+Bars that would break a ladder's order are rejected unless you pass
+--repair fill (keep your bars, move the others minimally) or --interpolate.
+
+Use --submit with --updates to place the trade directly.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPendingEdits,
 }
@@ -207,9 +213,9 @@ func updatePendingEditsBody(
 		body["updates"] = probabilityUpdatesToPayload(updates)
 	}
 
-	resp, err := client.Put("/markets/"+code+"/pending-edits", body)
+	resp, err := client.Put("/markets/"+code+"/pending-edits", withRepair(body))
 	if err != nil {
-		return err
+		return ladderHint(err)
 	}
 
 	data, err := resp.Data()
@@ -247,8 +253,10 @@ func runPendingEdits(cmd *cobra.Command, args []string) error {
 	clear, _ := cmd.Flags().GetBool("clear")
 	updatesJSON, _ := cmd.Flags().GetString("updates")
 	mode, _ := cmd.Flags().GetString("mode")
-	noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
-	autoShape := !noAutoShape
+	autoShape, err := readLadderFlags(cmd)
+	if err != nil {
+		return err
+	}
 	submit, _ := cmd.Flags().GetBool("submit")
 	submitPending, _ := cmd.Flags().GetBool("submit-pending")
 	apply, _ := cmd.Flags().GetBool("apply")
@@ -1249,9 +1257,9 @@ func submitTradeFromDraft(code string, updates []probabilityUpdate, yes bool) er
 		}
 	}
 
-	resp, err := client.Post("/markets/"+code+"/positions", body)
+	resp, err := client.Post("/markets/"+code+"/positions", withRepair(body))
 	if err != nil {
-		return err
+		return ladderHint(err)
 	}
 
 	data, err := resp.Data()
@@ -1311,6 +1319,6 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("submit-pending", false, "Submit existing pending edits as a trade (no planning flags needed)")
 	cmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost during preview")
 	cmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt when using --submit or --submit-pending")
-	cmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
+	addLadderFlags(cmd)
 	addMulticountRemainderFlags(cmd)
 }

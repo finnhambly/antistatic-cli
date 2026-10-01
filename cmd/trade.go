@@ -39,10 +39,12 @@ Example:
 		code := args[0]
 		updatesJSON, _ := cmd.Flags().GetString("updates")
 		fromDraft, _ := cmd.Flags().GetBool("from-draft")
-		noAutoShape, _ := cmd.Flags().GetBool("no-auto-shape")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		estimateCost, _ := cmd.Flags().GetBool("estimate-cost")
-		autoShape := !noAutoShape
+		autoShape, err := readLadderFlags(cmd)
+		if err != nil {
+			return err
+		}
 		remainderRequest, err := parseMulticountRemainderRequest(cmd)
 		if err != nil {
 			return err
@@ -130,9 +132,9 @@ Example:
 			}
 		}
 
-		resp, err := client.Post("/markets/"+code+"/positions", body)
+		resp, err := client.Post("/markets/"+code+"/positions", withRepair(body))
 		if err != nil {
-			return err
+			return ladderHint(err)
 		}
 
 		data, err := resp.Data()
@@ -167,7 +169,7 @@ func init() {
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	tradeCmd.Flags().Bool("dry-run", false, "Preview shaped updates (and estimated cost) without placing a trade")
 	tradeCmd.Flags().Bool("estimate-cost", false, "Estimate total trade cost before submission")
-	tradeCmd.Flags().Bool("no-auto-shape", false, "Disable auto interpolation and monotonic shaping")
+	addLadderFlags(tradeCmd)
 	addMulticountRemainderFlags(tradeCmd)
 
 	rootCmd.AddCommand(tradeCmd)
