@@ -26,6 +26,7 @@ This reports scenario points, not an account balance.`,
 
 		code := args[0]
 		at, _ := cmd.Flags().GetString("at")
+		showAll, _ := cmd.Flags().GetBool("all")
 		scenario, _ := cmd.Flags().GetString("scenario")
 		if at != "" && scenario != "" {
 			return fmt.Errorf("use either --at or --scenario")
@@ -70,15 +71,15 @@ This reports scenario points, not an account balance.`,
 		switch {
 		case len(result.Groups) > 0:
 			for _, group := range result.Groups {
-				title := group.Ladder
+				title := group.Group
 				if title == "" {
-					title = group.Group
+					title = group.Ladder
 				}
 				fmt.Printf("\n%s\n", title)
-				printPointsScenarios(group.Scenarios)
+				printPointsScenarios(group.Scenarios, showAll)
 			}
 		case len(result.Scenarios) > 0:
-			printPointsScenarios(result.Scenarios)
+			printPointsScenarios(result.Scenarios, showAll)
 		default:
 			output.JSON(data)
 		}
@@ -90,6 +91,7 @@ This reports scenario points, not an account balance.`,
 func init() {
 	pointsCmd.Flags().String("at", "", "Query specific resolution point")
 	pointsCmd.Flags().String("scenario", "", "Alias of --at (scenario point for count/date markets)")
+	pointsCmd.Flags().Bool("all", false, "Also list outcomes already ruled out by resolved bars")
 	rootCmd.AddCommand(pointsCmd)
 }
 
@@ -99,18 +101,27 @@ type pointsScenario struct {
 	Possible   *bool   `json:"possible"`
 }
 
-func printPointsScenarios(scenarios []pointsScenario) {
-	rows := make([][]string, len(scenarios))
-	for i, s := range scenarios {
+func printPointsScenarios(scenarios []pointsScenario, showAll bool) {
+	rows := make([][]string, 0, len(scenarios))
+	ruledOut := 0
+	for _, s := range scenarios {
+		impossible := s.Possible != nil && !*s.Possible
+		if impossible && !showAll {
+			ruledOut++
+			continue
+		}
 		sign := ""
 		if s.Points > 0 {
 			sign = "+"
 		}
 		note := ""
-		if s.Possible != nil && !*s.Possible {
+		if impossible {
 			note = "ruled out"
 		}
-		rows[i] = []string{s.Resolution, fmt.Sprintf("%s%.2f", sign, s.Points), note}
+		rows = append(rows, []string{s.Resolution, fmt.Sprintf("%s%.2f", sign, s.Points), note})
 	}
 	output.Table([]string{"OUTCOME", "POINTS", ""}, rows)
+	if ruledOut > 0 {
+		fmt.Printf("(%d outcomes already ruled out by resolved bars; --all lists them)\n", ruledOut)
+	}
 }
