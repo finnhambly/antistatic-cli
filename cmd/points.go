@@ -11,12 +11,13 @@ import (
 
 var pointsCmd = &cobra.Command{
 	Use:   "points <code>",
-	Short: "Show P&L scenarios for your positions",
-	Long: `Show what you would gain or lose under every possible resolution
-outcome for a market.
+	Short: "Show points won or lost under each outcome",
+	Long: `Show the points you would win or lose under every possible resolution
+outcome for a market, one table per ladder. Outcomes already ruled out by
+resolved bars are marked.
 
 Use --at (or --scenario) to query a specific resolution point.
-This command reports scenario P&L, not an account balance.`,
+This reports scenario points, not an account balance.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(); err != nil {
@@ -53,35 +54,32 @@ This command reports scenario P&L, not an account balance.`,
 			return nil
 		}
 
-		// Try to render scenarios table
-		var scenarios []struct {
-			Label  string  `json:"label"`
-			Points float64 `json:"points"`
+		var result struct {
+			Scenarios []pointsScenario `json:"scenarios"`
+			Groups    []struct {
+				Group     string           `json:"group"`
+				Ladder    string           `json:"ladder"`
+				Scenarios []pointsScenario `json:"scenarios"`
+			} `json:"groups"`
 		}
-		if err := json.Unmarshal(data, &scenarios); err != nil {
-			// Might be a map/object — try that
-			var result map[string]interface{}
-			if err2 := json.Unmarshal(data, &result); err2 == nil {
-				// Check for nested scenarios
-				if scenariosRaw, ok := result["scenarios"]; ok {
-					scenariosJSON, _ := json.Marshal(scenariosRaw)
-					json.Unmarshal(scenariosJSON, &scenarios)
-				}
-			}
+		if err := json.Unmarshal(data, &result); err != nil {
+			output.JSON(data)
+			return nil
 		}
 
-		if len(scenarios) > 0 {
-			headers := []string{"OUTCOME", "POINTS"}
-			rows := make([][]string, len(scenarios))
-			for i, s := range scenarios {
-				sign := ""
-				if s.Points > 0 {
-					sign = "+"
+		switch {
+		case len(result.Groups) > 0:
+			for _, group := range result.Groups {
+				title := group.Ladder
+				if title == "" {
+					title = group.Group
 				}
-				rows[i] = []string{s.Label, fmt.Sprintf("%s%.2f", sign, s.Points)}
+				fmt.Printf("\n%s\n", title)
+				printPointsScenarios(group.Scenarios)
 			}
-			output.Table(headers, rows)
-		} else {
+		case len(result.Scenarios) > 0:
+			printPointsScenarios(result.Scenarios)
+		default:
 			output.JSON(data)
 		}
 
@@ -93,4 +91,26 @@ func init() {
 	pointsCmd.Flags().String("at", "", "Query specific resolution point")
 	pointsCmd.Flags().String("scenario", "", "Alias of --at (scenario point for count/date markets)")
 	rootCmd.AddCommand(pointsCmd)
+}
+
+type pointsScenario struct {
+	Resolution string  `json:"resolution"`
+	Points     float64 `json:"points_won_lost"`
+	Possible   *bool   `json:"possible"`
+}
+
+func printPointsScenarios(scenarios []pointsScenario) {
+	rows := make([][]string, len(scenarios))
+	for i, s := range scenarios {
+		sign := ""
+		if s.Points > 0 {
+			sign = "+"
+		}
+		note := ""
+		if s.Possible != nil && !*s.Possible {
+			note = "ruled out"
+		}
+		rows[i] = []string{s.Resolution, fmt.Sprintf("%s%.2f", sign, s.Points), note}
+	}
+	output.Table([]string{"OUTCOME", "POINTS", ""}, rows)
 }

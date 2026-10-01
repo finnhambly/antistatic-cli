@@ -43,7 +43,7 @@ type forecastPoint struct {
 	Threshold            *float64 `json:"threshold"`
 	ThresholdDate        string   `json:"threshold_date"`
 	StartingProbability  *float64 `json:"starting_probability"`
-	Probability          *float64 `json:"probability"`
+	MyProbability        *float64 `json:"my_probability"`
 	CommunityProbability float64  `json:"community_probability"`
 }
 
@@ -75,9 +75,11 @@ func shapeProbabilityUpdates(
 	for _, points := range forecast {
 		for _, point := range points {
 			probability := 0.5
+			// Untouched bars keep the user's own forecast; the house line only
+			// stands in where they have none.
 			if p, ok := firstProbabilityValue(
+				point.MyProbability,
 				point.StartingProbability,
-				point.Probability,
 				point.CommunityProbability,
 			); ok {
 				probability = clampProb(p)
@@ -403,9 +405,6 @@ func inferCountForecastDirection(points []forecastPoint) string {
 func forecastPointDirectionProbability(point forecastPoint) (float64, bool) {
 	if point.StartingProbability != nil {
 		return clampProb(*point.StartingProbability), true
-	}
-	if point.Probability != nil {
-		return clampProb(*point.Probability), true
 	}
 	return 0, false
 }

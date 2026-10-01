@@ -21,7 +21,7 @@ type asciiRenderOptions struct {
 type asciiPoint struct {
 	ID                   int      `json:"id"`
 	Label                string   `json:"label"`
-	Probability          *float64 `json:"probability"`
+	MyProbability        *float64 `json:"my_probability"`
 	CommunityProbability *float64 `json:"community_probability"`
 	StartingProbability  *float64 `json:"starting_probability"`
 	Threshold            *float64 `json:"threshold"`
@@ -398,42 +398,32 @@ func monotonicViolations(points []asciiPoint, direction, basis string) []monoton
 }
 
 func pointProbabilityForBasis(point asciiPoint, basis string) float64 {
+	var preferred []*float64
 	switch basis {
 	case "community":
-		if point.CommunityProbability != nil {
-			return *point.CommunityProbability
-		}
-		if point.Probability != nil {
-			return *point.Probability
-		}
-		if point.StartingProbability != nil {
-			return *point.StartingProbability
-		}
-		return 0
-	case "starting":
-		if point.StartingProbability != nil {
-			return *point.StartingProbability
-		}
-		if point.Probability != nil {
-			return *point.Probability
-		}
-		if point.CommunityProbability != nil {
-			return *point.CommunityProbability
-		}
-		return 0
+		preferred = []*float64{point.CommunityProbability, point.StartingProbability}
+	case "mine":
+		preferred = []*float64{point.MyProbability, point.StartingProbability}
 	default:
-		if point.CommunityProbability != nil {
-			return *point.CommunityProbability
-		}
-		return 0
+		preferred = []*float64{point.StartingProbability, point.CommunityProbability}
 	}
+	for _, p := range preferred {
+		if p != nil {
+			return *p
+		}
+	}
+	return 0
 }
 
 func basisLabel(basis string) string {
-	if basis == "starting" {
+	switch basis {
+	case "starting":
 		return "starting_probability (trade line)"
+	case "mine":
+		return "your forecast (starting probability where you have none)"
+	default:
+		return "community aggregate (context only)"
 	}
-	return "community aggregate (context only)"
 }
 
 func friendlyASCIIGroupName(groupName string, points []asciiPoint) string {

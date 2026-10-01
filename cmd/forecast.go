@@ -59,8 +59,8 @@ Use --with-community to include community aggregates in output.`,
 		if asciiSummary && !ascii {
 			return fmt.Errorf("--summary is only supported with --ascii")
 		}
-		if asciiBasis != "starting" && asciiBasis != "community" {
-			return fmt.Errorf("--ascii-basis must be one of: starting, community")
+		if asciiBasis != "starting" && asciiBasis != "community" && asciiBasis != "mine" {
+			return fmt.Errorf("--ascii-basis must be one of: starting, community, mine")
 		}
 
 		// Agent/machine consumers usually need a stable full response shape.
@@ -169,10 +169,7 @@ Use --with-community to include community aggregates in output.`,
 		if forecast.Matched != nil {
 			if label, ok := forecast.Matched["label"].(string); ok {
 				starting := "-"
-				if p, ok := firstProbabilityValue(
-					forecast.Matched["starting_probability"],
-					forecast.Matched["probability"],
-				); ok {
+				if p, ok := firstProbabilityValue(forecast.Matched["starting_probability"]); ok {
 					starting = fmt.Sprintf("%.1f%%", p*100)
 				}
 				if withCommunity {
@@ -206,7 +203,7 @@ Use --with-community to include community aggregates in output.`,
 			for _, sm := range forecast.Submarkets {
 				label := fmt.Sprintf("%v", sm["label"])
 				starting := "-"
-				if p, ok := firstProbabilityValue(sm["starting_probability"], sm["probability"]); ok {
+				if p, ok := firstProbabilityValue(sm["starting_probability"]); ok {
 					starting = fmt.Sprintf("%.1f%%", p*100)
 				}
 				row := []string{label, starting}
@@ -269,7 +266,7 @@ Use --with-community to include community aggregates in output.`,
 				rangeText := "context hidden"
 				if withCommunity {
 					rangeText = "-"
-					if rawRange, ok := row["prob_range"].([]interface{}); ok && len(rawRange) == 2 {
+					if rawRange, ok := row["community_probability_range"].([]interface{}); ok && len(rawRange) == 2 {
 						low, lowOK := rawRange[0].(float64)
 						high, highOK := rawRange[1].(float64)
 						if lowOK && highOK {
@@ -309,7 +306,7 @@ func init() {
 	forecastCmd.Flags().Int("ascii-width", 50, "ASCII chart width in characters")
 	forecastCmd.Flags().Int("ascii-max-groups", 6, "Maximum groups to render in ASCII mode")
 	forecastCmd.Flags().Int("ascii-max-points", 60, "Maximum points per group to print in ASCII mode")
-	forecastCmd.Flags().String("ascii-basis", "starting", "With --ascii, probability basis: starting or community")
+	forecastCmd.Flags().String("ascii-basis", "starting", "With --ascii, probability basis: starting, community or mine")
 	forecastCmd.Flags().Bool("with-community", false, "Include community aggregate probabilities in output (including JSON)")
 
 	rootCmd.AddCommand(forecastCmd)
@@ -348,14 +345,11 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 			copyMapField(cleaned, submarket, "threshold_date")
 			copyMapField(cleaned, submarket, "end_date")
 
-			if p, ok := firstProbabilityValue(submarket["starting_probability"], submarket["probability"]); ok {
+			if p, ok := firstProbabilityValue(submarket["starting_probability"]); ok {
 				cleaned["starting_probability"] = p
 				cleaned["trade_probability"] = p
 			}
-
-			if p, ok := firstProbabilityValue(submarket["probability"]); ok {
-				cleaned["probability"] = p
-			}
+			copyResolutionFields(cleaned, submarket)
 
 			if withCommunity {
 				if p, ok := firstProbabilityValue(submarket["community_probability"]); ok {
@@ -393,7 +387,7 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 				continue
 			}
 			if !withCommunity {
-				delete(groupRow, "prob_range")
+				delete(groupRow, "community_probability_range")
 			}
 			if len(groupLabels) > 0 {
 				groupName := fmt.Sprintf("%v", groupRow["group"])
@@ -415,13 +409,11 @@ func enrichForecastPayload(data json.RawMessage, withCommunity bool) json.RawMes
 		copyMapField(cleanedMatched, matched, "threshold_date")
 		copyMapField(cleanedMatched, matched, "end_date")
 
-		if p, ok := firstProbabilityValue(matched["starting_probability"], matched["probability"]); ok {
+		if p, ok := firstProbabilityValue(matched["starting_probability"]); ok {
 			cleanedMatched["starting_probability"] = p
 			cleanedMatched["trade_probability"] = p
 		}
-		if p, ok := firstProbabilityValue(matched["probability"]); ok {
-			cleanedMatched["probability"] = p
-		}
+		copyResolutionFields(cleanedMatched, matched)
 		if withCommunity {
 			if p, ok := firstProbabilityValue(matched["community_probability"]); ok {
 				cleanedMatched["community_probability"] = p
@@ -531,4 +523,12 @@ func resolveForecastGroupAlias(code, group string) (string, bool) {
 		return group, false
 	}
 	return resolved, true
+}
+
+// copyResolutionFields keeps the fields that say whether a bar is settled, which
+// ladder it belongs to and the caller's own forecast.
+func copyResolutionFields(dst, src map[string]interface{}) {
+	for _, key := range []string{"status", "resolved_yes", "resolved_at", "ladder", "my_probability"} {
+		copyMapField(dst, src, key)
+	}
 }

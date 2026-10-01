@@ -42,7 +42,6 @@ type draftForecastPoint struct {
 	ProjectionGroup      string   `json:"projection_group"`
 	Threshold            *float64 `json:"threshold"`
 	StartingProbability  *float64 `json:"starting_probability"`
-	Probability          *float64 `json:"probability"`
 	CommunityProbability *float64 `json:"community_probability"`
 }
 
@@ -928,9 +927,6 @@ func inferDraftCountDirection(points []draftForecastPoint) string {
 func draftPointDirectionProbability(point draftForecastPoint) (float64, bool) {
 	if point.StartingProbability != nil {
 		return clampProb(*point.StartingProbability), true
-	}
-	if point.Probability != nil {
-		return clampProb(*point.Probability), true
 	}
 	if point.CommunityProbability != nil {
 		return clampProb(*point.CommunityProbability), true
