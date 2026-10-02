@@ -22,16 +22,23 @@ import (
 )
 
 const (
-	oauthDefaultScope    = "read write comment"
+	oauthDefaultScope    = "read write comment offline_access"
 	oauthCallbackPath    = "/callback"
 	oauthLoginTimeout    = 5 * time.Minute
 	oauthHTTPTimeout     = 20 * time.Second
-	oauthClientName      = "Antistatic CLI"
 	oauthTokenSafetySkew = 30 * time.Second
+
+	// oauthClientMetadataPath is where the server hosts the CLI's OAuth
+	// Client ID Metadata Document. The document's URL is the CLI's
+	// client_id, so no client registration is needed: the server fetches
+	// the document (it lists loopback redirect URIs, matched with any port).
+	oauthClientMetadataPath = "/oauth/clients/cli.json"
 )
 
-type oauthRegistrationResponse struct {
-	ClientID string `json:"client_id"`
+// oauthClientID returns the CLI's OAuth client_id for a server: the URL of
+// the client metadata document that server hosts for the CLI.
+func oauthClientID(baseURL string) string {
+	return strings.TrimRight(baseURL, "/") + oauthClientMetadataPath
 }
 
 type oauthTokenResponse struct {
@@ -50,6 +57,7 @@ type oauthErrorResponse struct {
 type oauthCallbackResult struct {
 	Code             string
 	State            string
+	Issuer           string
 	Error            string
 	ErrorDescription string
 }
@@ -69,11 +77,7 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 	}
 	redirectURI := fmt.Sprintf("http://127.0.0.1:%d%s", addr.Port, oauthCallbackPath)
 
-	registration, err := registerOAuthClient(baseURL, redirectURI)
-	if err != nil {
-		listener.Close()
-		return err
-	}
+	clientID := oauthClientID(baseURL)
 
 	state, err := randomURLSafe(24)
 	if err != nil {
@@ -88,7 +92,7 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 	}
 
 	codeChallenge := pkceChallenge(codeVerifier)
-	authURL := buildAuthorizeURL(baseURL, registration.ClientID, redirectURI, state, codeChallenge)
+	authURL := buildAuthorizeURL(baseURL, clientID, redirectURI, state, codeChallenge)
 
 	resultCh := make(chan oauthCallbackResult, 1)
 	httpServer := &http.Server{
@@ -144,13 +148,17 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 		return fmt.Errorf("authorization failed: state mismatch")
 	}
 
+	if err := checkOAuthIssuer(baseURL, callback.Issuer); err != nil {
+		return err
+	}
+
 	if callback.Code == "" {
 		return fmt.Errorf("authorization failed: missing code")
 	}
 
 	tokenPayload, err := exchangeOAuthCode(
 		baseURL,
-		registration.ClientID,
+		clientID,
 		redirectURI,
 		callback.Code,
 		codeVerifier,
@@ -168,7 +176,7 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 	}
 
 	cfg.Token = tokenPayload.AccessToken
-	cfg.OAuthClientID = registration.ClientID
+	cfg.OAuthClientID = clientID
 	cfg.OAuthRefreshToken = tokenPayload.RefreshToken
 	cfg.OAuthTokenExpiry = tokenExpiryString(tokenPayload.ExpiresIn)
 	if err := cfg.Save(); err != nil {
@@ -179,50 +187,16 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 	return nil
 }
 
-func registerOAuthClient(baseURL, redirectURI string) (*oauthRegistrationResponse, error) {
-	payload := map[string]any{
-		"client_name":                oauthClientName,
-		"redirect_uris":              []string{redirectURI},
-		"token_endpoint_auth_method": "none",
+// checkOAuthIssuer guards against authorization-server mix-up (RFC 9207):
+// when the server says who issued the code, it must be the server we asked.
+func checkOAuthIssuer(baseURL, issuer string) error {
+	if issuer == "" {
+		return nil
 	}
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("encoding OAuth registration payload: %w", err)
+	if strings.TrimRight(issuer, "/") != strings.TrimRight(baseURL, "/") {
+		return fmt.Errorf("authorization failed: response came from %s, expected %s", issuer, baseURL)
 	}
-
-	req, err := http.NewRequest(http.MethodPost, baseURL+"/oauth/register", strings.NewReader(string(data)))
-	if err != nil {
-		return nil, fmt.Errorf("creating OAuth registration request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: oauthHTTPTimeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("registering OAuth client: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading OAuth registration response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("registering OAuth client failed: %s", oauthHTTPError(resp.StatusCode, body))
-	}
-
-	var out oauthRegistrationResponse
-	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, fmt.Errorf("parsing OAuth registration response: %w", err)
-	}
-	if out.ClientID == "" {
-		return nil, fmt.Errorf("OAuth registration response missing client_id")
-	}
-
-	return &out, nil
+	return nil
 }
 
 func exchangeOAuthCode(baseURL, clientID, redirectURI, code, codeVerifier string) (*oauthTokenResponse, error) {
@@ -271,6 +245,7 @@ func callbackHandler(resultCh chan<- oauthCallbackResult) http.Handler {
 		result := oauthCallbackResult{
 			Code:             q.Get("code"),
 			State:            q.Get("state"),
+			Issuer:           q.Get("iss"),
 			Error:            q.Get("error"),
 			ErrorDescription: q.Get("error_description"),
 		}
