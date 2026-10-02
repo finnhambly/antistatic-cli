@@ -201,6 +201,7 @@ type specIssue struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
 	Fix      string `json:"fix"`
+	Example  string `json:"example"`
 }
 
 func printSpecPreview(data json.RawMessage) error {
@@ -285,6 +286,9 @@ func printSpecIssues(issues []specIssue) {
 		text := issue.Message
 		if issue.Fix != "" {
 			text += " " + issue.Fix
+		}
+		if issue.Example != "" {
+			text += " e.g. " + issue.Example
 		}
 		rows = append(rows, []string{issue.Severity, issue.Field, text})
 	}
