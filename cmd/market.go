@@ -213,6 +213,7 @@ func printSpecPreview(data json.RawMessage) error {
 			Set      bool        `json:"set"`
 			Values   interface{} `json:"values"`
 			Why      string      `json:"why"`
+			Example  string      `json:"example"`
 		} `json:"next_options"`
 		Curves []struct {
 			Curve string `json:"curve"`
@@ -244,7 +245,11 @@ func printSpecPreview(data json.RawMessage) error {
 		if opt.Required {
 			need = "required"
 		}
-		pending = append(pending, []string{opt.Setting, need, opt.Why})
+		why := opt.Why
+		if opt.Example != "" {
+			why += " e.g. " + opt.Example
+		}
+		pending = append(pending, []string{opt.Setting, need, why})
 	}
 	if len(pending) > 0 {
 		fmt.Println("\nStill to set:")
