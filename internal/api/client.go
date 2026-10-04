@@ -98,6 +98,11 @@ func (c *Client) Put(path string, body interface{}) (*Response, error) {
 	return c.do("PUT", path, nil, body)
 }
 
+// Patch performs a PATCH request with a JSON body.
+func (c *Client) Patch(path string, body interface{}) (*Response, error) {
+	return c.do("PATCH", path, nil, body)
+}
+
 // Delete performs a DELETE request.
 func (c *Client) Delete(path string) (*Response, error) {
 	return c.do("DELETE", path, nil, nil)

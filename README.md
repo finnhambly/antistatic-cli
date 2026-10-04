@@ -73,6 +73,19 @@ antistatic comment us-troops-iran "Example comment"
 antistatic comment us-troops-iran --reply-to 123 --body "Additional context for comment 123"
 antistatic comment-edit us-troops-iran 123 --body "Updated comment"
 
+# Settings, following and comment notifications
+antistatic settings
+antistatic settings set email.replies=false auto_double_down=true
+antistatic follow us-troops-iran          # unfollow to undo
+antistatic watch us-troops-iran           # comment notifications; unwatch to undo
+
+# Your own markets: resolve, close, open, undo a resolution
+antistatic resolve my-market --yes 2026-05 --no 2026-06 --dry-run
+antistatic resolve my-market --outcome 2026-05=yes --known-at 2026-05-14
+antistatic close my-market
+antistatic open my-market
+antistatic reopen my-market --threshold 2026-05
+
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology
