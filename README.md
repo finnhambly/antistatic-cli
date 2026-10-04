@@ -39,7 +39,22 @@ antistatic status
 
 For separate accounts, set `ANTISTATIC_CONFIG_DIR` to a dedicated directory.
 OAuth login and refresh use that directory; the default login is unchanged.
-`ANTISTATIC_TOKEN` still overrides the selected saved login.
+`ANTISTATIC_TOKEN` still overrides the selected saved login. Your bot doesn't
+need its own login: use `--as-bot` with your normal one.
+
+```sh
+ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic login
+ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic status
+```
+
+Environment variables:
+
+| Variable | Effect |
+|---|---|
+| `ANTISTATIC_TOKEN` | API token; overrides the saved login |
+| `ANTISTATIC_CONFIG_DIR` | Where the login is saved (one directory per account) |
+| `ANTISTATIC_AS_BOT=1` | Act as your bot, like `--as-bot` |
+| `ANTISTATIC_URL` | Server URL (default https://antistatic.exchange) |
 
 ### 3) Discover commands
 
