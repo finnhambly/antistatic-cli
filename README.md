@@ -25,6 +25,11 @@ Browser OAuth (recommended):
 antistatic login
 ```
 
+The CLI identifies itself with a client metadata document
+(`https://antistatic.exchange/oauth/clients/cli.json`) rather than registering
+a new client each time. Versions before 0.2.0 can no longer start a fresh
+login; upgrade if `antistatic login` fails.
+
 Headless/CI token auth:
 
 ```sh
@@ -85,6 +90,13 @@ antistatic draft us-troops-iran --threshold 5000 --probability 0.75 --interpolat
 
 # Direct trade
 antistatic trade us-troops-iran --updates '[{"submarket":"sm_42","probability":"0.75"}]' -y
+
+# Create a market from a spec (private to you), then share or list it
+antistatic market recipe
+antistatic market preview spec.json
+antistatic market create spec.json
+antistatic market share my-market          # Pro: link, requests, members
+antistatic market request-public my-market --reason "..."
 
 # Comments
 antistatic comments us-troops-iran --limit 20
@@ -152,12 +164,36 @@ antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0
 antistatic draft anthro-arr --threshold 30 --probability 0.84 --interpolate-to 0.60 --from-group 2026/27 --group-count 2 --apply
 ```
 
-Date market (sparse anchors + auto-shape interpolation):
+Date market (sparse anchors):
 
 ```sh
-# Set two anchor points; auto-shape interpolates between them
-antistatic draft taiwan-inv --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
+# Bars between the two anchors on a straight line
+antistatic draft taiwan-inv --rest-of-curve interpolate --updates '[{"label":"By Dec 2028","probability":"0.35"},{"label":"By Dec 2030","probability":"0.55"}]'
 ```
+
+## The rest of the curve
+
+The CLI sends your bars as-is; it no longer reshapes the curve itself. Bars on
+each curve must stay in order, and the server refuses an update that would
+break that unless you say what should happen to the bars you didn't send, via
+`--rest-of-curve` on `trade` and `draft`:
+
+- `leave` (default): other bars are untouched; out-of-order updates are refused.
+- `keep-in-order`: other bars move only as far as order needs.
+- `interpolate`: bars between yours sit on a straight line through them.
+
+Your own bars are always kept as sent.
+
+## Markets
+
+`antistatic market` creates markets from a JSON spec (file path or `-` for
+stdin): when/how much, horizon or periods, title, resolution, base rates and a
+few anchor probabilities. The server builds the bars, fits the starting curve
+and checks the house rules. `recipe` shows the settings, rules and examples;
+`preview` checks a partial spec; `create` makes it private to you;
+`request-public` asks for a public listing and `listing` shows its status.
+`market share` (Pro) manages a private market's share link, access requests
+and members.
 
 ## What these mean
 
