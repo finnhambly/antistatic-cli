@@ -25,6 +25,9 @@ type Config struct {
 
 // configDir returns the OS-appropriate config directory.
 func configDir() (string, error) {
+	if dir := os.Getenv("ANTISTATIC_CONFIG_DIR"); dir != "" {
+		return dir, nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine config directory: %w", err)

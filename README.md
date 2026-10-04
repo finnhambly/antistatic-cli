@@ -37,6 +37,10 @@ Check auth status:
 antistatic status
 ```
 
+For separate accounts, set `ANTISTATIC_CONFIG_DIR` to a dedicated directory.
+OAuth login and refresh use that directory; the default login is unchanged.
+`ANTISTATIC_TOKEN` still overrides the selected saved login.
+
 ### 3) Discover commands
 
 ```sh
