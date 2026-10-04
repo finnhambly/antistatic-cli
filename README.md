@@ -193,7 +193,10 @@ and checks the house rules. `recipe` shows the settings, rules and examples;
 `preview` checks a partial spec; `create` makes it private to you;
 `request-public` asks for a public listing and `listing` shows its status.
 `market share` (Pro) manages a private market's share link, access requests
-and members.
+and members. `market edit` changes the title, unit and item labels/colours,
+and on private markets the resolution criteria and background (each change a
+new version). `resolve`, `close`, `open` and `reopen` manage your own private
+markets; an owner can undo a resolution for 7 days.
 
 ## What these mean
 
