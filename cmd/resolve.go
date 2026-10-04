@@ -66,7 +66,9 @@ func newResolveCmd() *cobra.Command {
 			for i, outcome := range outcomes {
 				entries[i] = map[string]interface{}{"submarket_id": ids[i], "resolved_yes": outcome.resolveTo}
 			}
-			payload := map[string]interface{}{"status": "resolved", "submarket_outcomes": entries}
+			// submarket_ids scopes the resolution to these bars; without it the
+			// server reads the outcomes as a whole-market resolution.
+			payload := map[string]interface{}{"status": "resolved", "submarket_ids": ids, "submarket_outcomes": entries}
 			if knownAt != "" {
 				payload["known_at"] = knownAt
 			}
@@ -121,7 +123,7 @@ func newReopenCmd() *cobra.Command {
 			for i, id := range ids {
 				entries[i] = map[string]interface{}{"submarket_id": id, "reopen": true}
 			}
-			payload := map[string]interface{}{"status": "resolved", "submarket_outcomes": entries}
+			payload := map[string]interface{}{"status": "resolved", "submarket_ids": ids, "submarket_outcomes": entries}
 			if dry, _ := cmd.Flags().GetBool("dry-run"); dry {
 				return printPayload(payload)
 			}

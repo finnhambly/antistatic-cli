@@ -28,6 +28,7 @@ type commentItem struct {
 type commentUser struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
+	Bot      bool   `json:"bot"`
 }
 
 type commentsPayload struct {
@@ -159,6 +160,9 @@ func flattenCommentRows(comments []commentItem, depth int, rows *[][]string) {
 		username := "-"
 		if comment.User != nil && comment.User.Username != "" {
 			username = comment.User.Username
+			if comment.User.Bot {
+				username += " (bot)"
+			}
 		}
 
 		text := strings.TrimSpace(comment.BodyText)
@@ -194,7 +198,7 @@ func flattenCommentRows(comments []commentItem, depth int, rows *[][]string) {
 
 func init() {
 	commentsCmd.Flags().String("sort", "newest", "Sort order: newest, oldest, hot, most_upvoted, most_tipped")
-	commentsCmd.Flags().String("filter", "all", "Filter: all, bot, following")
+	commentsCmd.Flags().String("filter", "all", "Filter: all, bot (no bots), following")
 	commentsCmd.Flags().IntP("limit", "l", 10, "Maximum root comments per page")
 	commentsCmd.Flags().Int("max-comments", 80, "Maximum total comments returned (including replies)")
 	commentsCmd.Flags().Int("max-body-chars", 500, "Maximum body chars per comment (0 disables truncation)")

@@ -19,6 +19,9 @@ type Client struct {
 	token      string
 	cfg        *config.Config
 	httpClient *http.Client
+	// AsBot sends X-Antistatic-As: bot, so forecasting and commenting act as
+	// the caller's bot account (--as-bot, ANTISTATIC_AS_BOT=1).
+	AsBot bool
 }
 
 // NewClient creates an API client from the loaded config.
@@ -138,6 +141,9 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	if c.AsBot {
+		req.Header.Set("X-Antistatic-As", "bot")
 	}
 
 	resp, err := c.httpClient.Do(req)

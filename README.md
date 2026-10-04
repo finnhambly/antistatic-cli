@@ -86,6 +86,11 @@ antistatic close my-market
 antistatic open my-market
 antistatic reopen my-market --threshold 2026-05
 
+# Your bot: a second account you forecast and comment as
+antistatic bot create
+antistatic --as-bot comment us-troops-iran --body "..."   # or ANTISTATIC_AS_BOT=1
+antistatic bot pause
+
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology

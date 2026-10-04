@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/config"
@@ -13,6 +15,7 @@ var Version = "dev"
 
 var (
 	jsonOutput bool
+	asBot      bool
 	cfg        *config.Config
 	client     *api.Client
 )
@@ -36,6 +39,7 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 			return fmt.Errorf("loading config: %w", err)
 		}
 		client = api.NewClient(cfg)
+		client.AsBot = asBot || envAsBot()
 		return nil
 	},
 }
@@ -46,7 +50,16 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output raw JSON (default when stdout is not a terminal)")
+	rootCmd.PersistentFlags().BoolVar(&asBot, "as-bot", false, "Forecast and comment as your bot (or ANTISTATIC_AS_BOT=1)")
 	rootCmd.Version = Version
+}
+
+func envAsBot() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANTISTATIC_AS_BOT"))) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
 }
 
 // requireAuth is a helper that checks for a configured token and returns

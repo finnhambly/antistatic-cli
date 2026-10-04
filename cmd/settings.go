@@ -114,7 +114,11 @@ func printSettings(settings map[string]interface{}, raw json.RawMessage) {
 	keys := sortedSettingKeys(leaves)
 	pairs := make([][2]string, 0, len(keys))
 	for _, key := range keys {
-		pairs = append(pairs, [2]string{key, fmt.Sprint(leaves[key])})
+		value := fmt.Sprint(leaves[key])
+		if leaves[key] == nil {
+			value = "none"
+		}
+		pairs = append(pairs, [2]string{key, value})
 	}
 	output.KeyValue(pairs)
 	if url, ok := settings[sensitiveSettingsKey].(string); ok && url != "" {

@@ -16,6 +16,8 @@ import (
 type recordedRequest struct {
 	method string
 	path   string
+	query  string
+	asBot  string
 	body   map[string]interface{}
 }
 
@@ -37,7 +39,7 @@ func runAgainstServer(t *testing.T, command *cobra.Command, args []string, handl
 				}
 			}
 		}
-		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, body: body})
+		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, asBot: r.Header.Get("X-Antistatic-As"), body: body})
 		w.Header().Set("Content-Type", "application/json")
 		handler(w, r, body)
 	}))
@@ -46,6 +48,7 @@ func runAgainstServer(t *testing.T, command *cobra.Command, args []string, handl
 	t.Setenv("ANTISTATIC_TOKEN", "test-token")
 	previous := client
 	client = api.NewClient(&config.Config{})
+	client.AsBot = asBot || envAsBot()
 	defer func() { client = previous }()
 	command.SilenceErrors = true
 	command.SilenceUsage = true
@@ -178,9 +181,9 @@ func TestResolve(t *testing.T) {
 		wantError string
 		noWrite   bool
 	}{
-		{name: "yes and no", args: []string{"--yes", "2026-05", "--no", "2026-06", "-f"}, want: `{"status":"resolved","submarket_outcomes":[{"resolved_yes":true,"submarket_id":11},{"resolved_yes":false,"submarket_id":12}]}`},
-		{name: "outcome pairs, id and known-at", args: []string{"--outcome", "2026-05=yes", "--outcome", "sm_99=no", "--known-at", "2026-05-14", "-f"}, want: `{"known_at":"2026-05-14T00:00:00Z","status":"resolved","submarket_outcomes":[{"resolved_yes":true,"submarket_id":11},{"resolved_yes":false,"submarket_id":99}]}`},
-		{name: "group disambiguates", args: []string{"--yes", "5000", "--group", "b", "-f"}, want: `{"status":"resolved","submarket_outcomes":[{"resolved_yes":true,"submarket_id":22}]}`},
+		{name: "yes and no", args: []string{"--yes", "2026-05", "--no", "2026-06", "-f"}, want: `{"status":"resolved","submarket_ids":[11,12],"submarket_outcomes":[{"resolved_yes":true,"submarket_id":11},{"resolved_yes":false,"submarket_id":12}]}`},
+		{name: "outcome pairs, id and known-at", args: []string{"--outcome", "2026-05=yes", "--outcome", "sm_99=no", "--known-at", "2026-05-14", "-f"}, want: `{"known_at":"2026-05-14T00:00:00Z","status":"resolved","submarket_ids":[11,99],"submarket_outcomes":[{"resolved_yes":true,"submarket_id":11},{"resolved_yes":false,"submarket_id":99}]}`},
+		{name: "group disambiguates", args: []string{"--yes", "5000", "--group", "b", "-f"}, want: `{"status":"resolved","submarket_ids":[22],"submarket_outcomes":[{"resolved_yes":true,"submarket_id":22}]}`},
 		{name: "ambiguous label", args: []string{"--yes", "5000"}, wantError: "pass --group", noWrite: true},
 		{name: "unknown label", args: []string{"--yes", "2027-01"}, wantError: `no submarket matched label "2027-01"`, noWrite: true},
 		{name: "no outcomes", args: nil, wantError: "at least one outcome", noWrite: true},
@@ -233,7 +236,7 @@ func TestReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := json.Marshal(requests[len(requests)-1].body)
-	if string(got) != `{"status":"resolved","submarket_outcomes":[{"reopen":true,"submarket_id":12}]}` {
+	if string(got) != `{"status":"resolved","submarket_ids":[12],"submarket_outcomes":[{"reopen":true,"submarket_id":12}]}` {
 		t.Errorf("payload = %s", got)
 	}
 
