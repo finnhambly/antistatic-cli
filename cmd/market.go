@@ -14,7 +14,7 @@ import (
 
 var marketCmd = &cobra.Command{
 	Use:   "market",
-	Short: "Create markets from specs and request public listings",
+	Short: "Create, edit and list markets",
 	Long: `Create a market by describing it as a spec: whether it asks when or how
 much, its horizon or periods, the title, how it resolves, the base rates
 behind its starting probabilities and a few anchor probabilities. The server
@@ -28,6 +28,9 @@ builds the bars, fits the starting curve and checks the house rules.
                                         ask for a public listing (--withdraw
                                         to take the request back)
   antistatic market listing CODE        visibility and request status
+  antistatic market edit CODE --title "..."
+                                        edit title, unit, items or (private)
+                                        description
 
 Specs are JSON; pass a file path or - for stdin.`,
 }
@@ -316,6 +319,6 @@ func init() {
 	marketRequestPublicCmd.Flags().String("reason", "", "Why others should be able to forecast on it (sent to the admins)")
 	marketRequestPublicCmd.Flags().Bool("withdraw", false, "Withdraw your pending request")
 	marketRequestPublicCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt when withdrawing")
-	marketCmd.AddCommand(marketRecipeCmd, marketPreviewCmd, marketCreateCmd, marketRequestPublicCmd, marketListingCmd)
+	marketCmd.AddCommand(marketRecipeCmd, marketPreviewCmd, marketCreateCmd, marketRequestPublicCmd, marketListingCmd, newMarketEditCmd())
 	rootCmd.AddCommand(marketCmd)
 }

@@ -79,12 +79,13 @@ antistatic settings set email.replies=false auto_double_down=true
 antistatic follow us-troops-iran          # unfollow to undo
 antistatic watch us-troops-iran           # comment notifications; unwatch to undo
 
-# Your own markets: resolve, close, open, undo a resolution
+# Your own markets: resolve, close, open, undo a resolution, edit
 antistatic resolve my-market --yes 2026-05 --no 2026-06 --dry-run
 antistatic resolve my-market --outcome 2026-05=yes --known-at 2026-05-14
 antistatic close my-market
 antistatic open my-market
 antistatic reopen my-market --threshold 2026-05
+antistatic market edit my-market --title "..." --unit MPs --item lab=Labour:#e4003b --dry-run
 
 # Your bot: a second account you forecast and comment as
 antistatic bot create
