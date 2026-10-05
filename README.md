@@ -123,6 +123,10 @@ antistatic bot create
 antistatic --as-bot comment us-troops-iran --body "..."   # or ANTISTATIC_AS_BOT=1
 antistatic bot pause
 
+# Tell the Antistatic team what was tricky or what would help
+antistatic feedback "antistatic quote fails on date markets with one bar"
+antistatic feedback --suggestion < notes.md
+
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology
