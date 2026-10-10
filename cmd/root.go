@@ -39,6 +39,7 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 			return fmt.Errorf("loading config: %w", err)
 		}
 		client = api.NewClient(cfg)
+		client.Version = Version
 		client.AsBot = asBot || envAsBot()
 		return nil
 	},

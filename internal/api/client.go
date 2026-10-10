@@ -22,6 +22,21 @@ type Client struct {
 	// AsBot sends X-Antistatic-As: bot, so forecasting and commenting act as
 	// the caller's bot account (--as-bot, ANTISTATIC_AS_BOT=1).
 	AsBot bool
+	// Version is sent as User-Agent: antistatic-cli/<Version>.
+	Version string
+	// Warn receives one line per deprecated route the server reports
+	// (a Deprecation header); it defaults to stderr.
+	Warn   io.Writer
+	warned map[string]bool
+}
+
+// UserAgent is the User-Agent the client sends.
+func (c *Client) UserAgent() string {
+	v := c.Version
+	if v == "" {
+		v = "dev"
+	}
+	return "antistatic-cli/" + v
 }
 
 // NewClient creates an API client from the loaded config.
@@ -136,6 +151,7 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 	}
 
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", c.UserAgent())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -156,6 +172,8 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
+
+	c.warnDeprecated(method, path, resp.Header)
 
 	if resp.StatusCode >= 400 {
 		apiErr := &APIError{StatusCode: resp.StatusCode}
@@ -182,6 +200,37 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 	}
 
 	return &Response{StatusCode: resp.StatusCode, Body: respBody}, nil
+}
+
+// warnDeprecated prints the server's Deprecation header (RFC 9745), with
+// Sunset and the deprecation Link when sent, once per route per run.
+func (c *Client) warnDeprecated(method, path string, h http.Header) {
+	dep := h.Get("Deprecation")
+	if dep == "" {
+		return
+	}
+	key := method + " " + path
+	if c.warned == nil {
+		c.warned = map[string]bool{}
+	}
+	if c.warned[key] {
+		return
+	}
+	c.warned[key] = true
+
+	msg := fmt.Sprintf("warning: %s /api/v1%s is deprecated (Deprecation: %s)", method, path, dep)
+	if sunset := h.Get("Sunset"); sunset != "" {
+		msg += "; it stops working after " + sunset
+	}
+	if link := h.Get("Link"); link != "" {
+		msg += "; see " + link
+	}
+	msg += ". Update the CLI (brew upgrade antistatic, or go install github.com/finnhambly/antistatic-cli@latest)."
+	w := c.Warn
+	if w == nil {
+		w = os.Stderr
+	}
+	fmt.Fprintln(w, msg)
 }
 
 func (c *Client) ensureToken() error {
@@ -235,6 +284,7 @@ func (c *Client) refreshOAuthToken() error {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", c.UserAgent())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

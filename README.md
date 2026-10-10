@@ -227,3 +227,17 @@ Recommended default workflow:
 2. Plan with `draft` and get approval.
 3. Submit via `draft --submit` or `trade`.
 4. Only use `comment` when explicitly instructed.
+
+## API contract
+
+The CLI calls the REST API described by the server's contract,
+https://antistatic.exchange/api/v1/contract.json (a readable version is at
+https://antistatic.exchange/api.md). A copy is pinned at `contract/v1.json`,
+and `go test ./...` checks that every API call in `cmd/` names a route in it
+(paths are literal templates: `api.Path("/markets/{code}/forecast", code)`)
+and that the response structs the CLI decodes match the routes' schemas and
+examples. A daily workflow (`.github/workflows/contract-drift.yml`) opens an
+issue when production's contract differs from the pinned copy.
+
+The CLI sends `User-Agent: antistatic-cli/<version>`, and prints a warning on
+stderr when the server marks a route as deprecated (a `Deprecation` header).

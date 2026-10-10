@@ -213,6 +213,7 @@ func exchangeOAuthCode(baseURL, clientID, redirectURI, code, codeVerifier string
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "antistatic-cli/"+Version)
 
 	client := &http.Client{Timeout: oauthHTTPTimeout}
 	resp, err := client.Do(req)
