@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/finnhambly/antistatic-cli/internal/timelines"
 )
 
 type contractDoc struct {
@@ -48,7 +50,7 @@ func loadContract(t *testing.T) contractDoc {
 	return doc
 }
 
-var clientMethods = map[string]string{"Get": "GET", "Post": "POST", "Put": "PUT", "Patch": "PATCH", "Delete": "DELETE"}
+var clientMethods = map[string]string{"Get": "GET", "Post": "POST", "Put": "PUT", "PutRaw": "PUT", "Patch": "PATCH", "Delete": "DELETE"}
 
 // apiCalls lists "METHOD /api/v1<template>" for every client call in cmd/*.go.
 func apiCalls(t *testing.T) (calls map[string][]string, problems []string) {
@@ -157,6 +159,13 @@ var contractDecodes = []struct {
 	{"GET /api/v1/markets/{code}/positions", "data", func() interface{} { return &[]positionRow{} }},
 	{"GET /api/v1/retrocasting/runs", "data", func() interface{} { return &[]retroRun{} }},
 	{"POST /api/v1/retrocasting/runs/{id}/advance", "data", func() interface{} { return &retroRun{} }},
+	{"GET /api/v1/timelines/limits", "data", func() interface{} { return &timelines.Limits{} }},
+	{"PUT /api/v1/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}", "data", func() interface{} { return &timelinesPartStored{} }},
+	{"PUT /api/v1/timelines/curricula/{slug}/drafts/{version}/manifest", "data", func() interface{} { return &timelinesStatus{} }},
+	{"GET /api/v1/timelines/curricula/{slug}/drafts/{version}/status", "data", func() interface{} { return &timelinesStatus{} }},
+	{"POST /api/v1/timelines/curricula/{slug}/drafts/{version}/validate", "data", func() interface{} { return &timelinesValidation{} }},
+	{"POST /api/v1/timelines/curricula/{slug}/drafts/{version}/publish", "data", func() interface{} { return &timelinesPublished{} }},
+	{"POST /api/v1/timelines/curricula/{slug}/members", "data", func() interface{} { return &timelinesMember{} }},
 }
 
 func TestResponseStructsMatchTheContract(t *testing.T) {

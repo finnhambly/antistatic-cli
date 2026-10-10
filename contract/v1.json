@@ -11650,6 +11650,1228 @@
           }
         }
       }
+    },
+    {
+      "id": "timelines.limits",
+      "method": "GET",
+      "path": "/api/v1/timelines/limits",
+      "summary": "Limits a timeline manifest must meet: schema versions, sizes, field lengths and lint terms.",
+      "group": "timeline authoring",
+      "auth": "none",
+      "headers": [],
+      "rate_limit": "read",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "schema_versions": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "manifest": {
+                  "type": "object",
+                  "properties": {
+                    "max_part_bytes": {
+                      "type": "number"
+                    },
+                    "max_top_bytes": {
+                      "type": "number"
+                    },
+                    "max_parts": {
+                      "type": "number"
+                    },
+                    "max_items": {
+                      "type": "number"
+                    },
+                    "max_checkpoints": {
+                      "type": "number"
+                    },
+                    "max_bars": {
+                      "type": "number"
+                    },
+                    "max_bars_per_item": {
+                      "type": "number"
+                    },
+                    "max_bars_per_part": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "max_bars",
+                    "max_bars_per_item",
+                    "max_bars_per_part",
+                    "max_checkpoints",
+                    "max_items",
+                    "max_part_bytes",
+                    "max_parts",
+                    "max_top_bytes"
+                  ]
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      },
+                      "pattern": {
+                        "type": "string"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "severity": {
+                        "type": "string"
+                      },
+                      "summary": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "severity",
+                      "summary"
+                    ]
+                  }
+                },
+                "hindsight_terms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "fields",
+                "hindsight_terms",
+                "manifest",
+                "rules",
+                "schema_versions"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "schema_versions": [
+                2
+              ],
+              "manifest": {
+                "max_part_bytes": 2000000,
+                "max_top_bytes": 6000000,
+                "max_parts": 400,
+                "max_items": 1000,
+                "max_checkpoints": 5000,
+                "max_bars": 300000,
+                "max_bars_per_item": 3000,
+                "max_bars_per_part": 6000
+              },
+              "fields": {
+                "curriculum.slug": {
+                  "min": 2,
+                  "max": 80,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                "question.code": {
+                  "min": 2,
+                  "max": 40,
+                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                },
+                "checkpoint.key": {
+                  "max": 255
+                },
+                "checkpoint.title": {
+                  "max": 255
+                },
+                "item.key": {
+                  "max": 255
+                },
+                "item.title": {
+                  "max": 255
+                },
+                "market.title": {
+                  "max": 255
+                },
+                "bar.key": {
+                  "max": 255
+                },
+                "bar.label": {
+                  "max": 255
+                },
+                "bar.projection_group": {
+                  "max": 255
+                },
+                "disclosure.key": {
+                  "max": 255
+                },
+                "disclosure.title": {
+                  "max": 255
+                },
+                "disclosure.source_url": {
+                  "max": 2000,
+                  "pattern": "^https?://"
+                },
+                "resolution_request.key": {
+                  "max": 255
+                }
+              },
+              "rules": [
+                {
+                  "id": "T5",
+                  "severity": "warning",
+                  "summary": "Learner-visible text uses hindsight wording."
+                }
+              ],
+              "hindsight_terms": [
+                "seminal",
+                "would later",
+                "/as of 20\\d\\d/"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.put_part",
+      "method": "PUT",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}",
+      "summary": "Store one part of a draft's manifest (items with their disclosures and resolution requests).",
+      "group": "timeline authoring",
+      "description": "The body is a raw JSON object; `sha256` in the path is the lowercase hex SHA-256 of the exact body bytes. Creates the draft (state `receiving`) if needed. Re-sending a stored part returns 200 with `stored: false`. Errors: 413 `part_too_large`; 422 `sha256_mismatch`, `invalid_part` (with `path`); 409 `published`.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "disclosures": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "resolution_requests": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "disclosures",
+          "items",
+          "resolution_requests"
+        ]
+      },
+      "responses": {
+        "201": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "stored": {
+                  "type": "boolean"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "number"
+                },
+                "bars": {
+                  "type": "number"
+                },
+                "bytes": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "bars",
+                "bytes",
+                "items",
+                "sha256",
+                "stored"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        },
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "stored": {
+                  "type": "boolean"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "number"
+                },
+                "bars": {
+                  "type": "number"
+                },
+                "bytes": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "bars",
+                "bytes",
+                "items",
+                "sha256",
+                "stored"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "items": [],
+            "disclosures": [],
+            "resolution_requests": []
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "stored": true,
+              "sha256": "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+              "items": 3,
+              "bars": 120,
+              "bytes": 48211
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.put_manifest",
+      "method": "PUT",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/manifest",
+      "summary": "Send a draft's manifest (top-level fields plus its part hashes) and start the import.",
+      "group": "timeline authoring",
+      "description": "Errors: 409 `draft_changed` when the draft's manifest_sha256 is not `base_sha256`; 422 `missing_parts` with `parts`. The same manifest_sha256 as the draft already has (and not failed) is a no-op (200).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "number"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "commit": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dirty": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "commit",
+              "dirty"
+            ]
+          },
+          "manifest_sha256": {
+            "type": "string"
+          },
+          "base_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top": {
+            "type": "object",
+            "properties": {
+              "curriculum": {
+                "type": "object"
+              },
+              "checkpoints": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "disclosures": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "resolution_requests": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "resolved_through": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkpoints",
+              "curriculum",
+              "disclosures",
+              "resolution_requests"
+            ]
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "base_sha256",
+          "manifest_sha256",
+          "parts",
+          "schema_version",
+          "source",
+          "top"
+        ]
+      },
+      "responses": {
+        "202": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "receiving",
+                    "importing",
+                    "imported",
+                    "failed",
+                    "published"
+                  ]
+                },
+                "manifest_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_commit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "schema_version": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parts_expected": {
+                  "type": "number"
+                },
+                "parts_received": {
+                  "type": "number"
+                },
+                "parts_imported": {
+                  "type": "number"
+                },
+                "received": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "error",
+                "manifest_sha256",
+                "parts_expected",
+                "parts_imported",
+                "parts_received",
+                "received",
+                "schema_version",
+                "slug",
+                "source_commit",
+                "state",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        },
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "receiving",
+                    "importing",
+                    "imported",
+                    "failed",
+                    "published"
+                  ]
+                },
+                "manifest_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_commit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "schema_version": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parts_expected": {
+                  "type": "number"
+                },
+                "parts_received": {
+                  "type": "number"
+                },
+                "parts_imported": {
+                  "type": "number"
+                },
+                "received": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "error",
+                "manifest_sha256",
+                "parts_expected",
+                "parts_imported",
+                "parts_received",
+                "received",
+                "schema_version",
+                "slug",
+                "source_commit",
+                "state",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "schema_version": 2,
+            "source": {
+              "commit": "4e1f0c2",
+              "dirty": false
+            },
+            "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+            "base_sha256": null,
+            "top": {
+              "curriculum": {
+                "title": "Widget curriculum"
+              },
+              "checkpoints": [],
+              "disclosures": [],
+              "resolution_requests": []
+            },
+            "parts": [
+              "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
+            ]
+          }
+        },
+        "response": {
+          "status": 202,
+          "body": {
+            "data": {
+              "slug": "widget-cache",
+              "version": "1.1",
+              "state": "importing",
+              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+              "source_commit": "4e1f0c2",
+              "schema_version": 2,
+              "parts_expected": 2,
+              "parts_received": 2,
+              "parts_imported": 0,
+              "received": [
+                "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+                "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.draft_status",
+      "method": "GET",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/status",
+      "summary": "A curriculum version's draft status: state, part counts and the parts stored.",
+      "group": "timeline authoring",
+      "description": "404 when there is no such version. Works for published versions too (state `published`).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "receiving",
+                    "importing",
+                    "imported",
+                    "failed",
+                    "published"
+                  ]
+                },
+                "manifest_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_commit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "schema_version": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parts_expected": {
+                  "type": "number"
+                },
+                "parts_received": {
+                  "type": "number"
+                },
+                "parts_imported": {
+                  "type": "number"
+                },
+                "received": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "error",
+                "manifest_sha256",
+                "parts_expected",
+                "parts_imported",
+                "parts_received",
+                "received",
+                "schema_version",
+                "slug",
+                "source_commit",
+                "state",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "widget-cache",
+              "version": "1.1",
+              "state": "imported",
+              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+              "source_commit": "4e1f0c2",
+              "schema_version": 2,
+              "parts_expected": 2,
+              "parts_received": 2,
+              "parts_imported": 2,
+              "received": [
+                "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+                "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.validate_draft",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/validate",
+      "summary": "Validate an imported draft.",
+      "group": "timeline authoring",
+      "description": "Requires state `imported` (409 `not_imported`). Learners of the curriculum get counts in place of the errors, warnings and lint lists.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "valid": {
+                  "type": "boolean"
+                },
+                "errors": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "warnings": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "unresolved_past_bar_count": {
+                  "type": "number"
+                },
+                "lint": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rule": {
+                            "type": "string"
+                          },
+                          "where": {
+                            "type": "string"
+                          },
+                          "term": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "rule",
+                          "where"
+                        ]
+                      }
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "lint_counts": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "errors",
+                "lint",
+                "lint_counts",
+                "unresolved_past_bar_count",
+                "valid",
+                "warnings"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "valid": true,
+              "errors": [],
+              "warnings": [],
+              "unresolved_past_bar_count": 0,
+              "lint": [
+                {
+                  "rule": "T5",
+                  "where": "items[b012].title",
+                  "term": "seminal"
+                }
+              ],
+              "lint_counts": {
+                "T5": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.publish_draft",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/publish",
+      "summary": "Validate and publish an imported draft.",
+      "group": "timeline authoring",
+      "description": "Requires state `imported`. 422 `invalid_manifest` with errors (redacted for learners).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "published_at": {
+                  "type": "string"
+                },
+                "manifest_sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "manifest_sha256",
+                "published_at",
+                "slug",
+                "status",
+                "version"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "widget-cache",
+              "version": "1.1",
+              "status": "published",
+              "published_at": "2026-10-10T19:27:00Z",
+              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.delete_draft",
+      "method": "DELETE",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}",
+      "summary": "Delete a draft and its parts.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "deleted": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "deleted"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "deleted": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.add_member",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/members",
+      "summary": "Give a user a role on a curriculum.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "learner",
+              "editor",
+              "owner"
+            ]
+          }
+        },
+        "required": [
+          "role",
+          "user"
+        ]
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "user_id": {
+                  "type": "number"
+                },
+                "username": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "user_id",
+                "username"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "user": "ada",
+            "role": "learner"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "user_id": 8146,
+              "username": "ada",
+              "role": "learner"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.remove_member",
+      "method": "DELETE",
+      "path": "/api/v1/timelines/curricula/{slug}/members/{user_id}",
+      "summary": "Remove a user from a curriculum.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "removed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "removed"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "removed": true
+            }
+          }
+        }
+      }
     }
   ]
 }
