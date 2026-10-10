@@ -130,6 +130,10 @@ antistatic feedback --suggestion < notes.md
 # Retrocasting: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology
+
+# Curriculum authoring: check, push and publish a timeline manifest
+antistatic timelines check manifest.json
+antistatic timelines push manifest.json --curriculum biology --version 1.2
 ```
 
 Replies use the parent comment ID returned by `comments`; the parent must belong
@@ -155,6 +159,35 @@ checkpoint has neither a forecast nor an explicit skip.
 antistatic retro status --json          # for agents
 antistatic retro advance --run 3 -y     # when you have several runs
 ```
+
+## Curricula (timelines)
+
+Curriculum authors upload a compact manifest (`schema_version: 2`) as a
+version's draft, then publish it:
+
+```sh
+antistatic timelines check manifest.json --curriculum biology    # local; nothing uploaded
+antistatic timelines push manifest.json --curriculum biology --version 1.2
+antistatic timelines status --curriculum biology --version 1.2
+antistatic timelines validate --curriculum biology --version 1.2
+antistatic timelines publish --curriculum biology --version 1.2
+antistatic timelines grant ada@example.com --curriculum biology --role learner
+antistatic timelines grant --revoke 8146 --curriculum biology
+antistatic timelines delete --curriculum biology --version 1.2   # a draft and its parts
+```
+
+`check` tests the manifest against the server's limits (fetched from
+`/api/v1/timelines/limits` and cached for an hour): schema version, shape,
+field lengths, curve lengths, counts and part sizes, plus hindsight wording
+(rule T5) as warnings. Manifests hold sealed answers, so problems print as
+`path: code` and values are never shown.
+
+`push` runs the same check, splits the items into parts deterministically,
+uploads only the parts the server doesn't already have, sends the manifest,
+waits for the import (`--timeout`, default 30m) and validates the draft. If it
+fails part-way, run it again: it resumes. It refuses a manifest built from
+uncommitted changes (`source.dirty`) or without `source.commit` unless
+`--allow-dirty`, and it never publishes.
 
 ## Interpolation examples
 
