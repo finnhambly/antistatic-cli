@@ -126,7 +126,7 @@ var marketRequestPublicCmd = &cobra.Command{
 		if err := requireAuth(); err != nil {
 			return err
 		}
-		path := "/markets/" + args[0] + "/publication-request"
+		code := args[0]
 		withdraw, _ := cmd.Flags().GetBool("withdraw")
 
 		var resp *api.Response
@@ -137,13 +137,13 @@ var marketRequestPublicCmd = &cobra.Command{
 				fmt.Println("Cancelled.")
 				return nil
 			}
-			resp, err = client.Delete(path)
+			resp, err = client.Delete(api.Path("/markets/{code}/publication-request", code))
 		} else {
 			reason, _ := cmd.Flags().GetString("reason")
 			if strings.TrimSpace(reason) == "" {
 				return fmt.Errorf("--reason is required: say why others should be able to forecast on it")
 			}
-			resp, err = client.Post(path, map[string]interface{}{"message": reason})
+			resp, err = client.Post(api.Path("/markets/{code}/publication-request", code), map[string]interface{}{"message": reason})
 		}
 		if err != nil {
 			return err
@@ -165,7 +165,7 @@ var marketListingCmd = &cobra.Command{
 		if err := requireAuth(); err != nil {
 			return err
 		}
-		resp, err := client.Get("/markets/"+args[0]+"/publication-request", nil)
+		resp, err := client.Get(api.Path("/markets/{code}/publication-request", args[0]), nil)
 		if err != nil {
 			return err
 		}
@@ -208,26 +208,7 @@ type specIssue struct {
 }
 
 func printSpecPreview(data json.RawMessage) error {
-	var preview struct {
-		Valid       bool        `json:"valid"`
-		Issues      []specIssue `json:"issues"`
-		NextOptions []struct {
-			Setting  string      `json:"setting"`
-			Required bool        `json:"required"`
-			Set      bool        `json:"set"`
-			Values   interface{} `json:"values"`
-			Why      string      `json:"why"`
-			Example  string      `json:"example"`
-		} `json:"next_options"`
-		Curves []struct {
-			Curve string `json:"curve"`
-			Bars  []struct {
-				Label       string   `json:"label"`
-				Threshold   *float64 `json:"threshold"`
-				Probability float64  `json:"starting_probability"`
-			} `json:"bars"`
-		} `json:"curves"`
-	}
+	var preview specPreview
 	if err := json.Unmarshal(data, &preview); err != nil {
 		output.JSON(data)
 		return nil
@@ -321,4 +302,26 @@ func init() {
 	marketRequestPublicCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt when withdrawing")
 	marketCmd.AddCommand(marketRecipeCmd, marketPreviewCmd, marketCreateCmd, marketRequestPublicCmd, marketListingCmd, newMarketEditCmd())
 	rootCmd.AddCommand(marketCmd)
+}
+
+// specPreview is POST /market-specs/preview.
+type specPreview struct {
+	Valid       bool        `json:"valid"`
+	Issues      []specIssue `json:"issues"`
+	NextOptions []struct {
+		Setting  string      `json:"setting"`
+		Required bool        `json:"required"`
+		Set      bool        `json:"set"`
+		Values   interface{} `json:"values"`
+		Why      string      `json:"why"`
+		Example  string      `json:"example"`
+	} `json:"next_options"`
+	Curves []struct {
+		Curve string `json:"curve"`
+		Bars  []struct {
+			Label       string   `json:"label"`
+			Threshold   *float64 `json:"threshold"`
+			Probability float64  `json:"starting_probability"`
+		} `json:"bars"`
+	} `json:"curves"`
 }

@@ -158,7 +158,7 @@ learner's behalf to get past that: the point of the exercise is the forecast.`,
 			}
 		}
 
-		resp, err := client.Post(fmt.Sprintf("/retrocasting/runs/%d/advance", run.RunID), nil)
+		resp, err := client.Post(api.Path("/retrocasting/runs/{id}/advance", run.RunID), nil)
 		if err != nil {
 			return retroAdvanceError(err)
 		}

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,7 @@ Examples:
 			"format": "markdown",
 		}
 
-		resp, err := client.Put(fmt.Sprintf("/markets/%s/comments/%d", code, commentID), body)
+		resp, err := client.Put(api.Path("/markets/{code}/comments/{comment_id}", code, commentID), body)
 		if err != nil {
 			return err
 		}

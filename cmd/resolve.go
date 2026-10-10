@@ -80,7 +80,7 @@ func newResolveCmd() *cobra.Command {
 			if !force && output.IsTTY() && !jsonOutput && !confirm(fmt.Sprintf("Resolve %d outcome(s) on %s?", len(entries), code)) {
 				return nil
 			}
-			resp, err := client.Put("/markets/"+code+"/status", payload)
+			resp, err := client.Put(api.Path("/markets/{code}/status", code), payload)
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func newReopenCmd() *cobra.Command {
 			if dry, _ := cmd.Flags().GetBool("dry-run"); dry {
 				return printPayload(payload)
 			}
-			resp, err := client.Put("/markets/"+code+"/status", payload)
+			resp, err := client.Put(api.Path("/markets/{code}/status", code), payload)
 			if err != nil {
 				var apiErr *api.APIError
 				if errors.As(err, &apiErr) && apiErr.Code == "undo_window_passed" {
@@ -153,7 +153,7 @@ func newStatusCmd(name, short, status, done string) *cobra.Command {
 			if err := requireAuth(); err != nil {
 				return err
 			}
-			resp, err := client.Put("/markets/"+args[0]+"/status", map[string]interface{}{"status": status})
+			resp, err := client.Put(api.Path("/markets/{code}/status", args[0]), map[string]interface{}{"status": status})
 			if err != nil {
 				return err
 			}

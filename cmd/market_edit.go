@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -43,7 +44,7 @@ version.`,
 			if err := requireAuth(); err != nil {
 				return err
 			}
-			resp, err := client.Patch("/markets/"+args[0], payload)
+			resp, err := client.Patch(api.Path("/markets/{code}", args[0]), payload)
 			if err != nil {
 				return err
 			}

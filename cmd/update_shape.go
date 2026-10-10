@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/finnhambly/antistatic-cli/internal/api"
 )
 
 const shapeEpsilon = 1.0e-9
@@ -33,7 +35,7 @@ func fetchMarketShapeInfo(code string) (string, bool, error) {
 		return cached.MarketType, cached.Cumulative, nil
 	}
 
-	resp, err := client.Get("/markets/"+code, nil)
+	resp, err := client.Get(api.Path("/markets/{code}", code), nil)
 	if err != nil {
 		return "", false, err
 	}
@@ -70,7 +72,7 @@ func fetchFullForecastData(code string) (json.RawMessage, error) {
 	params.Set("limit", "0")
 	params.Set("mode", "full")
 
-	resp, err := client.Get("/markets/"+code+"/forecast", params)
+	resp, err := client.Get(api.Path("/markets/{code}/forecast", code), params)
 	if err != nil {
 		return nil, err
 	}

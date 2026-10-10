@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -236,7 +237,7 @@ func fetchPendingEditStates(code string) (map[int]pendingEditState, error) {
 		return cached, nil
 	}
 
-	resp, err := client.Get("/markets/"+code+"/pending-edits", nil)
+	resp, err := client.Get(api.Path("/markets/{code}/pending-edits", code), nil)
 	if err != nil {
 		return nil, err
 	}

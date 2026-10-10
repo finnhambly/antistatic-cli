@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -110,7 +111,7 @@ Use --with-community to include community aggregates in output.`,
 			params.Set("limit", "0")
 		}
 
-		resp, err := client.Get("/markets/"+code+"/forecast", params)
+		resp, err := client.Get(api.Path("/markets/{code}/forecast", code), params)
 		if err != nil {
 			return err
 		}

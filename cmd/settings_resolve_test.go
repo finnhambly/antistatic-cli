@@ -143,10 +143,10 @@ func TestFollowAndWatch(t *testing.T) {
 		method  string
 		path    string
 	}{
-		{newMarketToggleCmd("follow", "", "/follow", "following", true), http.MethodPut, "/api/v1/markets/ex/follow"},
-		{newMarketToggleCmd("unfollow", "", "/follow", "following", false), http.MethodDelete, "/api/v1/markets/ex/follow"},
-		{newMarketToggleCmd("watch", "", "/comment-subscription", "subscribed", true), http.MethodPut, "/api/v1/markets/ex/comment-subscription"},
-		{newMarketToggleCmd("unwatch", "", "/comment-subscription", "subscribed", false), http.MethodDelete, "/api/v1/markets/ex/comment-subscription"},
+		{newMarketToggleCmd("follow", "", "following", follow), http.MethodPut, "/api/v1/markets/ex/follow"},
+		{newMarketToggleCmd("unfollow", "", "following", unfollow), http.MethodDelete, "/api/v1/markets/ex/follow"},
+		{newMarketToggleCmd("watch", "", "subscribed", watch), http.MethodPut, "/api/v1/markets/ex/comment-subscription"},
+		{newMarketToggleCmd("unwatch", "", "subscribed", unwatch), http.MethodDelete, "/api/v1/markets/ex/comment-subscription"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.command.Name(), func(t *testing.T) {

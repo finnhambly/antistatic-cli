@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -114,7 +115,7 @@ Use --submit with --updates to place the trade directly.`,
 }
 
 func showPendingEdits(code string) error {
-	resp, err := client.Get("/markets/"+code+"/pending-edits", nil)
+	resp, err := client.Get(api.Path("/markets/{code}/pending-edits", code), nil)
 	if err != nil {
 		return err
 	}
@@ -188,7 +189,7 @@ func updatePendingEditsBody(
 		body["updates"] = probabilityUpdatesToPayload(updates)
 	}
 
-	resp, err := client.Put("/markets/"+code+"/pending-edits", withRestOfCurve(body))
+	resp, err := client.Put(api.Path("/markets/{code}/pending-edits", code), withRestOfCurve(body))
 	if err != nil {
 		return outOfOrderHint(err)
 	}
@@ -208,7 +209,7 @@ func updatePendingEditsBody(
 }
 
 func clearPendingEdits(code string) error {
-	_, err := client.Delete("/markets/" + code + "/pending-edits")
+	_, err := client.Delete(api.Path("/markets/{code}/pending-edits", code))
 	if err != nil {
 		return err
 	}
@@ -806,10 +807,7 @@ func fetchDraftForecastPointsByID(code string) (map[int]draftForecastPoint, erro
 		return nil, err
 	}
 
-	var payload struct {
-		Submarkets []draftForecastPoint            `json:"submarkets"`
-		Forecast   map[string][]draftForecastPoint `json:"forecast"`
-	}
+	var payload draftForecastPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast response: %w", err)
 	}
@@ -1226,7 +1224,7 @@ func submitTradeFromDraft(code string, updates []probabilityUpdate, yes bool) er
 		}
 	}
 
-	resp, err := client.Post("/markets/"+code+"/positions", withRestOfCurve(body))
+	resp, err := client.Post(api.Path("/markets/{code}/positions", code), withRestOfCurve(body))
 	if err != nil {
 		return outOfOrderHint(err)
 	}
@@ -1290,4 +1288,10 @@ func addPendingEditFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt when using --submit or --submit-pending")
 	addRestOfCurveFlag(cmd)
 	addMulticountRemainderFlags(cmd)
+}
+
+// draftForecastPayload is the part of GET /markets/{code}/forecast drafts read.
+type draftForecastPayload struct {
+	Submarkets []draftForecastPoint            `json:"submarkets"`
+	Forecast   map[string][]draftForecastPoint `json:"forecast"`
 }

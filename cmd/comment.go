@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -61,7 +62,7 @@ Use "antistatic comment-edit <code> <id> <text>" to edit a comment.`,
 				body["parent_id"] = parentID
 			}
 
-			resp, err := client.Post("/markets/"+code+"/comments", body)
+			resp, err := client.Post(api.Path("/markets/{code}/comments", code), body)
 			if err != nil {
 				return err
 			}

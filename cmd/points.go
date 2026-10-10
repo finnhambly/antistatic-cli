@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +41,7 @@ This reports scenario points, not an account balance.`,
 			params.Set("at", at)
 		}
 
-		resp, err := client.Get("/markets/"+code+"/points", params)
+		resp, err := client.Get(api.Path("/markets/{code}/points", code), params)
 		if err != nil {
 			return err
 		}
@@ -55,14 +56,7 @@ This reports scenario points, not an account balance.`,
 			return nil
 		}
 
-		var result struct {
-			Scenarios []pointsScenario `json:"scenarios"`
-			Groups    []struct {
-				Group     string           `json:"group"`
-				Curve     string           `json:"curve"`
-				Scenarios []pointsScenario `json:"scenarios"`
-			} `json:"groups"`
-		}
+		var result pointsPayload
 		if err := json.Unmarshal(data, &result); err != nil {
 			output.JSON(data)
 			return nil
@@ -124,4 +118,14 @@ func printPointsScenarios(scenarios []pointsScenario, showAll bool) {
 	if ruledOut > 0 {
 		fmt.Printf("(%d outcomes already ruled out by resolved bars; --all lists them)\n", ruledOut)
 	}
+}
+
+// pointsPayload is GET /markets/{code}/points.
+type pointsPayload struct {
+	Scenarios []pointsScenario `json:"scenarios"`
+	Groups    []struct {
+		Group     string           `json:"group"`
+		Curve     string           `json:"curve"`
+		Scenarios []pointsScenario `json:"scenarios"`
+	} `json:"groups"`
 }

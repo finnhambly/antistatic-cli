@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ Resolution criteria are shown by default with a safe length cap.`,
 			params.Set("fuzzy", "true")
 		}
 
-		resp, err := client.Get("/markets/"+code, params)
+		resp, err := client.Get(api.Path("/markets/{code}", code), params)
 		if err != nil {
 			return err
 		}

@@ -146,10 +146,7 @@ func fetchUpdateLookupPoints(code string) ([]updateLookupPoint, error) {
 		return nil, err
 	}
 
-	var payload struct {
-		Submarkets []updateLookupPoint            `json:"submarkets"`
-		Forecast   map[string][]updateLookupPoint `json:"forecast"`
-	}
+	var payload forecastLookupPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("parsing forecast payload for label lookup: %w", err)
 	}
@@ -237,4 +234,10 @@ func lookupPointMatchesGroupHint(point updateLookupPoint, rawHint, resolvedHint 
 
 	_, ok := aliases[normalizeGroupKey(rawHint)]
 	return ok
+}
+
+// forecastLookupPayload is the part of GET /markets/{code}/forecast used to look bars up by label.
+type forecastLookupPayload struct {
+	Submarkets []updateLookupPoint            `json:"submarkets"`
+	Forecast   map[string][]updateLookupPoint `json:"forecast"`
 }

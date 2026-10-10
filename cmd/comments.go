@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -100,7 +101,7 @@ Use --cursor-inserted-at and --cursor-id to fetch the next page.`,
 			params.Set("following_ids", followingIDs)
 		}
 
-		resp, err := client.Get("/markets/"+code+"/comments", params)
+		resp, err := client.Get(api.Path("/markets/{code}/comments", code), params)
 		if err != nil {
 			return err
 		}

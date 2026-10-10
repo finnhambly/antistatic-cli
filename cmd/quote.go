@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -283,7 +284,7 @@ func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 		query.Set("from_p", fmt.Sprintf("%.12g", *update.FromProbability))
 	}
 
-	resp, err := client.Get("/markets/"+code+"/quote", query)
+	resp, err := client.Get(api.Path("/markets/{code}/quote", code), query)
 	if err != nil {
 		return quoteLine{}, err
 	}
@@ -293,15 +294,7 @@ func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 		return quoteLine{}, err
 	}
 
-	var raw struct {
-		Cost               float64 `json:"cost"`
-		SharesYes          float64 `json:"shares_yes"`
-		PointsInvested     float64 `json:"points_invested"`
-		PointsCashedOut    float64 `json:"points_cashed_out"`
-		PointsWonLostIfYes float64 `json:"points_won_lost_if_yes"`
-		PointsWonLostIfNo  float64 `json:"points_won_lost_if_no"`
-		BUsed              float64 `json:"b_used"`
-	}
+	var raw quoteResponse
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return quoteLine{}, fmt.Errorf("parsing quote response: %w", err)
 	}
@@ -326,4 +319,15 @@ func init() {
 	quoteCmd.Flags().Float64("from-probability", 0, "Optional starting probability override for a single quote (0..1)")
 	quoteCmd.Flags().String("updates", "", "Quote updates as JSON object/array (or {\"updates\":[...]})")
 	rootCmd.AddCommand(quoteCmd)
+}
+
+// quoteResponse is GET /markets/{code}/quote.
+type quoteResponse struct {
+	Cost               float64 `json:"cost"`
+	SharesYes          float64 `json:"shares_yes"`
+	PointsInvested     float64 `json:"points_invested"`
+	PointsCashedOut    float64 `json:"points_cashed_out"`
+	PointsWonLostIfYes float64 `json:"points_won_lost_if_yes"`
+	PointsWonLostIfNo  float64 `json:"points_won_lost_if_no"`
+	BUsed              float64 `json:"b_used"`
 }

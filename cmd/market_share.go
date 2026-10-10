@@ -27,7 +27,7 @@ send it to them, and approve each request.
 		if err := requireAuth(); err != nil {
 			return err
 		}
-		base := "/markets/" + args[0]
+		code := args[0]
 		create, _ := cmd.Flags().GetBool("create-link")
 		revoke, _ := cmd.Flags().GetBool("revoke-link")
 		approve, _ := cmd.Flags().GetInt("approve")
@@ -41,28 +41,37 @@ send it to them, and approve each request.
 
 		switch {
 		case create:
-			return printData(client.Post(base+"/share-link", map[string]interface{}{}))
+			return printData(client.Post(api.Path("/markets/{code}/share-link", code), map[string]interface{}{}))
 		case revoke:
 			if !destructive("Turn off the share link?") {
 				return nil
 			}
-			return printData(client.Delete(base + "/share-link"))
+			return printData(client.Delete(api.Path("/markets/{code}/share-link", code)))
 		case approve > 0:
-			return printData(client.Post(fmt.Sprintf("%s/access-requests/%d/approve", base, approve), map[string]interface{}{}))
+			return printData(client.Post(api.Path("/markets/{code}/access-requests/{id}/approve", code, approve), map[string]interface{}{}))
 		case decline > 0:
 			if !destructive("Decline this request?") {
 				return nil
 			}
-			return printData(client.Post(fmt.Sprintf("%s/access-requests/%d/decline", base, decline), map[string]interface{}{}))
+			return printData(client.Post(api.Path("/markets/{code}/access-requests/{id}/decline", code, decline), map[string]interface{}{}))
 		case remove > 0:
 			if !destructive("Remove this member's access?") {
 				return nil
 			}
-			return printData(client.Delete(fmt.Sprintf("%s/members/%d", base, remove)))
+			return printData(client.Delete(api.Path("/markets/{code}/members/{user_id}", code, remove)))
 		}
 
-		for _, path := range []string{"/share-link", "/access-requests", "/members"} {
-			resp, err := client.Get(base+path, nil)
+		for _, part := range []struct {
+			label string
+			get   func() (*api.Response, error)
+		}{
+			{"share-link", func() (*api.Response, error) { return client.Get(api.Path("/markets/{code}/share-link", code), nil) }},
+			{"access-requests", func() (*api.Response, error) {
+				return client.Get(api.Path("/markets/{code}/access-requests", code), nil)
+			}},
+			{"members", func() (*api.Response, error) { return client.Get(api.Path("/markets/{code}/members", code), nil) }},
+		} {
+			resp, err := part.get()
 			if err != nil {
 				return err
 			}
@@ -70,7 +79,7 @@ send it to them, and approve each request.
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s:\n", path[1:])
+			fmt.Printf("%s:\n", part.label)
 			output.JSON(data)
 		}
 		return nil

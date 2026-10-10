@@ -14,13 +14,29 @@ import (
 // DELETE to turn off.
 
 var (
-	followCmd   = newMarketToggleCmd("follow", "Follow a market", "/follow", "following", true)
-	unfollowCmd = newMarketToggleCmd("unfollow", "Stop following a market", "/follow", "following", false)
-	watchCmd    = newMarketToggleCmd("watch", "Get notified of a market's comments", "/comment-subscription", "subscribed", true)
-	unwatchCmd  = newMarketToggleCmd("unwatch", "Stop comment notifications for a market", "/comment-subscription", "subscribed", false)
+	followCmd   = newMarketToggleCmd("follow", "Follow a market", "following", follow)
+	unfollowCmd = newMarketToggleCmd("unfollow", "Stop following a market", "following", unfollow)
+	watchCmd    = newMarketToggleCmd("watch", "Get notified of a market's comments", "subscribed", watch)
+	unwatchCmd  = newMarketToggleCmd("unwatch", "Stop comment notifications for a market", "subscribed", unwatch)
 )
 
-func newMarketToggleCmd(name, short, path, field string, on bool) *cobra.Command {
+func follow(code string) (*api.Response, error) {
+	return client.Put(api.Path("/markets/{code}/follow", code), nil)
+}
+
+func unfollow(code string) (*api.Response, error) {
+	return client.Delete(api.Path("/markets/{code}/follow", code))
+}
+
+func watch(code string) (*api.Response, error) {
+	return client.Put(api.Path("/markets/{code}/comment-subscription", code), nil)
+}
+
+func unwatch(code string) (*api.Response, error) {
+	return client.Delete(api.Path("/markets/{code}/comment-subscription", code))
+}
+
+func newMarketToggleCmd(name, short, field string, send func(code string) (*api.Response, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   name + " <code>",
 		Short: short,
@@ -30,14 +46,7 @@ func newMarketToggleCmd(name, short, path, field string, on bool) *cobra.Command
 				return err
 			}
 			code := args[0]
-			url := "/markets/" + code + path
-			var resp *api.Response
-			var err error
-			if on {
-				resp, err = client.Put(url, nil)
-			} else {
-				resp, err = client.Delete(url)
-			}
+			resp, err := send(code)
 			if err != nil {
 				return err
 			}

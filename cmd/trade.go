@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -132,7 +133,7 @@ Example:
 			}
 		}
 
-		resp, err := client.Post("/markets/"+code+"/positions", withRestOfCurve(body))
+		resp, err := client.Post(api.Path("/markets/{code}/positions", code), withRestOfCurve(body))
 		if err != nil {
 			return outOfOrderHint(err)
 		}

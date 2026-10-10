@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,6 @@ Use --group-summary (with a market code) for one row per projection group.`,
 			return fmt.Errorf("--group-summary requires a market code (positional arg or --market)")
 		}
 
-		path := "/positions"
 		params := url.Values{}
 		if limit > 0 {
 			params.Set("limit", fmt.Sprintf("%d", limit))
@@ -58,9 +58,8 @@ Use --group-summary (with a market code) for one row per projection group.`,
 		}
 
 		// Preserve positional detail mode separately from cross-market listing.
-		if len(args) == 1 && marketFlag == "" && !summary {
-			path = "/markets/" + marketCode + "/positions"
-		} else {
+		inMarket := len(args) == 1 && marketFlag == "" && !summary
+		if !inMarket {
 			if marketCode != "" {
 				params.Set("market_code", marketCode)
 			}
@@ -69,7 +68,13 @@ Use --group-summary (with a market code) for one row per projection group.`,
 			}
 		}
 
-		resp, err := client.Get(path, params)
+		var resp *api.Response
+		var err error
+		if inMarket {
+			resp, err = client.Get(api.Path("/markets/{code}/positions", marketCode), params)
+		} else {
+			resp, err = client.Get("/positions", params)
+		}
 		if err != nil {
 			return err
 		}
@@ -117,14 +122,7 @@ Use --group-summary (with a market code) for one row per projection group.`,
 		}
 
 		if summary {
-			var summaries []struct {
-				MarketCode    string  `json:"market_code"`
-				PositionCount int     `json:"position_count"`
-				NetShares     float64 `json:"net_shares"`
-				NetCost       float64 `json:"net_cost"`
-				Shares        float64 `json:"shares"`
-				Cost          float64 `json:"cost"`
-			}
+			var summaries []positionSummaryRow
 			if err := json.Unmarshal(data, &summaries); err != nil {
 				output.JSON(data)
 				return nil
@@ -157,22 +155,7 @@ Use --group-summary (with a market code) for one row per projection group.`,
 			return nil
 		}
 
-		var positions []struct {
-			MarketCode       string  `json:"market_code"`
-			SubmarketLabel   string  `json:"submarket_label"`
-			Probability      float64 `json:"probability"`
-			NetShares        float64 `json:"net_shares"`
-			NetCost          float64 `json:"net_cost"`
-			Shares           float64 `json:"shares"`
-			Cost             float64 `json:"cost"`
-			Submarket        string  `json:"submarket"`
-			SubmarketDetails *struct {
-				Label  string `json:"label"`
-				Market *struct {
-					Code string `json:"code"`
-				} `json:"market"`
-			} `json:"submarket_details"`
-		}
+		var positions []positionRow
 		if err := json.Unmarshal(data, &positions); err != nil {
 			output.JSON(data)
 			return nil
@@ -321,4 +304,32 @@ func fetchSubmarketGroups(code string) (map[string]string, error) {
 		out[submarket.Submarket] = group
 	}
 	return out, nil
+}
+
+// positionSummaryRow is a row of GET /positions?summary=market.
+type positionSummaryRow struct {
+	MarketCode    string  `json:"market_code"`
+	PositionCount int     `json:"position_count"`
+	NetShares     float64 `json:"net_shares"`
+	NetCost       float64 `json:"net_cost"`
+	Shares        float64 `json:"shares"`
+	Cost          float64 `json:"cost"`
+}
+
+// positionRow is a row of GET /positions and GET /markets/{code}/positions.
+type positionRow struct {
+	MarketCode       string  `json:"market_code"`
+	SubmarketLabel   string  `json:"submarket_label"`
+	Probability      float64 `json:"probability"`
+	NetShares        float64 `json:"net_shares"`
+	NetCost          float64 `json:"net_cost"`
+	Shares           float64 `json:"shares"`
+	Cost             float64 `json:"cost"`
+	Submarket        string  `json:"submarket"`
+	SubmarketDetails *struct {
+		Label  string `json:"label"`
+		Market *struct {
+			Code string `json:"code"`
+		} `json:"market"`
+	} `json:"submarket_details"`
 }
