@@ -77,6 +77,140 @@
           }
         }
       }
+    },
+    "push_error": {
+      "type": "object",
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "description": "A curriculum push error: a code and the place (`path`, e.g. `items[b012].bars[g02-y2004]`), never the value.",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "missing_parts: the hashes to send."
+            },
+            "manifest_sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "timeline_draft_status": {
+      "type": "object",
+      "required": [
+        "slug",
+        "version",
+        "state",
+        "manifest_sha256",
+        "source_commit",
+        "schema_version",
+        "parts_expected",
+        "parts_received",
+        "parts_imported",
+        "received",
+        "error"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "receiving",
+            "importing",
+            "imported",
+            "failed",
+            "published",
+            "archived"
+          ]
+        },
+        "manifest_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema_version": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parts_expected": {
+          "type": "integer"
+        },
+        "parts_received": {
+          "type": "integer"
+        },
+        "parts_imported": {
+          "type": "integer"
+        },
+        "received": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "SHA-256 of every part stored for the draft."
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   },
   "routes": [
@@ -5178,6 +5312,924 @@
       }
     },
     {
+      "id": "timelines.limits",
+      "method": "GET",
+      "path": "/api/v1/timelines/limits",
+      "summary": "Curriculum upload limits, field limits, lint rules and the T5 hindsight list.",
+      "group": "timeline authoring",
+      "description": "The same numbers the server's changesets enforce; `antistatic timelines check` applies them locally. Rule IDs are those of docs/timelines/RULES.md.",
+      "auth": "none",
+      "headers": [],
+      "rate_limit": "read",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "schema_versions",
+                "manifest",
+                "fields",
+                "rules",
+                "hindsight_terms"
+              ],
+              "properties": {
+                "schema_versions": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "manifest": {
+                  "type": "object",
+                  "required": [
+                    "max_part_bytes",
+                    "max_top_bytes",
+                    "max_parts",
+                    "max_items",
+                    "max_checkpoints",
+                    "max_bars",
+                    "max_bars_per_item",
+                    "max_bars_per_part"
+                  ],
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "fields": {
+                  "type": "object",
+                  "description": "\"<schema>.<field>\" => {min, max, pattern}; lengths in characters.",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "min": {
+                        "type": "integer"
+                      },
+                      "max": {
+                        "type": "integer"
+                      },
+                      "pattern": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "severity",
+                      "summary"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "severity": {
+                        "enum": [
+                          "error",
+                          "warning"
+                        ]
+                      },
+                      "summary": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "hindsight_terms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "RULES.md T5: whole-word, case-insensitive; /.../ is a regular expression."
+                }
+              }
+            }
+          }
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "schema_versions": [
+                2
+              ],
+              "manifest": {
+                "max_part_bytes": 2000000,
+                "max_top_bytes": 6000000,
+                "max_parts": 400,
+                "max_items": 1000,
+                "max_checkpoints": 5000,
+                "max_bars": 300000,
+                "max_bars_per_item": 3000,
+                "max_bars_per_part": 6000
+              },
+              "fields": {
+                "bar.key": {
+                  "max": 255
+                }
+              },
+              "rules": [
+                {
+                  "id": "T5",
+                  "severity": "warning",
+                  "summary": "Hindsight vocabulary (hindsight_terms) in learner-visible text."
+                }
+              ],
+              "hindsight_terms": [
+                "seminal",
+                "would later"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.put_part",
+      "method": "PUT",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}",
+      "summary": "Store one content-addressed part of a curriculum draft.",
+      "group": "timeline authoring",
+      "description": "`sha256` is the hex SHA-256 of the exact body. 201 when stored, 200 (`stored: false`) when the draft already has it. Creates the draft if new. Parts hold compact items with their own disclosures and resolution requests; nothing is imported until the manifest arrives.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object"
+            },
+            "description": "Compact (schema_version 2) items."
+          },
+          "disclosures": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "resolution_requests": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "stored",
+                "sha256",
+                "items",
+                "bars",
+                "bytes"
+              ],
+              "properties": {
+                "stored": {
+                  "type": "boolean"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "integer"
+                },
+                "bars": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "201": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "stored",
+                "sha256",
+                "items",
+                "bars",
+                "bytes"
+              ],
+              "properties": {
+                "stored": {
+                  "type": "boolean"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "integer"
+                },
+                "bars": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "413": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "items": [
+              {
+                "key": "b001"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "stored": true,
+              "sha256": "a100000000000000000000000000000000000000000000000000000000000000",
+              "items": 1,
+              "bars": 24,
+              "bytes": 5120
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.put_manifest",
+      "method": "PUT",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/manifest",
+      "summary": "Send a draft's manifest (top level and ordered part hashes) and start its import.",
+      "group": "timeline authoring",
+      "description": "202 starts a background import (one part per transaction); poll status. 200 when the draft already has this manifest. 409 `draft_changed` when `base_sha256` is not the draft's current manifest; 422 `missing_parts` lists the hashes to send. Sending the manifest again resumes a failed or interrupted import.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "manifest_sha256",
+          "top",
+          "parts"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 2
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "commit": {
+                "type": "string"
+              },
+              "dirty": {
+                "type": "boolean"
+              }
+            }
+          },
+          "manifest_sha256": {
+            "type": "string"
+          },
+          "base_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "top": {
+            "type": "object",
+            "required": [
+              "checkpoints"
+            ],
+            "properties": {
+              "curriculum": {
+                "type": "object"
+              },
+              "checkpoints": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "disclosures": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "resolution_requests": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "resolved_through": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "parts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "202": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "413": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "schema_version": 2,
+            "manifest_sha256": "9f2c000000000000000000000000000000000000000000000000000000000000",
+            "base_sha256": null,
+            "source": {
+              "commit": "5b2e6c65b",
+              "dirty": false
+            },
+            "top": {
+              "curriculum": {
+                "title": "Biology"
+              },
+              "checkpoints": [
+                {
+                  "key": "cp000"
+                }
+              ],
+              "disclosures": []
+            },
+            "parts": [
+              "a100000000000000000000000000000000000000000000000000000000000000",
+              "b200000000000000000000000000000000000000000000000000000000000000"
+            ]
+          }
+        },
+        "response": {
+          "status": 202,
+          "body": {
+            "data": {
+              "slug": "biology",
+              "version": "1.1",
+              "state": "importing",
+              "manifest_sha256": "9f2c000000000000000000000000000000000000000000000000000000000000",
+              "source_commit": "5b2e6c65b",
+              "schema_version": 2,
+              "parts_expected": 2,
+              "parts_received": 2,
+              "parts_imported": 0,
+              "received": [
+                "a100000000000000000000000000000000000000000000000000000000000000",
+                "b200000000000000000000000000000000000000000000000000000000000000"
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.draft_status",
+      "method": "GET",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/status",
+      "summary": "A curriculum version's push and import status.",
+      "group": "timeline authoring",
+      "description": "Counts and hashes only. `error` has a code and a path; its message only for owners and editors who are not learners of the curriculum.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "biology",
+              "version": "1.1",
+              "state": "imported",
+              "manifest_sha256": "9f2c000000000000000000000000000000000000000000000000000000000000",
+              "source_commit": "5b2e6c65b",
+              "schema_version": 2,
+              "parts_expected": 2,
+              "parts_received": 2,
+              "parts_imported": 2,
+              "received": [
+                "a100000000000000000000000000000000000000000000000000000000000000",
+                "b200000000000000000000000000000000000000000000000000000000000000"
+              ],
+              "error": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.validate_draft",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/validate",
+      "summary": "Validate an imported draft: publish rules (errors) and lint (warnings tagged with RULES.md IDs).",
+      "group": "timeline authoring",
+      "description": "A learner of the curriculum gets counts only (`errors` redacted, `lint` empty, `lint_counts` kept).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "valid",
+                "errors",
+                "warnings",
+                "unresolved_past_bar_count",
+                "lint",
+                "lint_counts"
+              ],
+              "properties": {
+                "valid": {
+                  "type": "boolean"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "unresolved_past_bar_count": {
+                  "type": "integer"
+                },
+                "lint": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "rule",
+                      "where"
+                    ],
+                    "properties": {
+                      "rule": {
+                        "type": "string"
+                      },
+                      "where": {
+                        "type": "string"
+                      },
+                      "term": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "lint_counts": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "valid": true,
+              "errors": [],
+              "warnings": [],
+              "unresolved_past_bar_count": 0,
+              "lint": [
+                {
+                  "rule": "T5",
+                  "where": "items[b012].title",
+                  "term": "eventually"
+                }
+              ],
+              "lint_counts": {
+                "T5": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.publish_draft",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/publish",
+      "summary": "Publish an imported, valid draft atomically.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "slug",
+                "version",
+                "status",
+                "published_at",
+                "manifest_sha256"
+              ],
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "published_at": {
+                  "type": "string"
+                },
+                "manifest_sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "biology",
+              "version": "1.1",
+              "status": "published",
+              "published_at": "2026-10-10T20:00:00Z",
+              "manifest_sha256": "9f2c000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.delete_draft",
+      "method": "DELETE",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}",
+      "summary": "Delete a curriculum draft and its staged parts.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "deleted"
+              ],
+              "properties": {
+                "deleted": {
+                  "const": true
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "deleted": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.grant",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/members",
+      "summary": "Make an account (username or email) a learner, editor or owner of a curriculum.",
+      "group": "timeline authoring",
+      "description": "Bots are refused, and an account with a run in the curriculum cannot be an editor or owner.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "user",
+          "role"
+        ],
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "learner",
+              "editor",
+              "owner"
+            ]
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "user_id",
+                "username",
+                "role"
+              ],
+              "properties": {
+                "user_id": {
+                  "type": "integer"
+                },
+                "username": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "role": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "422": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "user": "nonstationary",
+            "role": "learner"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "user_id": 42,
+              "username": "nonstationary",
+              "role": "learner"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.revoke",
+      "method": "DELETE",
+      "path": "/api/v1/timelines/curricula/{slug}/members/{user_id}",
+      "summary": "Remove an account from a curriculum.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "required": [
+                "removed"
+              ],
+              "properties": {
+                "removed": {
+                  "const": true
+                }
+              }
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "422": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "removed": true
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "bot.show",
       "method": "GET",
       "path": "/api/v1/me/bot",
@@ -6494,738 +7546,10 @@
       }
     },
     {
-      "id": "retrocasting.put_draft",
-      "method": "PUT",
-      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/draft",
-      "summary": "Upload a curriculum version's draft manifest.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "manifest": {
-            "type": "object",
-            "properties": {
-              "checkpoints": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "body_html": {
-                      "type": "string"
-                    },
-                    "key": {
-                      "type": "string"
-                    },
-                    "occurred_at": {
-                      "type": "string"
-                    },
-                    "sequence": {
-                      "type": "number"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "key",
-                    "occurred_at",
-                    "sequence",
-                    "title"
-                  ]
-                }
-              },
-              "curriculum": {
-                "type": "object",
-                "properties": {
-                  "access": {
-                    "type": "string"
-                  },
-                  "description_html": {
-                    "type": "string"
-                  },
-                  "title": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "title"
-                ]
-              },
-              "disclosures": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "body_html": {
-                      "type": "string"
-                    },
-                    "checkpoint": {
-                      "type": "string"
-                    },
-                    "item": {
-                      "type": "string"
-                    },
-                    "key": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "body_html",
-                    "checkpoint",
-                    "item",
-                    "key",
-                    "kind",
-                    "title"
-                  ]
-                }
-              },
-              "items": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "introduced_at": {
-                      "type": "string"
-                    },
-                    "key": {
-                      "type": "string"
-                    },
-                    "market": {
-                      "type": "object",
-                      "properties": {
-                        "background_info_html": {
-                          "type": "string"
-                        },
-                        "budget": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "cumulative": {
-                          "type": "boolean"
-                        },
-                        "end_date": {
-                          "type": "string"
-                        },
-                        "resolution_criteria": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "type": {
-                          "type": "string"
-                        },
-                        "x_unit": {
-                          "type": "string"
-                        },
-                        "svelte_params": {
-                          "type": "object",
-                          "properties": {
-                            "dateViewDefault": {
-                              "type": "string"
-                            },
-                            "multidate": {
-                              "type": "boolean"
-                            },
-                            "countObservationMode": {
-                              "type": "string"
-                            },
-                            "countObservationScope": {
-                              "type": "string"
-                            }
-                          }
-                        }
-                      },
-                      "required": [
-                        "budget",
-                        "code",
-                        "cumulative",
-                        "resolution_criteria",
-                        "type",
-                        "x_unit"
-                      ]
-                    },
-                    "sort_order": {
-                      "type": "number"
-                    },
-                    "submarkets": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "budget_allocation": {
-                            "type": "string"
-                          },
-                          "closes_at": {
-                            "type": "string"
-                          },
-                          "end_date": {
-                            "type": "string"
-                          },
-                          "initial_probability": {
-                            "type": "string"
-                          },
-                          "key": {
-                            "type": "string"
-                          },
-                          "label": {
-                            "type": "string"
-                          },
-                          "projection_group": {
-                            "type": "string"
-                          },
-                          "resolved_yes": {
-                            "type": "boolean"
-                          },
-                          "resolves_at": {
-                            "type": "string"
-                          },
-                          "threshold_decimal": {
-                            "type": "string"
-                          },
-                          "threshold_date": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "closes_at",
-                          "end_date",
-                          "initial_probability",
-                          "key",
-                          "resolves_at"
-                        ]
-                      }
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "liquidity_cuts": {
-                      "type": "array"
-                    },
-                    "count_observations": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "applied_at": {
-                            "type": "string"
-                          },
-                          "group": {
-                            "type": "string"
-                          },
-                          "value": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "applied_at",
-                          "group",
-                          "value"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "introduced_at",
-                    "key",
-                    "market",
-                    "submarkets",
-                    "title"
-                  ]
-                }
-              },
-              "resolved_through": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "checkpoints",
-              "curriculum",
-              "items"
-            ]
-          },
-          "checkpoints": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string"
-                },
-                "occurred_at": {
-                  "type": "string"
-                },
-                "sequence": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "occurred_at",
-                "sequence",
-                "title"
-              ]
-            }
-          },
-          "curriculum": {
-            "type": "object",
-            "properties": {
-              "access": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "title"
-            ]
-          },
-          "disclosures": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "body_html": {
-                  "type": "string"
-                },
-                "checkpoint": {
-                  "type": "string"
-                },
-                "item": {
-                  "type": "string"
-                },
-                "key": {
-                  "type": "string"
-                },
-                "kind": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "body_html",
-                "checkpoint",
-                "item",
-                "key",
-                "kind",
-                "title"
-              ]
-            }
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "introduced_at": {
-                  "type": "string"
-                },
-                "key": {
-                  "type": "string"
-                },
-                "liquidity_cuts": {
-                  "type": "array"
-                },
-                "market": {
-                  "type": "object",
-                  "properties": {
-                    "budget": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "cumulative": {
-                      "type": "boolean"
-                    },
-                    "end_date": {
-                      "type": "string"
-                    },
-                    "resolution_criteria": {
-                      "type": "string"
-                    },
-                    "svelte_params": {
-                      "type": "object",
-                      "properties": {
-                        "dateViewDefault": {
-                          "type": "string"
-                        },
-                        "multidate": {
-                          "type": "boolean"
-                        },
-                        "countObservationMode": {
-                          "type": "string"
-                        },
-                        "countObservationScope": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    "type": {
-                      "type": "string"
-                    },
-                    "x_unit": {
-                      "type": "string"
-                    },
-                    "background_info_html": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "budget",
-                    "code",
-                    "cumulative",
-                    "resolution_criteria",
-                    "type",
-                    "x_unit"
-                  ]
-                },
-                "submarkets": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "closes_at": {
-                        "type": "string"
-                      },
-                      "end_date": {
-                        "type": "string"
-                      },
-                      "initial_probability": {
-                        "type": "string"
-                      },
-                      "key": {
-                        "type": "string"
-                      },
-                      "label": {
-                        "type": "string"
-                      },
-                      "projection_group": {
-                        "type": "string"
-                      },
-                      "resolved_yes": {
-                        "type": "boolean"
-                      },
-                      "resolves_at": {
-                        "type": "string"
-                      },
-                      "threshold_date": {
-                        "type": "string"
-                      },
-                      "threshold_decimal": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "closes_at",
-                      "end_date",
-                      "initial_probability",
-                      "key",
-                      "resolves_at"
-                    ]
-                  }
-                },
-                "title": {
-                  "type": "string"
-                },
-                "count_observations": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "applied_at": {
-                        "type": "string"
-                      },
-                      "group": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "applied_at",
-                      "group",
-                      "value"
-                    ]
-                  }
-                }
-              },
-              "required": [
-                "introduced_at",
-                "key",
-                "market",
-                "submarkets",
-                "title"
-              ]
-            }
-          },
-          "resolved_through": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "manifest": {
-              "checkpoints": [
-                {
-                  "key": "cp000",
-                  "occurred_at": "2001-05-25T00:00:00Z",
-                  "sequence": 0,
-                  "title": "Widget update 0"
-                },
-                {
-                  "key": "cp001",
-                  "occurred_at": "2001-06-06T23:35:35Z",
-                  "sequence": 1,
-                  "title": "Widget update 1"
-                }
-              ],
-              "curriculum": {
-                "access": "restricted",
-                "title": "Widget scale curriculum 61635"
-              },
-              "disclosures": [
-                {
-                  "body_html": "<p>Invented evidence for checkpoint 1.</p>",
-                  "checkpoint": "cp001",
-                  "item": "date-2",
-                  "key": "ev-1",
-                  "kind": "evidence",
-                  "title": "Widget news 1"
-                },
-                {
-                  "body_html": "<p>Invented evidence for checkpoint 3.</p>",
-                  "checkpoint": "cp003",
-                  "item": "count-2",
-                  "key": "ev-3",
-                  "kind": "evidence",
-                  "title": "Widget news 3"
-                }
-              ],
-              "items": [
-                {
-                  "introduced_at": "cp000",
-                  "key": "date-1",
-                  "liquidity_cuts": [],
-                  "market": {
-                    "background_info_html": "Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget background. Widget backgrou…",
-                    "budget": "107",
-                    "code": "wd61635-1",
-                    "cumulative": true,
-                    "end_date": "2003-05-31T00:00:00Z",
-                    "resolution_criteria": "Synthetic widget milestone 1.",
-                    "svelte_params": {
-                      "dateViewDefault": "month",
-                      "multidate": true
-                    },
-                    "type": "date",
-                    "x_unit": "date"
-                  },
-                  "submarkets": [
-                    {
-                      "closes_at": "cp003",
-                      "end_date": "2001-06-30T00:00:00Z",
-                      "initial_probability": "0.057",
-                      "key": "g1-m1",
-                      "label": "Widget 1 by Jun 2001",
-                      "projection_group": "g1",
-                      "resolved_yes": false,
-                      "resolves_at": "cp006",
-                      "threshold_date": "2001-06-30T00:00:00Z"
-                    },
-                    {
-                      "closes_at": "cp006",
-                      "end_date": "2001-07-31T00:00:00Z",
-                      "initial_probability": "0.095",
-                      "key": "g1-m2",
-                      "label": "Widget 1 by Jul 2001",
-                      "projection_group": "g1",
-                      "resolved_yes": false,
-                      "resolves_at": "cp009",
-                      "threshold_date": "2001-07-31T00:00:00Z"
-                    }
-                  ],
-                  "title": "When does widget line 1 reach each milestone?"
-                },
-                {
-                  "introduced_at": "cp000",
-                  "key": "date-2",
-                  "liquidity_cuts": [],
-                  "market": {
-                    "budget": "114",
-                    "code": "wd61635-2",
-                    "cumulative": true,
-                    "end_date": "2003-05-31T00:00:00Z",
-                    "resolution_criteria": "Synthetic widget milestone 2.",
-                    "svelte_params": {
-                      "dateViewDefault": "month",
-                      "multidate": true
-                    },
-                    "type": "date",
-                    "x_unit": "date"
-                  },
-                  "submarkets": [
-                    {
-                      "closes_at": "cp003",
-                      "end_date": "2001-06-30T00:00:00Z",
-                      "initial_probability": "0.057",
-                      "key": "g1-m1",
-                      "label": "Widget 1 by Jun 2001",
-                      "projection_group": "g1",
-                      "resolved_yes": false,
-                      "resolves_at": "cp006",
-                      "threshold_date": "2001-06-30T00:00:00Z"
-                    },
-                    {
-                      "closes_at": "cp006",
-                      "end_date": "2001-07-31T00:00:00Z",
-                      "initial_probability": "0.095",
-                      "key": "g1-m2",
-                      "label": "Widget 1 by Jul 2001",
-                      "projection_group": "g1",
-                      "resolved_yes": false,
-                      "resolves_at": "cp009",
-                      "threshold_date": "2001-07-31T00:00:00Z"
-                    }
-                  ],
-                  "title": "When does widget line 2 reach each milestone?"
-                }
-              ]
-            }
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "checkpoint_count": 60,
-              "item_count": 4,
-              "slug": "widget-big",
-              "status": "draft",
-              "unresolved_past_bar_count": 0,
-              "version": "1.0",
-              "version_major": 1,
-              "version_minor": 0,
-              "warnings": []
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "retrocasting.get_draft",
-      "method": "GET",
-      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/draft",
-      "summary": "A curriculum version's draft manifest.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "manifest": {
-                "checkpoints": [
-                  {
-                    "key": "cp0",
-                    "occurred_at": "2001-05-25T00:00:00Z",
-                    "sequence": 0,
-                    "title": "Widget cp0"
-                  },
-                  {
-                    "key": "cp1",
-                    "occurred_at": "2002-01-01T00:00:00Z",
-                    "sequence": 1,
-                    "title": "Widget cp1"
-                  }
-                ],
-                "curriculum": {
-                  "title": "Widget sealed 60291"
-                },
-                "items": [
-                  {
-                    "introduced_at": "cp0",
-                    "key": "when",
-                    "market": {
-                      "budget": "100",
-                      "code": "ws60291",
-                      "cumulative": true,
-                      "resolution_criteria": "First widget shipped.",
-                      "type": "date",
-                      "x_unit": "date"
-                    },
-                    "submarkets": [
-                      {
-                        "closes_at": "cp1",
-                        "end_date": "2001-12-31T00:00:00Z",
-                        "initial_probability": "0.2",
-                        "key": "y02",
-                        "resolved_yes": false,
-                        "resolves_at": "cp1",
-                        "threshold_date": "2001-12-31T00:00:00Z"
-                      },
-                      {
-                        "closes_at": "cp2",
-                        "end_date": "2002-12-31T00:00:00Z",
-                        "initial_probability": "0.4",
-                        "key": "y03",
-                        "resolves_at": "cp2",
-                        "threshold_date": "2002-12-31T00:00:00Z"
-                      }
-                    ],
-                    "title": "When does the widget ship (when)?"
-                  }
-                ],
-                "resolved_through": "2002-12-31"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
       "id": "retrocasting.append_items",
       "method": "POST",
       "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/items",
-      "summary": "Append items to a curriculum version's draft.",
+      "summary": "Add new questions to a published curriculum release mid-run.",
       "group": "timeline authoring",
       "auth": "write",
       "headers": [],
@@ -8935,78 +9259,6 @@
             "data": {
               "code": "p685-1",
               "resolved": 1
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "retrocasting.validate_draft",
-      "method": "POST",
-      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/validate",
-      "summary": "Validate a curriculum version's draft.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object"
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "errors": [],
-              "unresolved_past_bar_count": 0,
-              "valid": true,
-              "warnings": []
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "retrocasting.publish_draft",
-      "method": "POST",
-      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/publish",
-      "summary": "Publish a curriculum version's draft.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object"
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "published_at": "2026-10-10T19:27:00Z",
-              "slug": "widget-cache",
-              "status": "published",
-              "unresolved_past_bar_count": 0,
-              "version": "1.0",
-              "version_major": 1,
-              "version_minor": 0,
-              "warnings": []
             }
           }
         }
@@ -11647,1228 +11899,6 @@
           "body": {
             "contract_version": "1",
             "routes": []
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.limits",
-      "method": "GET",
-      "path": "/api/v1/timelines/limits",
-      "summary": "Limits a timeline manifest must meet: schema versions, sizes, field lengths and lint terms.",
-      "group": "timeline authoring",
-      "auth": "none",
-      "headers": [],
-      "rate_limit": "read",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "schema_versions": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                },
-                "manifest": {
-                  "type": "object",
-                  "properties": {
-                    "max_part_bytes": {
-                      "type": "number"
-                    },
-                    "max_top_bytes": {
-                      "type": "number"
-                    },
-                    "max_parts": {
-                      "type": "number"
-                    },
-                    "max_items": {
-                      "type": "number"
-                    },
-                    "max_checkpoints": {
-                      "type": "number"
-                    },
-                    "max_bars": {
-                      "type": "number"
-                    },
-                    "max_bars_per_item": {
-                      "type": "number"
-                    },
-                    "max_bars_per_part": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "max_bars",
-                    "max_bars_per_item",
-                    "max_bars_per_part",
-                    "max_checkpoints",
-                    "max_items",
-                    "max_part_bytes",
-                    "max_parts",
-                    "max_top_bytes"
-                  ]
-                },
-                "fields": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                      "min": {
-                        "type": "number"
-                      },
-                      "max": {
-                        "type": "number"
-                      },
-                      "pattern": {
-                        "type": "string"
-                      }
-                    },
-                    "required": []
-                  }
-                },
-                "rules": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "severity": {
-                        "type": "string"
-                      },
-                      "summary": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "severity",
-                      "summary"
-                    ]
-                  }
-                },
-                "hindsight_terms": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "required": [
-                "fields",
-                "hindsight_terms",
-                "manifest",
-                "rules",
-                "schema_versions"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "schema_versions": [
-                2
-              ],
-              "manifest": {
-                "max_part_bytes": 2000000,
-                "max_top_bytes": 6000000,
-                "max_parts": 400,
-                "max_items": 1000,
-                "max_checkpoints": 5000,
-                "max_bars": 300000,
-                "max_bars_per_item": 3000,
-                "max_bars_per_part": 6000
-              },
-              "fields": {
-                "curriculum.slug": {
-                  "min": 2,
-                  "max": 80,
-                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
-                },
-                "question.code": {
-                  "min": 2,
-                  "max": 40,
-                  "pattern": "^[a-z0-9][a-z0-9_-]*$"
-                },
-                "checkpoint.key": {
-                  "max": 255
-                },
-                "checkpoint.title": {
-                  "max": 255
-                },
-                "item.key": {
-                  "max": 255
-                },
-                "item.title": {
-                  "max": 255
-                },
-                "market.title": {
-                  "max": 255
-                },
-                "bar.key": {
-                  "max": 255
-                },
-                "bar.label": {
-                  "max": 255
-                },
-                "bar.projection_group": {
-                  "max": 255
-                },
-                "disclosure.key": {
-                  "max": 255
-                },
-                "disclosure.title": {
-                  "max": 255
-                },
-                "disclosure.source_url": {
-                  "max": 2000,
-                  "pattern": "^https?://"
-                },
-                "resolution_request.key": {
-                  "max": 255
-                }
-              },
-              "rules": [
-                {
-                  "id": "T5",
-                  "severity": "warning",
-                  "summary": "Learner-visible text uses hindsight wording."
-                }
-              ],
-              "hindsight_terms": [
-                "seminal",
-                "would later",
-                "/as of 20\\d\\d/"
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.put_part",
-      "method": "PUT",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}",
-      "summary": "Store one part of a draft's manifest (items with their disclosures and resolution requests).",
-      "group": "timeline authoring",
-      "description": "The body is a raw JSON object; `sha256` in the path is the lowercase hex SHA-256 of the exact body bytes. Creates the draft (state `receiving`) if needed. Re-sending a stored part returns 200 with `stored: false`. Errors: 413 `part_too_large`; 422 `sha256_mismatch`, `invalid_part` (with `path`); 409 `published`.",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "disclosures": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "resolution_requests": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        },
-        "required": [
-          "disclosures",
-          "items",
-          "resolution_requests"
-        ]
-      },
-      "responses": {
-        "201": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "stored": {
-                  "type": "boolean"
-                },
-                "sha256": {
-                  "type": "string"
-                },
-                "items": {
-                  "type": "number"
-                },
-                "bars": {
-                  "type": "number"
-                },
-                "bytes": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "bars",
-                "bytes",
-                "items",
-                "sha256",
-                "stored"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        },
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "stored": {
-                  "type": "boolean"
-                },
-                "sha256": {
-                  "type": "string"
-                },
-                "items": {
-                  "type": "number"
-                },
-                "bars": {
-                  "type": "number"
-                },
-                "bytes": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "bars",
-                "bytes",
-                "items",
-                "sha256",
-                "stored"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "items": [],
-            "disclosures": [],
-            "resolution_requests": []
-          }
-        },
-        "response": {
-          "status": 201,
-          "body": {
-            "data": {
-              "stored": true,
-              "sha256": "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
-              "items": 3,
-              "bars": 120,
-              "bytes": 48211
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.put_manifest",
-      "method": "PUT",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/manifest",
-      "summary": "Send a draft's manifest (top-level fields plus its part hashes) and start the import.",
-      "group": "timeline authoring",
-      "description": "Errors: 409 `draft_changed` when the draft's manifest_sha256 is not `base_sha256`; 422 `missing_parts` with `parts`. The same manifest_sha256 as the draft already has (and not failed) is a no-op (200).",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "schema_version": {
-            "type": "number"
-          },
-          "source": {
-            "type": "object",
-            "properties": {
-              "commit": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "dirty": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "commit",
-              "dirty"
-            ]
-          },
-          "manifest_sha256": {
-            "type": "string"
-          },
-          "base_sha256": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "top": {
-            "type": "object",
-            "properties": {
-              "curriculum": {
-                "type": "object"
-              },
-              "checkpoints": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "disclosures": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "resolution_requests": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "resolved_through": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "checkpoints",
-              "curriculum",
-              "disclosures",
-              "resolution_requests"
-            ]
-          },
-          "parts": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "base_sha256",
-          "manifest_sha256",
-          "parts",
-          "schema_version",
-          "source",
-          "top"
-        ]
-      },
-      "responses": {
-        "202": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "slug": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "receiving",
-                    "importing",
-                    "imported",
-                    "failed",
-                    "published"
-                  ]
-                },
-                "manifest_sha256": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "source_commit": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "schema_version": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "parts_expected": {
-                  "type": "number"
-                },
-                "parts_received": {
-                  "type": "number"
-                },
-                "parts_imported": {
-                  "type": "number"
-                },
-                "received": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "error": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code"
-                      ]
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "error",
-                "manifest_sha256",
-                "parts_expected",
-                "parts_imported",
-                "parts_received",
-                "received",
-                "schema_version",
-                "slug",
-                "source_commit",
-                "state",
-                "version"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        },
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "slug": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "receiving",
-                    "importing",
-                    "imported",
-                    "failed",
-                    "published"
-                  ]
-                },
-                "manifest_sha256": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "source_commit": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "schema_version": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "parts_expected": {
-                  "type": "number"
-                },
-                "parts_received": {
-                  "type": "number"
-                },
-                "parts_imported": {
-                  "type": "number"
-                },
-                "received": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "error": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code"
-                      ]
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "error",
-                "manifest_sha256",
-                "parts_expected",
-                "parts_imported",
-                "parts_received",
-                "received",
-                "schema_version",
-                "slug",
-                "source_commit",
-                "state",
-                "version"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "schema_version": 2,
-            "source": {
-              "commit": "4e1f0c2",
-              "dirty": false
-            },
-            "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
-            "base_sha256": null,
-            "top": {
-              "curriculum": {
-                "title": "Widget curriculum"
-              },
-              "checkpoints": [],
-              "disclosures": [],
-              "resolution_requests": []
-            },
-            "parts": [
-              "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
-            ]
-          }
-        },
-        "response": {
-          "status": 202,
-          "body": {
-            "data": {
-              "slug": "widget-cache",
-              "version": "1.1",
-              "state": "importing",
-              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
-              "source_commit": "4e1f0c2",
-              "schema_version": 2,
-              "parts_expected": 2,
-              "parts_received": 2,
-              "parts_imported": 0,
-              "received": [
-                "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
-                "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
-              ],
-              "error": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.draft_status",
-      "method": "GET",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/status",
-      "summary": "A curriculum version's draft status: state, part counts and the parts stored.",
-      "group": "timeline authoring",
-      "description": "404 when there is no such version. Works for published versions too (state `published`).",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "slug": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "receiving",
-                    "importing",
-                    "imported",
-                    "failed",
-                    "published"
-                  ]
-                },
-                "manifest_sha256": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "source_commit": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "schema_version": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "parts_expected": {
-                  "type": "number"
-                },
-                "parts_received": {
-                  "type": "number"
-                },
-                "parts_imported": {
-                  "type": "number"
-                },
-                "received": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "error": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code"
-                      ]
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "error",
-                "manifest_sha256",
-                "parts_expected",
-                "parts_imported",
-                "parts_received",
-                "received",
-                "schema_version",
-                "slug",
-                "source_commit",
-                "state",
-                "version"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "slug": "widget-cache",
-              "version": "1.1",
-              "state": "imported",
-              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
-              "source_commit": "4e1f0c2",
-              "schema_version": 2,
-              "parts_expected": 2,
-              "parts_received": 2,
-              "parts_imported": 2,
-              "received": [
-                "3f1c9a0d6b2e4f5a8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
-                "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
-              ],
-              "error": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.validate_draft",
-      "method": "POST",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/validate",
-      "summary": "Validate an imported draft.",
-      "group": "timeline authoring",
-      "description": "Requires state `imported` (409 `not_imported`). Learners of the curriculum get counts in place of the errors, warnings and lint lists.",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "valid": {
-                  "type": "boolean"
-                },
-                "errors": {
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ]
-                },
-                "warnings": {
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ]
-                },
-                "unresolved_past_bar_count": {
-                  "type": "number"
-                },
-                "lint": {
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "rule": {
-                            "type": "string"
-                          },
-                          "where": {
-                            "type": "string"
-                          },
-                          "term": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "rule",
-                          "where"
-                        ]
-                      }
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ]
-                },
-                "lint_counts": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "number"
-                  }
-                }
-              },
-              "required": [
-                "errors",
-                "lint",
-                "lint_counts",
-                "unresolved_past_bar_count",
-                "valid",
-                "warnings"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "valid": true,
-              "errors": [],
-              "warnings": [],
-              "unresolved_past_bar_count": 0,
-              "lint": [
-                {
-                  "rule": "T5",
-                  "where": "items[b012].title",
-                  "term": "seminal"
-                }
-              ],
-              "lint_counts": {
-                "T5": 1
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.publish_draft",
-      "method": "POST",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/publish",
-      "summary": "Validate and publish an imported draft.",
-      "group": "timeline authoring",
-      "description": "Requires state `imported`. 422 `invalid_manifest` with errors (redacted for learners).",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "slug": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string"
-                },
-                "published_at": {
-                  "type": "string"
-                },
-                "manifest_sha256": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "manifest_sha256",
-                "published_at",
-                "slug",
-                "status",
-                "version"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "slug": "widget-cache",
-              "version": "1.1",
-              "status": "published",
-              "published_at": "2026-10-10T19:27:00Z",
-              "manifest_sha256": "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.delete_draft",
-      "method": "DELETE",
-      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}",
-      "summary": "Delete a draft and its parts.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "deleted": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "deleted"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "deleted": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.add_member",
-      "method": "POST",
-      "path": "/api/v1/timelines/curricula/{slug}/members",
-      "summary": "Give a user a role on a curriculum.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "user": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "learner",
-              "editor",
-              "owner"
-            ]
-          }
-        },
-        "required": [
-          "role",
-          "user"
-        ]
-      },
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "user_id": {
-                  "type": "number"
-                },
-                "username": {
-                  "type": "string"
-                },
-                "role": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "role",
-                "user_id",
-                "username"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "user": "ada",
-            "role": "learner"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "user_id": 8146,
-              "username": "ada",
-              "role": "learner"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timelines.remove_member",
-      "method": "DELETE",
-      "path": "/api/v1/timelines/curricula/{slug}/members/{user_id}",
-      "summary": "Remove a user from a curriculum.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "strict",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "object",
-              "properties": {
-                "removed": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "removed"
-              ]
-            }
-          },
-          "required": [
-            "data"
-          ]
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "removed": true
-            }
           }
         }
       }
