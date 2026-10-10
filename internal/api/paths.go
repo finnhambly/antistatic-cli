@@ -6,7 +6,7 @@ import (
 	"regexp"
 )
 
-var pathParam = regexp.MustCompile(`\{[a-z_]+\}`)
+var pathParam = regexp.MustCompile(`\{[a-z_][a-z0-9_]*\}`)
 
 // Path fills a contract path template's {name} segments, in order, with the
 // escaped args: Path("/markets/{code}/forecast", code). Templates are the

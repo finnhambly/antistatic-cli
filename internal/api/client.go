@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,6 +62,10 @@ type APIError struct {
 	StatusCode int
 	Message    string
 	Code       string
+	// Path and Parts are set by the timelines routes: where in a manifest
+	// the problem is, and which parts the server is missing.
+	Path  string
+	Parts []string
 }
 
 func (e *APIError) Error() string {
@@ -116,6 +121,17 @@ func (c *Client) Put(path string, body interface{}) (*Response, error) {
 	return c.do("PUT", path, nil, body)
 }
 
+// PutRaw performs a PUT request whose body is sent exactly as given, with
+// Content-Type: application/json.
+func (c *Client) PutRaw(path string, body []byte) (*Response, error) {
+	return c.send("PUT", path, nil, body)
+}
+
+// BaseURL is the server the client talks to, without a trailing slash.
+func (c *Client) BaseURL() string {
+	return c.baseURL
+}
+
 // Patch performs a PATCH request with a JSON body.
 func (c *Client) Patch(path string, body interface{}) (*Response, error) {
 	return c.do("PATCH", path, nil, body)
@@ -127,6 +143,19 @@ func (c *Client) Delete(path string) (*Response, error) {
 }
 
 func (c *Client) do(method, path string, query url.Values, body interface{}) (*Response, error) {
+	var data []byte
+	if body != nil {
+		var err error
+		data, err = json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("encoding request body: %w", err)
+		}
+	}
+	return c.send(method, path, query, data)
+}
+
+// send performs a request with an already-encoded JSON body (nil for none).
+func (c *Client) send(method, path string, query url.Values, body []byte) (*Response, error) {
 	if err := c.ensureToken(); err != nil {
 		return nil, err
 	}
@@ -138,11 +167,7 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 
 	var bodyReader io.Reader
 	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("encoding request body: %w", err)
-		}
-		bodyReader = strings.NewReader(string(data))
+		bodyReader = bytes.NewReader(body)
 	}
 
 	req, err := http.NewRequest(method, u, bodyReader)
@@ -180,18 +205,25 @@ func (c *Client) do(method, path string, query url.Values, body interface{}) (*R
 
 		var errResp struct {
 			Error struct {
-				Message string `json:"message"`
-				Code    string `json:"code"`
-				Detail  string `json:"detail"`
+				Message string   `json:"message"`
+				Code    string   `json:"code"`
+				Detail  string   `json:"detail"`
+				Path    string   `json:"path"`
+				Parts   []string `json:"parts"`
 			} `json:"error"`
 		}
-		if json.Unmarshal(respBody, &errResp) == nil && (errResp.Error.Message != "" || errResp.Error.Detail != "") {
+		if json.Unmarshal(respBody, &errResp) == nil && (errResp.Error.Message != "" || errResp.Error.Detail != "" || errResp.Error.Code != "") {
 			message := errResp.Error.Message
 			if errResp.Error.Detail != "" && (message == "" || message == "Invalid request parameters") {
 				message = errResp.Error.Detail
 			}
+			if message == "" {
+				message = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+			}
 			apiErr.Message = message
 			apiErr.Code = errResp.Error.Code
+			apiErr.Path = errResp.Error.Path
+			apiErr.Parts = errResp.Error.Parts
 		} else {
 			apiErr.Message = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 		}

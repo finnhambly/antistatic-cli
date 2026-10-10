@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,5 +47,29 @@ func TestUserAgentAndDeprecationWarning(t *testing.T) {
 	if strings.Count(out, "\n") != 1 || !strings.Contains(out, "GET /api/v1/markets is deprecated") ||
 		!strings.Contains(out, "Mon, 01 Feb 2027") {
 		t.Errorf("warning = %q", out)
+	}
+}
+
+func TestPutRawSendsBytesAndErrorsCarryPathAndParts(t *testing.T) {
+	var got []byte
+	var contentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ = io.ReadAll(r.Body)
+		contentType = r.Header.Get("Content-Type")
+		w.WriteHeader(422)
+		w.Write([]byte(`{"error":{"code":"missing_parts","message":"parts missing","path":"items[b1]","parts":["ab","cd"]}}`))
+	}))
+	defer server.Close()
+	t.Setenv("ANTISTATIC_TOKEN", "")
+	t.Setenv("ANTISTATIC_URL", server.URL)
+
+	body := []byte(`{"b":"<x>","a":1.10}`)
+	_, err := NewClient(&config.Config{}).PutRaw(Path("/drafts/{version}/parts/{sha256}", "1.1", "ab"), body)
+	if !bytes.Equal(got, body) || contentType != "application/json" {
+		t.Errorf("sent %q (%s)", got, contentType)
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok || apiErr.Code != "missing_parts" || apiErr.Path != "items[b1]" || len(apiErr.Parts) != 2 || apiErr.StatusCode != 422 {
+		t.Fatalf("err = %#v", err)
 	}
 }
