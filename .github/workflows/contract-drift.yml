@@ -1,0 +1,67 @@
+name: Contract drift
+
+# Compares the pinned API contract (contract/v1.json, which the Go tests
+# check the CLI against) with production's, and opens an issue when they
+# differ. Update the pin with:
+#   curl -fsS https://antistatic.exchange/api/v1/contract.json -o contract/v1.json
+# then run go test ./... and fix whatever no longer matches.
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Compare the pinned contract with production's
+        id: compare
+        run: |
+          curl -fsS https://antistatic.exchange/api/v1/contract.json -o production.json
+          jq -S . contract/v1.json > pinned.sorted.json
+          jq -S . production.json > production.sorted.json
+          if diff -u pinned.sorted.json production.sorted.json > drift.diff; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No drift."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            routes() { jq -r '.routes[] | "\(.method) \(.path)"' "$1" | sort; }
+            {
+              echo "Production's [API contract](https://antistatic.exchange/api/v1/contract.json) differs from \`contract/v1.json\`."
+              echo
+              echo "Routes only in production:"
+              comm -13 <(routes contract/v1.json) <(routes production.json) | sed 's/^/- /'
+              echo
+              echo "Routes only in the pinned copy:"
+              comm -23 <(routes contract/v1.json) <(routes production.json) | sed 's/^/- /'
+              echo
+              echo "Update the pin (\`curl -fsS https://antistatic.exchange/api/v1/contract.json -o contract/v1.json\`), run \`go test ./...\` and fix what no longer matches."
+              echo
+              echo "<details><summary>Diff (sorted keys, truncated)</summary>"
+              echo
+              echo '```diff'
+              head -c 50000 drift.diff
+              echo '```'
+              echo "</details>"
+            } > issue.md
+            cat issue.md
+          fi
+
+      - name: Open an issue (unless one is open)
+        if: steps.compare.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"Contract drift" in:title' --json number --jq 'length')
+          if [ "$open" != "0" ]; then
+            echo "A contract drift issue is already open."
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Contract drift" --body-file issue.md
