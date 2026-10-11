@@ -9936,41 +9936,6 @@
       }
     },
     {
-      "id": "timeline_curriculum.import_feed",
-      "method": "POST",
-      "path": "/api/v1/timelines/curricula/{slug}/feed-items",
-      "summary": "Import feed items for a curriculum.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "array",
-        "items": {
-          "type": "object"
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "imported": 5,
-              "slug": "retro-35043"
-            }
-          }
-        }
-      }
-    },
-    {
       "id": "timeline_run.index",
       "method": "GET",
       "path": "/api/v1/timelines/runs",
@@ -10518,58 +10483,6 @@
               },
               "run_id": 689,
               "status": "active"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "timeline_run.feed",
-      "method": "GET",
-      "path": "/api/v1/timelines/runs/{id}/feed",
-      "summary": "A run's feed items up to its clock.",
-      "group": "timelines",
-      "auth": "read",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": {
-        "type": "object",
-        "properties": {
-          "before": {
-            "type": "string"
-          },
-          "limit": {
-            "type": "string"
-          }
-        }
-      },
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "items": [
-                {
-                  "body_html": "<p>ok</p>bad()",
-                  "dated_at": "2019-06-01T00:00:00Z",
-                  "external_id": "1",
-                  "id": "leaky:1",
-                  "meta": {},
-                  "source": "leaky",
-                  "title": "OK_ITEM",
-                  "url": null
-                }
-              ],
-              "next_before": null,
-              "until": "2020-01-01T00:00:00Z"
             }
           }
         }
@@ -11459,47 +11372,6 @@
       }
     },
     {
-      "id": "retrocasting.import_feed",
-      "method": "POST",
-      "path": "/api/v1/retrocasting/curricula/{slug}/feed-items",
-      "summary": "Import feed items for a curriculum.",
-      "group": "timeline authoring",
-      "auth": "write",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "array",
-        "items": {
-          "type": "object"
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "imported": 5,
-              "slug": "retro-35043"
-            }
-          }
-        }
-      },
-      "deprecated": {
-        "since": "2026-10-11",
-        "sunset": "2027-04-11",
-        "link": "https://antistatic.exchange/api.md#deprecated-routes",
-        "use": "POST /api/v1/timelines/curricula/{slug}/feed-items"
-      }
-    },
-    {
       "id": "retrocasting_run.index",
       "method": "GET",
       "path": "/api/v1/retrocasting/runs",
@@ -12294,64 +12166,6 @@
         "sunset": "2027-04-11",
         "link": "https://antistatic.exchange/api.md#deprecated-routes",
         "use": "POST /api/v1/timelines/runs/{id}/resolutions"
-      }
-    },
-    {
-      "id": "retrocasting_run.feed",
-      "method": "GET",
-      "path": "/api/v1/retrocasting/runs/{id}/feed",
-      "summary": "A run's feed items up to its clock.",
-      "group": "timelines",
-      "auth": "read",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": {
-        "type": "object",
-        "properties": {
-          "before": {
-            "type": "string"
-          },
-          "limit": {
-            "type": "string"
-          }
-        }
-      },
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "items": [
-                {
-                  "body_html": "<p>ok</p>bad()",
-                  "dated_at": "2019-06-01T00:00:00Z",
-                  "external_id": "1",
-                  "id": "leaky:1",
-                  "meta": {},
-                  "source": "leaky",
-                  "title": "OK_ITEM",
-                  "url": null
-                }
-              ],
-              "next_before": null,
-              "until": "2020-01-01T00:00:00Z"
-            }
-          }
-        }
-      },
-      "deprecated": {
-        "since": "2026-10-11",
-        "sunset": "2027-04-11",
-        "link": "https://antistatic.exchange/api.md#deprecated-routes",
-        "use": "GET /api/v1/timelines/runs/{id}/feed"
       }
     },
     {
