@@ -127,13 +127,13 @@ antistatic bot pause
 antistatic feedback "antistatic quote fails on date markets with one bar"
 antistatic feedback --suggestion < notes.md
 
-# Past timelines: forecast the past under a simulated clock
-antistatic retro status
-antistatic retro advance biology
+# Sandboxes: forecast in a private world with its own clock
+antistatic sandbox status
+antistatic sandbox advance biology
 
-# Curriculum authoring: check, push and publish a timeline manifest
-antistatic timelines check manifest.json
-antistatic timelines push manifest.json --curriculum biology --version 1.2
+# Curriculum authoring: check, push and publish a sandbox manifest
+antistatic sandbox check manifest.json
+antistatic sandbox push manifest.json --curriculum biology --version 1.2
 ```
 
 Replies use the parent comment ID returned by `comments`; the parent must belong
@@ -141,43 +141,50 @@ to the same market. Both comments and replies accept Markdown via `--body` or
 stdin. Omit `--reply-to` to create a top-level comment. `comment-edit` updates
 an existing comment without changing its place in the thread.
 
-## Past timelines
+## Sandboxes
 
-`antistatic retro status` shows where your timeline runs stand: the simulated
-date you are at, the questions open there, and anything still needing a forecast.
-`antistatic retro advance` moves a run on one checkpoint.
+A sandbox is a private forecasting world with its own clock (not a code
+environment): a past sandbox replays a curriculum, a future one is played
+forward turn by turn. `antistatic sandbox status` shows where your sandbox runs
+stand: the simulated date you are at, the questions open there, and anything
+still needing a forecast. `antistatic sandbox advance` moves a past run on one
+checkpoint.
 
 The next checkpoint is shown only as available or complete. Even its date can
 reveal the timing of a selected paper or event.
 
-There is no command here for submitting a timeline forecast, and no API for
+There is no command here for submitting a sandbox forecast, and no API for
 it either: an agent may move you through time, but the forecasting is yours to
 do. The server also refuses to advance while a question closing at the next
 checkpoint has neither a forecast nor an explicit skip.
 
 ```sh
-antistatic retro status --json          # for agents
-antistatic retro advance --run 3 -y     # when you have several runs
+antistatic sandbox status --json          # for agents
+antistatic sandbox advance --run 3 -y     # when you have several runs
 ```
 
-## Curricula (timelines)
+Sandboxes were called timelines, and the run commands lived under `retro`:
+`antistatic timelines ...` and `antistatic retro ...` still work as hidden
+aliases.
+
+## Curricula (past sandboxes)
 
 Curriculum authors upload a compact manifest (`schema_version: 2`) as a
 version's draft, then publish it:
 
 ```sh
-antistatic timelines check manifest.json --curriculum biology    # local; nothing uploaded
-antistatic timelines push manifest.json --curriculum biology --version 1.2
-antistatic timelines status --curriculum biology --version 1.2
-antistatic timelines validate --curriculum biology --version 1.2
-antistatic timelines publish --curriculum biology --version 1.2
-antistatic timelines grant ada@example.com --curriculum biology --role learner
-antistatic timelines grant --revoke 8146 --curriculum biology
-antistatic timelines delete --curriculum biology --version 1.2   # a draft and its parts
+antistatic sandbox check manifest.json --curriculum biology    # local; nothing uploaded
+antistatic sandbox push manifest.json --curriculum biology --version 1.2
+antistatic sandbox status --curriculum biology --version 1.2
+antistatic sandbox validate --curriculum biology --version 1.2
+antistatic sandbox publish --curriculum biology --version 1.2
+antistatic sandbox grant ada@example.com --curriculum biology --role learner
+antistatic sandbox grant --revoke 8146 --curriculum biology
+antistatic sandbox delete --curriculum biology --version 1.2   # a draft and its parts
 ```
 
 `check` tests the manifest against the server's limits (fetched from
-`/api/v1/timelines/limits` and cached for an hour): schema version, shape,
+`/api/v1/sandbox/limits` and cached for an hour): schema version, shape,
 field lengths, curve lengths, counts and part sizes, plus hindsight wording
 (rule T5) as warnings. Manifests hold sealed answers, so problems print as
 `path: code` and values are never shown.

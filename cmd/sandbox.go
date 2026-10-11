@@ -14,7 +14,7 @@ import (
 
 	"github.com/finnhambly/antistatic-cli/internal/api"
 	"github.com/finnhambly/antistatic-cli/internal/output"
-	"github.com/finnhambly/antistatic-cli/internal/timelines"
+	"github.com/finnhambly/antistatic-cli/internal/sandbox"
 	"github.com/spf13/cobra"
 )
 
@@ -24,10 +24,10 @@ import (
 // progressOut receives progress lines and warnings (stderr; a variable for tests).
 var progressOut io.Writer = os.Stderr
 
-// timelinesPollInterval is how often push polls the import (a variable for tests).
-var timelinesPollInterval = 2 * time.Second
+// sandboxPollInterval is how often push polls the import (a variable for tests).
+var sandboxPollInterval = 2 * time.Second
 
-type timelinesStatus struct {
+type sandboxStatus struct {
 	Slug           string   `json:"slug"`
 	Version        string   `json:"version"`
 	State          string   `json:"state"`
@@ -44,7 +44,7 @@ type timelinesStatus struct {
 	} `json:"error"`
 }
 
-type timelinesPartStored struct {
+type sandboxPartStored struct {
 	Stored bool   `json:"stored"`
 	SHA256 string `json:"sha256"`
 	Items  int    `json:"items"`
@@ -52,9 +52,9 @@ type timelinesPartStored struct {
 	Bytes  int    `json:"bytes"`
 }
 
-// timelinesValidation's errors, warnings and lint are lists for owners and
+// sandboxValidation's errors, warnings and lint are lists for owners and
 // editors and counts for learners, so they stay raw.
-type timelinesValidation struct {
+type sandboxValidation struct {
 	Valid                  bool            `json:"valid"`
 	Errors                 json.RawMessage `json:"errors"`
 	Warnings               json.RawMessage `json:"warnings"`
@@ -63,7 +63,7 @@ type timelinesValidation struct {
 	LintCounts             map[string]int  `json:"lint_counts"`
 }
 
-type timelinesPublished struct {
+type sandboxPublished struct {
 	Slug           string `json:"slug"`
 	Version        string `json:"version"`
 	Status         string `json:"status"`
@@ -71,42 +71,61 @@ type timelinesPublished struct {
 	ManifestSHA256 string `json:"manifest_sha256"`
 }
 
-type timelinesMember struct {
+type sandboxMember struct {
 	UserID   int    `json:"user_id"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
 }
 
-var timelinesVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+var sandboxVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
 
-func timelinesWantJSON() bool { return jsonOutput || !output.IsTTY() }
+func sandboxWantJSON() bool { return jsonOutput || !output.IsTTY() }
 
-func newTimelinesCmd() *cobra.Command {
+// newSandboxCmd builds "antistatic sandbox" under name. Sandboxes were called
+// timelines, and their play commands lived under "retro": both names stay as
+// hidden copies of the same tree so existing scripts keep working.
+func newSandboxCmd(name string, hidden bool, aliases ...string) *cobra.Command {
 	command := &cobra.Command{
-		Use:     "timelines",
-		Aliases: []string{"timeline"},
-		Short:   "Author curricula: check, push and publish timeline manifests",
-		Long: `Author timeline curricula from a compact (schema_version 2) manifest.
+		Use:     name,
+		Aliases: aliases,
+		Hidden:  hidden,
+		Short:   "Forecasting sandboxes: your runs, and authoring curricula",
+		Long: `Sandboxes are private forecasting worlds with their own clock: a past
+sandbox replays a curriculum, a future one is played forward turn by turn.
 
-  antistatic timelines check manifest.json [--curriculum SLUG]
-  antistatic timelines push manifest.json --curriculum SLUG --version 1.2
-  antistatic timelines status --curriculum SLUG --version 1.2
-  antistatic timelines validate --curriculum SLUG --version 1.2
-  antistatic timelines publish --curriculum SLUG --version 1.2
-  antistatic timelines grant USER --curriculum SLUG --role learner|editor|owner
-  antistatic timelines grant --revoke USER_ID --curriculum SLUG
-  antistatic timelines delete --curriculum SLUG --version 1.2
+Your runs:
+
+  antistatic sandbox status [slug]
+  antistatic sandbox advance [slug] [--run ID]
+
+Authoring curricula from a compact (schema_version 2) manifest:
+
+  antistatic sandbox check manifest.json [--curriculum SLUG]
+  antistatic sandbox push manifest.json --curriculum SLUG --version 1.2
+  antistatic sandbox status --curriculum SLUG --version 1.2
+  antistatic sandbox validate --curriculum SLUG --version 1.2
+  antistatic sandbox publish --curriculum SLUG --version 1.2
+  antistatic sandbox grant USER --curriculum SLUG --role learner|editor|owner
+  antistatic sandbox grant --revoke USER_ID --curriculum SLUG
+  antistatic sandbox delete --curriculum SLUG --version 1.2
 
 Manifests contain sealed answers, so these commands never print a manifest's
-values: each problem is shown as a path and a code.`,
+values: each problem is shown as a path and a code.
+
+There is no command here for submitting a forecast, and that is deliberate: an
+agent may move you through time, but the forecasting is yours to do. Use the web
+UI, or "antistatic trade", for that.`,
 	}
-	command.AddCommand(newTimelinesCheckCmd(), newTimelinesPushCmd(), newTimelinesStatusCmd(),
-		newTimelinesValidateCmd(), newTimelinesPublishCmd(), newTimelinesGrantCmd(), newTimelinesDeleteCmd())
+	command.AddCommand(newSandboxCheckCmd(), newSandboxPushCmd(), newSandboxStatusCmd(),
+		newSandboxValidateCmd(), newSandboxPublishCmd(), newSandboxGrantCmd(), newSandboxDeleteCmd(),
+		newSandboxAdvanceCmd())
 	return command
 }
 
 func init() {
-	rootCmd.AddCommand(newTimelinesCmd())
+	rootCmd.AddCommand(newSandboxCmd("sandbox", false, "sandboxes"))
+	rootCmd.AddCommand(newSandboxCmd("timelines", true, "timeline"))
+	rootCmd.AddCommand(newSandboxCmd("retro", true))
 }
 
 // curriculumVersion reads and checks --curriculum and --version.
@@ -121,14 +140,14 @@ func curriculumVersion(cmd *cobra.Command, needVersion bool) (string, string, er
 	}
 	version, _ := cmd.Flags().GetString("version")
 	version = strings.TrimSpace(version)
-	if !timelinesVersionPattern.MatchString(version) {
+	if !sandboxVersionPattern.MatchString(version) {
 		return "", "", errors.New("--version must be major.minor, e.g. 1.2")
 	}
 	return slug, version, nil
 }
 
-// timelinesError keeps an API error to its message, code, path and parts.
-func timelinesError(err error) error {
+// sandboxError keeps an API error to its message, code, path and parts.
+func sandboxError(err error) error {
 	var apiErr *api.APIError
 	if !errors.As(err, &apiErr) {
 		return err
@@ -169,7 +188,7 @@ func isAPIStatus(err error, status int, code string) bool {
 
 // ----- check -----
 
-func newTimelinesCheckCmd() *cobra.Command {
+func newSandboxCheckCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "check <manifest.json>",
 		Short: "Check a manifest against the server's limits, locally",
@@ -177,7 +196,7 @@ func newTimelinesCheckCmd() *cobra.Command {
 anything: schema version, shape, field lengths and patterns, curve lengths,
 counts, part and top sizes, and hindsight wording (rule T5, a warning).
 
-The limits come from GET /api/v1/timelines/limits, cached for an hour.
+The limits come from GET /api/v1/sandbox/limits, cached for an hour.
 Problems print as "path: code"; values are never printed. Exits non-zero when
 there are errors (warnings alone are fine).`,
 		Args: cobra.ExactArgs(1),
@@ -187,7 +206,7 @@ there are errors (warnings alone are fine).`,
 			if err != nil {
 				return err
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := json.Marshal(report)
 				output.JSON(raw)
 			} else {
@@ -203,8 +222,8 @@ there are errors (warnings alone are fine).`,
 	return command
 }
 
-func checkManifestFile(path, slug string) (*timelines.Manifest, *timelines.Report, error) {
-	manifest, err := timelines.Load(path)
+func checkManifestFile(path, slug string) (*sandbox.Manifest, *sandbox.Report, error) {
+	manifest, err := sandbox.Load(path)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,14 +231,14 @@ func checkManifestFile(path, slug string) (*timelines.Manifest, *timelines.Repor
 	if err != nil {
 		return nil, nil, err
 	}
-	report, err := timelines.Check(manifest, limits, slug)
+	report, err := sandbox.Check(manifest, limits, slug)
 	if err != nil {
 		return nil, nil, err
 	}
 	return manifest, report, nil
 }
 
-func printCheckReport(w io.Writer, r *timelines.Report) {
+func printCheckReport(w io.Writer, r *sandbox.Report) {
 	c := r.Counts
 	fmt.Fprintf(w, "checkpoints %d, items %d, bars %d, parts %d, bytes %d (top %d)\n",
 		c.Checkpoints, c.Items, c.Bars, c.Parts, c.Bytes, c.TopBytes)
@@ -242,20 +261,20 @@ func printCheckReport(w io.Writer, r *timelines.Report) {
 
 // ----- push -----
 
-func newTimelinesPushCmd() *cobra.Command {
+func newSandboxPushCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "push <manifest.json> --curriculum SLUG --version MAJOR.MINOR",
 		Short: "Upload a manifest as a draft, wait for the import and validate it",
 		Long: `Upload a manifest as a curriculum version's draft: check it, upload the parts
 the server doesn't have yet, send the manifest, wait for the import and
 validate the draft. Re-running after any failure resumes: stored parts are
-skipped. push never publishes; use "antistatic timelines publish".
+skipped. push never publishes; use "antistatic sandbox publish".
 
 A manifest built from uncommitted changes (source.dirty) or with no
 source.commit is refused unless --allow-dirty.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, version, err := curriculumVersion(cmd, true)
@@ -264,7 +283,7 @@ source.commit is refused unless --allow-dirty.`,
 			}
 			allowDirty, _ := cmd.Flags().GetBool("allow-dirty")
 			timeout, _ := cmd.Flags().GetDuration("timeout")
-			return runTimelinesPush(args[0], slug, version, allowDirty, timeout)
+			return runSandboxPush(args[0], slug, version, allowDirty, timeout)
 		},
 	}
 	command.Flags().String("curriculum", "", "Curriculum slug (required)")
@@ -274,8 +293,8 @@ source.commit is refused unless --allow-dirty.`,
 	return command
 }
 
-func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.Duration) error {
-	manifest, err := timelines.Load(path)
+func runSandboxPush(path, slug, version string, allowDirty bool, timeout time.Duration) error {
+	manifest, err := sandbox.Load(path)
 	if err != nil {
 		return err
 	}
@@ -291,7 +310,7 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 	if err != nil {
 		return err
 	}
-	report, err := timelines.Check(manifest, limits, slug)
+	report, err := sandbox.Check(manifest, limits, slug)
 	if err != nil {
 		return err
 	}
@@ -301,7 +320,7 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 	}
 	split := report.Split
 
-	status, err := getTimelinesStatus(slug, version)
+	status, err := getSandboxStatus(slug, version)
 	if err != nil {
 		return err
 	}
@@ -317,7 +336,7 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 		same := status.ManifestSHA256 != nil && *status.ManifestSHA256 == manifest.SHA256
 		if same && (status.State == "imported" || status.State == "published") {
 			fmt.Fprintf(progressOut, "%s %s already has this manifest (%s); nothing to push.\n", slug, version, status.State)
-			printTimelinesStatus(status)
+			printSandboxStatus(status)
 			return nil
 		}
 		if status.State == "published" {
@@ -325,18 +344,18 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 		}
 	}
 
-	parts := map[string]timelines.Part{}
+	parts := map[string]sandbox.Part{}
 	shas := make([]string, 0, len(split.Parts))
 	for _, p := range split.Parts {
 		parts[p.SHA256] = p
 		shas = append(shas, p.SHA256)
 	}
-	putPart := func(p timelines.Part) error {
-		resp, err := client.PutRaw(api.Path("/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}", slug, version, p.SHA256), p.Body)
+	putPart := func(p sandbox.Part) error {
+		resp, err := client.PutRaw(api.Path("/sandbox/curricula/{slug}/drafts/{version}/parts/{sha256}", slug, version, p.SHA256), p.Body)
 		if err != nil {
-			return timelinesError(err)
+			return sandboxError(err)
 		}
-		var stored timelinesPartStored
+		var stored sandboxPartStored
 		if err := resp.DataInto(&stored); err != nil {
 			return err
 		}
@@ -364,7 +383,7 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 			source["commit"] = src.Commit
 		}
 	}
-	body, err := timelines.Canonical(map[string]interface{}{
+	body, err := sandbox.Canonical(map[string]interface{}{
 		"schema_version":  manifest.Root["schema_version"],
 		"source":          source,
 		"manifest_sha256": manifest.SHA256,
@@ -376,7 +395,7 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 		return err
 	}
 	putManifest := func() (*api.Response, error) {
-		return client.PutRaw(api.Path("/timelines/curricula/{slug}/drafts/{version}/manifest", slug, version), body)
+		return client.PutRaw(api.Path("/sandbox/curricula/{slug}/drafts/{version}/manifest", slug, version), body)
 	}
 	resp, err := putManifest()
 	if err != nil && isAPIStatus(err, 422, "missing_parts") {
@@ -396,11 +415,11 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 	}
 	if err != nil {
 		if isAPIStatus(err, 409, "draft_changed") {
-			return fmt.Errorf("%w\nThe draft changed while pushing (someone else pushed?); check \"antistatic timelines status\" and push again", timelinesError(err))
+			return fmt.Errorf("%w\nThe draft changed while pushing (someone else pushed?); check \"antistatic sandbox status\" and push again", sandboxError(err))
 		}
-		return timelinesError(err)
+		return sandboxError(err)
 	}
-	var st timelinesStatus
+	var st sandboxStatus
 	if err := resp.DataInto(&st); err != nil {
 		return err
 	}
@@ -410,17 +429,17 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 		return err
 	}
 
-	validation, err := validateTimelinesDraft(slug, version)
+	validation, err := validateSandboxDraft(slug, version)
 	if err != nil {
 		return err
 	}
-	if timelinesWantJSON() {
+	if sandboxWantJSON() {
 		raw, _ := json.Marshal(map[string]interface{}{"check": report, "status": final, "validation": validation})
 		output.JSON(raw)
 	} else {
-		printTimelinesStatus(final)
+		printSandboxStatus(final)
 		fmt.Println()
-		printTimelinesValidation(validation)
+		printSandboxValidation(validation)
 	}
 	if !validation.Valid {
 		return fmt.Errorf("%s %s imported but is not valid; fix the errors and push again", slug, version)
@@ -428,23 +447,23 @@ func runTimelinesPush(path, slug, version string, allowDirty bool, timeout time.
 	return nil
 }
 
-// getTimelinesStatus returns nil for a version that doesn't exist yet.
-func getTimelinesStatus(slug, version string) (*timelinesStatus, error) {
-	resp, err := client.Get(api.Path("/timelines/curricula/{slug}/drafts/{version}/status", slug, version), nil)
+// getSandboxStatus returns nil for a version that doesn't exist yet.
+func getSandboxStatus(slug, version string) (*sandboxStatus, error) {
+	resp, err := client.Get(api.Path("/sandbox/curricula/{slug}/drafts/{version}/status", slug, version), nil)
 	if err != nil {
 		if isAPIStatus(err, 404, "") {
 			return nil, nil
 		}
-		return nil, timelinesError(err)
+		return nil, sandboxError(err)
 	}
-	var st timelinesStatus
+	var st sandboxStatus
 	if err := resp.DataInto(&st); err != nil {
 		return nil, err
 	}
 	return &st, nil
 }
 
-func waitForImport(slug, version string, st *timelinesStatus, timeout time.Duration) (*timelinesStatus, error) {
+func waitForImport(slug, version string, st *sandboxStatus, timeout time.Duration) (*sandboxStatus, error) {
 	deadline := time.Now().Add(timeout)
 	last := ""
 	for {
@@ -469,8 +488,8 @@ func waitForImport(slug, version string, st *timelinesStatus, timeout time.Durat
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("still %s after %s; run push again to keep waiting", st.State, timeout)
 		}
-		time.Sleep(timelinesPollInterval)
-		next, err := getTimelinesStatus(slug, version)
+		time.Sleep(sandboxPollInterval)
+		next, err := getSandboxStatus(slug, version)
 		if err != nil {
 			return nil, err
 		}
@@ -481,19 +500,19 @@ func waitForImport(slug, version string, st *timelinesStatus, timeout time.Durat
 	}
 }
 
-func validateTimelinesDraft(slug, version string) (*timelinesValidation, error) {
-	resp, err := client.Post(api.Path("/timelines/curricula/{slug}/drafts/{version}/validate", slug, version), nil)
+func validateSandboxDraft(slug, version string) (*sandboxValidation, error) {
+	resp, err := client.Post(api.Path("/sandbox/curricula/{slug}/drafts/{version}/validate", slug, version), nil)
 	if err != nil {
-		return nil, timelinesError(err)
+		return nil, sandboxError(err)
 	}
-	var v timelinesValidation
+	var v sandboxValidation
 	if err := resp.DataInto(&v); err != nil {
 		return nil, err
 	}
 	return &v, nil
 }
 
-func printTimelinesStatus(st *timelinesStatus) {
+func printSandboxStatus(st *sandboxStatus) {
 	str := func(p *string) string {
 		if p == nil || *p == "" {
 			return "—"
@@ -536,7 +555,7 @@ func listOrCount(raw json.RawMessage) ([]json.RawMessage, int) {
 	return nil, 0
 }
 
-func printTimelinesValidation(v *timelinesValidation) {
+func printSandboxValidation(v *sandboxValidation) {
 	valid := "no"
 	if v.Valid {
 		valid = "yes"
@@ -596,36 +615,45 @@ func printTimelinesValidation(v *timelinesValidation) {
 
 // ----- status, validate, publish, delete -----
 
-func newTimelinesStatusCmd() *cobra.Command {
+func newSandboxStatusCmd() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "status --curriculum SLUG --version MAJOR.MINOR",
-		Short: "Show a curriculum version's draft status",
-		Args:  cobra.NoArgs,
+		Use:   "status [slug] [--curriculum SLUG --version MAJOR.MINOR]",
+		Short: "Show where your sandbox runs stand, or a curriculum version's draft status",
+		Long: `Without --curriculum, shows where your sandbox runs stand (only the runs of
+one curriculum with a slug). With --curriculum and --version, shows that
+curriculum version's draft status, for authors.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if !cmd.Flags().Changed("curriculum") && !cmd.Flags().Changed("version") {
+				return runSandboxRunsStatus(args)
+			}
+			if len(args) > 0 {
+				return errors.New("give a slug or --curriculum, not both")
+			}
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, version, err := curriculumVersion(cmd, true)
 			if err != nil {
 				return err
 			}
-			resp, err := client.Get(api.Path("/timelines/curricula/{slug}/drafts/{version}/status", slug, version), nil)
+			resp, err := client.Get(api.Path("/sandbox/curricula/{slug}/drafts/{version}/status", slug, version), nil)
 			if err != nil {
 				if isAPIStatus(err, 404, "") {
 					return fmt.Errorf("%s has no version %s", slug, version)
 				}
-				return timelinesError(err)
+				return sandboxError(err)
 			}
-			var st timelinesStatus
+			var st sandboxStatus
 			if err := resp.DataInto(&st); err != nil {
 				return err
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := resp.Data()
 				output.JSON(raw)
 				return nil
 			}
-			printTimelinesStatus(&st)
+			printSandboxStatus(&st)
 			return nil
 		},
 	}
@@ -633,28 +661,28 @@ func newTimelinesStatusCmd() *cobra.Command {
 	return command
 }
 
-func newTimelinesValidateCmd() *cobra.Command {
+func newSandboxValidateCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "validate --curriculum SLUG --version MAJOR.MINOR",
 		Short: "Validate an imported draft (as push does after importing)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, version, err := curriculumVersion(cmd, true)
 			if err != nil {
 				return err
 			}
-			v, err := validateTimelinesDraft(slug, version)
+			v, err := validateSandboxDraft(slug, version)
 			if err != nil {
 				return err
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := json.Marshal(v)
 				output.JSON(raw)
 			} else {
-				printTimelinesValidation(v)
+				printSandboxValidation(v)
 			}
 			if !v.Valid {
 				return fmt.Errorf("%s %s is not valid", slug, version)
@@ -666,31 +694,31 @@ func newTimelinesValidateCmd() *cobra.Command {
 	return command
 }
 
-func newTimelinesPublishCmd() *cobra.Command {
+func newSandboxPublishCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "publish --curriculum SLUG --version MAJOR.MINOR",
 		Short: "Publish an imported draft (validates first)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, version, err := curriculumVersion(cmd, true)
 			if err != nil {
 				return err
 			}
-			resp, err := client.Post(api.Path("/timelines/curricula/{slug}/drafts/{version}/publish", slug, version), nil)
+			resp, err := client.Post(api.Path("/sandbox/curricula/{slug}/drafts/{version}/publish", slug, version), nil)
 			if err != nil {
 				if isAPIStatus(err, 422, "invalid_manifest") {
-					return fmt.Errorf("%w\nRun \"antistatic timelines validate --curriculum %s --version %s\" for the errors", timelinesError(err), slug, version)
+					return fmt.Errorf("%w\nRun \"antistatic sandbox validate --curriculum %s --version %s\" for the errors", sandboxError(err), slug, version)
 				}
-				return timelinesError(err)
+				return sandboxError(err)
 			}
-			var pub timelinesPublished
+			var pub sandboxPublished
 			if err := resp.DataInto(&pub); err != nil {
 				return err
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := json.Marshal(pub)
 				output.JSON(raw)
 				return nil
@@ -709,13 +737,13 @@ func newTimelinesPublishCmd() *cobra.Command {
 	return command
 }
 
-func newTimelinesDeleteCmd() *cobra.Command {
+func newSandboxDeleteCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "delete --curriculum SLUG --version MAJOR.MINOR",
 		Short: "Delete a draft and its stored parts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, version, err := curriculumVersion(cmd, true)
@@ -732,11 +760,11 @@ func newTimelinesDeleteCmd() *cobra.Command {
 					return nil
 				}
 			}
-			resp, err := client.Delete(api.Path("/timelines/curricula/{slug}/drafts/{version}", slug, version))
+			resp, err := client.Delete(api.Path("/sandbox/curricula/{slug}/drafts/{version}", slug, version))
 			if err != nil {
-				return timelinesError(err)
+				return sandboxError(err)
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := resp.Data()
 				output.JSON(raw)
 				return nil
@@ -757,13 +785,13 @@ func addCurriculumVersionFlags(command *cobra.Command) {
 
 // ----- grant -----
 
-func newTimelinesGrantCmd() *cobra.Command {
+func newSandboxGrantCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "grant <username-or-email> --curriculum SLUG --role learner|editor|owner",
 		Short: "Give someone a role on a curriculum, or remove them (--revoke USER_ID)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireTimelinesAuth(); err != nil {
+			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
 			slug, _, err := curriculumVersion(cmd, false)
@@ -775,11 +803,11 @@ func newTimelinesGrantCmd() *cobra.Command {
 				if len(args) > 0 {
 					return errors.New("--revoke takes a user id and no other argument")
 				}
-				resp, err := client.Delete(api.Path("/timelines/curricula/{slug}/members/{user_id}", slug, revoke))
+				resp, err := client.Delete(api.Path("/sandbox/curricula/{slug}/members/{user_id}", slug, revoke))
 				if err != nil {
-					return timelinesError(err)
+					return sandboxError(err)
 				}
-				if timelinesWantJSON() {
+				if sandboxWantJSON() {
 					raw, _ := resp.Data()
 					output.JSON(raw)
 					return nil
@@ -796,16 +824,16 @@ func newTimelinesGrantCmd() *cobra.Command {
 			default:
 				return errors.New("--role must be learner, editor or owner")
 			}
-			resp, err := client.Post(api.Path("/timelines/curricula/{slug}/members", slug),
+			resp, err := client.Post(api.Path("/sandbox/curricula/{slug}/members", slug),
 				map[string]string{"user": strings.TrimSpace(args[0]), "role": role})
 			if err != nil {
-				return timelinesError(err)
+				return sandboxError(err)
 			}
-			var member timelinesMember
+			var member sandboxMember
 			if err := resp.DataInto(&member); err != nil {
 				return err
 			}
-			if timelinesWantJSON() {
+			if sandboxWantJSON() {
 				raw, _ := json.Marshal(member)
 				output.JSON(raw)
 				return nil
@@ -820,9 +848,9 @@ func newTimelinesGrantCmd() *cobra.Command {
 	return command
 }
 
-// requireTimelinesAuth checks for a token. Authoring acts as the owner, never
+// requireSandboxAuth checks for a token. Authoring acts as the owner, never
 // as their bot, so --as-bot is ignored here.
-func requireTimelinesAuth() error {
+func requireSandboxAuth() error {
 	client.AsBot = false
 	return requireAuth()
 }

@@ -60,8 +60,8 @@ func writeTestManifest(t *testing.T, dirty bool) string {
 	return path
 }
 
-// fakeTimelines is an in-memory server for one draft.
-type fakeTimelines struct {
+// fakeSandbox is an in-memory server for one draft.
+type fakeSandbox struct {
 	mu          sync.Mutex
 	t           *testing.T
 	parts       map[string]bool
@@ -77,7 +77,7 @@ type fakeTimelines struct {
 	limitsHits  int
 }
 
-func (f *fakeTimelines) status() map[string]interface{} {
+func (f *fakeSandbox) status() map[string]interface{} {
 	received := []string{}
 	for sha := range f.parts {
 		if f.hideFirst && sha == f.firstPart {
@@ -92,7 +92,7 @@ func (f *fakeTimelines) status() map[string]interface{} {
 	}
 }
 
-func (f *fakeTimelines) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *fakeSandbox) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	t := f.t
@@ -109,10 +109,10 @@ func (f *fakeTimelines) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(status)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": e})
 	}
-	const prefix = "/api/v1/timelines/curricula/widgets/drafts/1.1"
+	const prefix = "/api/v1/sandbox/curricula/widgets/drafts/1.1"
 	body, _ := io.ReadAll(r.Body)
 	switch {
-	case r.Method == "GET" && r.URL.Path == "/api/v1/timelines/limits":
+	case r.Method == "GET" && r.URL.Path == "/api/v1/sandbox/limits":
 		f.limitsHits++
 		io.WriteString(w, testLimitsJSON)
 	case r.Method == "PUT" && strings.HasPrefix(r.URL.Path, prefix+"/parts/"):
@@ -204,7 +204,7 @@ func (f *fakeTimelines) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func runTimelines(t *testing.T, server *httptest.Server, args ...string) (string, string, error) {
+func runSandbox(t *testing.T, server *httptest.Server, args ...string) (string, string, error) {
 	t.Helper()
 	t.Setenv("ANTISTATIC_URL", server.URL)
 	t.Setenv("ANTISTATIC_TOKEN", "test-token")
@@ -215,7 +215,7 @@ func runTimelines(t *testing.T, server *httptest.Server, args ...string) (string
 	prevOut := progressOut
 	progressOut = &progress
 	defer func() { progressOut = prevOut }()
-	command := newTimelinesCmd()
+	command := newSandboxCmd("sandbox", false)
 	command.SilenceErrors, command.SilenceUsage = true, true
 	command.SetArgs(args)
 	var err error
@@ -223,26 +223,26 @@ func runTimelines(t *testing.T, server *httptest.Server, args ...string) (string
 	return out, progress.String(), err
 }
 
-func setupTimelinesTest(t *testing.T) (*fakeTimelines, *httptest.Server) {
+func setupSandboxTest(t *testing.T) (*fakeSandbox, *httptest.Server) {
 	cacheDir := t.TempDir()
-	prevDir, prevPoll := limitsCacheDir, timelinesPollInterval
+	prevDir, prevPoll := limitsCacheDir, sandboxPollInterval
 	limitsCacheDir = func() (string, error) { return cacheDir, nil }
-	timelinesPollInterval = time.Millisecond
-	t.Cleanup(func() { limitsCacheDir, timelinesPollInterval = prevDir, prevPoll })
-	fake := &fakeTimelines{t: t, parts: map[string]bool{}}
+	sandboxPollInterval = time.Millisecond
+	t.Cleanup(func() { limitsCacheDir, sandboxPollInterval = prevDir, prevPoll })
+	fake := &fakeSandbox{t: t, parts: map[string]bool{}}
 	server := httptest.NewServer(fake)
 	t.Cleanup(server.Close)
 	return fake, server
 }
 
-func TestTimelinesPushResumes(t *testing.T) {
-	fake, server := setupTimelinesTest(t)
+func TestSandboxPushResumes(t *testing.T) {
+	fake, server := setupSandboxTest(t)
 	path := writeTestManifest(t, false)
 	push := []string{"push", path, "--curriculum", "widgets", "--version", "1.1"}
 
 	// Run 1 fails on the second part.
 	fake.failPartAt = 2
-	_, _, err := runTimelines(t, server, push...)
+	_, _, err := runSandbox(t, server, push...)
 	if err == nil || !strings.Contains(err.Error(), "part 2/3") {
 		t.Fatalf("run 1 err = %v", err)
 	}
@@ -254,7 +254,7 @@ func TestTimelinesPushResumes(t *testing.T) {
 	// Run 2 resumes: only the two parts not stored, then manifest, import, validate.
 	fake.failPartAt = 0
 	fake.putParts = nil
-	out, progress, err := runTimelines(t, server, push...)
+	out, progress, err := runSandbox(t, server, push...)
 	if err != nil {
 		t.Fatalf("run 2: %v\n%s", err, progress)
 	}
@@ -268,8 +268,8 @@ func TestTimelinesPushResumes(t *testing.T) {
 		t.Errorf("progress = %s", progress)
 	}
 	var result struct {
-		Status     timelinesStatus
-		Validation timelinesValidation
+		Status     sandboxStatus
+		Validation sandboxValidation
 	}
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("output = %s", out)
@@ -283,7 +283,7 @@ func TestTimelinesPushResumes(t *testing.T) {
 
 	// Run 3: already imported, so nothing is PUT.
 	fake.putParts = nil
-	_, progress, err = runTimelines(t, server, push...)
+	_, progress, err = runSandbox(t, server, push...)
 	if err != nil || len(fake.putParts) != 0 || fake.putManifest != 1 || !strings.Contains(progress, "already has this manifest") {
 		t.Fatalf("run 3: err %v, %d parts, %d manifests\n%s", err, len(fake.putParts), fake.putManifest, progress)
 	}
@@ -295,12 +295,12 @@ func TestTimelinesPushResumes(t *testing.T) {
 	}
 }
 
-func TestTimelinesPushResendsMissingParts(t *testing.T) {
-	fake, server := setupTimelinesTest(t)
+func TestSandboxPushResendsMissingParts(t *testing.T) {
+	fake, server := setupSandboxTest(t)
 	path := writeTestManifest(t, false)
 	push := []string{"push", path, "--curriculum", "widgets", "--version", "1.1"}
 	fake.failPartAt = 2
-	runTimelines(t, server, push...)
+	runSandbox(t, server, push...)
 
 	// The status hides a stored part, so it is re-sent (200, stored:false);
 	// then the server drops another, and the manifest PUT's missing_parts
@@ -308,7 +308,7 @@ func TestTimelinesPushResendsMissingParts(t *testing.T) {
 	fake.failPartAt = 0
 	fake.hideFirst = true
 	fake.putParts = nil
-	_, progress, err := runTimelines(t, server, push...)
+	_, progress, err := runSandbox(t, server, push...)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, progress)
 	}
@@ -317,7 +317,7 @@ func TestTimelinesPushResendsMissingParts(t *testing.T) {
 	}
 
 	// A draft that loses a part between the PUTs and the manifest.
-	fake2, _ := setupTimelinesTest(t)
+	fake2, _ := setupSandboxTest(t)
 	path2 := writeTestManifest(t, false)
 	dropped := false
 	wrapped := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -333,7 +333,7 @@ func TestTimelinesPushResendsMissingParts(t *testing.T) {
 		fake2.ServeHTTP(w, r)
 	}))
 	defer wrapped.Close()
-	_, progress, err = runTimelines(t, wrapped, "push", path2, "--curriculum", "widgets", "--version", "1.1")
+	_, progress, err = runSandbox(t, wrapped, "push", path2, "--curriculum", "widgets", "--version", "1.1")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, progress)
 	}
@@ -342,23 +342,23 @@ func TestTimelinesPushResendsMissingParts(t *testing.T) {
 	}
 }
 
-func TestTimelinesPushRefusesDirty(t *testing.T) {
-	_, server := setupTimelinesTest(t)
+func TestSandboxPushRefusesDirty(t *testing.T) {
+	_, server := setupSandboxTest(t)
 	path := writeTestManifest(t, true)
-	_, _, err := runTimelines(t, server, "push", path, "--curriculum", "widgets", "--version", "1.1")
+	_, _, err := runSandbox(t, server, "push", path, "--curriculum", "widgets", "--version", "1.1")
 	if err == nil || !strings.Contains(err.Error(), "--allow-dirty") {
 		t.Fatalf("err = %v", err)
 	}
-	_, _, err = runTimelines(t, server, "push", path, "--curriculum", "widgets", "--version", "1")
+	_, _, err = runSandbox(t, server, "push", path, "--curriculum", "widgets", "--version", "1")
 	if err == nil {
 		t.Fatal("a bad --version was accepted")
 	}
 }
 
-func TestTimelinesCheckCommand(t *testing.T) {
-	_, server := setupTimelinesTest(t)
+func TestSandboxCheckCommand(t *testing.T) {
+	_, server := setupSandboxTest(t)
 	path := writeTestManifest(t, false)
-	out, _, err := runTimelines(t, server, "check", path, "--curriculum", "Bad Slug")
+	out, _, err := runSandbox(t, server, "check", path, "--curriculum", "Bad Slug")
 	if err == nil {
 		t.Fatal("expected an error exit")
 	}
@@ -377,10 +377,10 @@ func TestTimelinesCheckCommand(t *testing.T) {
 	}
 }
 
-func TestTimelinesLimitsFallBackToStaleCache(t *testing.T) {
-	_, server := setupTimelinesTest(t)
+func TestSandboxLimitsFallBackToStaleCache(t *testing.T) {
+	_, server := setupSandboxTest(t)
 	path := writeTestManifest(t, false)
-	if _, _, err := runTimelines(t, server, "check", path); err != nil {
+	if _, _, err := runSandbox(t, server, "check", path); err != nil {
 		t.Fatal(err)
 	}
 	dir, _ := limitsCacheDir()
@@ -391,12 +391,12 @@ func TestTimelinesLimitsFallBackToStaleCache(t *testing.T) {
 	old := time.Now().Add(-2 * time.Hour)
 	os.Chtimes(files[0], old, old)
 	server.Close()
-	_, progress, err := runTimelines(t, server, "check", path)
+	_, progress, err := runSandbox(t, server, "check", path)
 	if err != nil || !strings.Contains(progress, "cached copy") {
 		t.Fatalf("err %v, progress %s", err, progress)
 	}
 	os.Remove(files[0])
-	if _, _, err := runTimelines(t, server, "check", path); err == nil {
+	if _, _, err := runSandbox(t, server, "check", path); err == nil {
 		t.Fatal("expected an error with no cache and no server")
 	}
 }

@@ -62,7 +62,7 @@ type APIError struct {
 	StatusCode int
 	Message    string
 	Code       string
-	// Path and Parts are set by the timelines routes: where in a manifest
+	// Path and Parts are set by the sandbox authoring routes: where in a manifest
 	// the problem is, and which parts the server is missing.
 	Path  string
 	Parts []string

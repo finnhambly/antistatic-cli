@@ -1,9 +1,9 @@
-// Package timelines checks and splits compact (schema_version 2) curriculum
-// manifests for "antistatic timelines check" and "push".
+// Package sandbox checks and splits compact (schema_version 2) curriculum
+// manifests for "antistatic sandbox check" and "push".
 //
 // Manifests contain sealed answers, so nothing here ever reports a field's
 // value: problems are a path (items[b012].curves[0].labels[3]) and a code.
-package timelines
+package sandbox
 
 import (
 	"bytes"

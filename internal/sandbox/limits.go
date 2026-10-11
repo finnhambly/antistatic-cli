@@ -1,6 +1,6 @@
-package timelines
+package sandbox
 
-// Limits is GET /api/v1/timelines/limits's data.
+// Limits is GET /api/v1/sandbox/limits's data.
 type Limits struct {
 	SchemaVersions []int                 `json:"schema_versions"`
 	Manifest       ManifestLimits        `json:"manifest"`

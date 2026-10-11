@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/finnhambly/antistatic-cli/internal/timelines"
+	"github.com/finnhambly/antistatic-cli/internal/sandbox"
 )
 
 // limitsCacheDir is where fetched limits are cached (a variable for tests).
@@ -37,9 +37,9 @@ func limitsCachePath() (string, error) {
 }
 
 // loadLimits returns the server's manifest limits: from a cache younger than
-// an hour, else from GET /timelines/limits (refreshing the cache), else from
+// an hour, else from GET /sandbox/limits (refreshing the cache), else from
 // a stale cache with a warning.
-func loadLimits() (*timelines.Limits, error) {
+func loadLimits() (*sandbox.Limits, error) {
 	path, pathErr := limitsCachePath()
 	var cached []byte
 	if pathErr == nil {
@@ -55,7 +55,7 @@ func loadLimits() (*timelines.Limits, error) {
 		}
 	}
 
-	resp, fetchErr := client.Get("/timelines/limits", nil)
+	resp, fetchErr := client.Get("/sandbox/limits", nil)
 	if fetchErr == nil {
 		data, err := resp.Data()
 		if err == nil {
@@ -76,20 +76,20 @@ func loadLimits() (*timelines.Limits, error) {
 
 	if cached != nil {
 		if limits, err := parseLimits(cached); err == nil {
-			fmt.Fprintf(progressOut, "warning: couldn't fetch the timelines limits (%v); using the cached copy at %s\n", fetchErr, path)
+			fmt.Fprintf(progressOut, "warning: couldn't fetch the sandbox limits (%v); using the cached copy at %s\n", fetchErr, path)
 			return limits, nil
 		}
 	}
-	return nil, fmt.Errorf("fetching the timelines limits: %w (and no cached copy)", fetchErr)
+	return nil, fmt.Errorf("fetching the sandbox limits: %w (and no cached copy)", fetchErr)
 }
 
-func parseLimits(data []byte) (*timelines.Limits, error) {
-	var limits timelines.Limits
+func parseLimits(data []byte) (*sandbox.Limits, error) {
+	var limits sandbox.Limits
 	if err := json.Unmarshal(data, &limits); err != nil {
-		return nil, fmt.Errorf("parsing the timelines limits: %w", err)
+		return nil, fmt.Errorf("parsing the sandbox limits: %w", err)
 	}
 	if len(limits.SchemaVersions) == 0 {
-		return nil, fmt.Errorf("parsing the timelines limits: no schema_versions")
+		return nil, fmt.Errorf("parsing the sandbox limits: no schema_versions")
 	}
 	return &limits, nil
 }

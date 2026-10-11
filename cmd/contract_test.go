@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/finnhambly/antistatic-cli/internal/timelines"
+	"github.com/finnhambly/antistatic-cli/internal/sandbox"
 )
 
 type contractDoc struct {
@@ -157,15 +157,15 @@ var contractDecodes = []struct {
 	{"GET /api/v1/me/bot", "bot", func() interface{} { return &botInfo{} }},
 	{"GET /api/v1/positions", "data", func() interface{} { return &[]positionRow{} }},
 	{"GET /api/v1/markets/{code}/positions", "data", func() interface{} { return &[]positionRow{} }},
-	{"GET /api/v1/timelines/runs", "data", func() interface{} { return &[]retroRun{} }},
-	{"POST /api/v1/timelines/runs/{id}/advance", "data", func() interface{} { return &retroRun{} }},
-	{"GET /api/v1/timelines/limits", "data", func() interface{} { return &timelines.Limits{} }},
-	{"PUT /api/v1/timelines/curricula/{slug}/drafts/{version}/parts/{sha256}", "data", func() interface{} { return &timelinesPartStored{} }},
-	{"PUT /api/v1/timelines/curricula/{slug}/drafts/{version}/manifest", "data", func() interface{} { return &timelinesStatus{} }},
-	{"GET /api/v1/timelines/curricula/{slug}/drafts/{version}/status", "data", func() interface{} { return &timelinesStatus{} }},
-	{"POST /api/v1/timelines/curricula/{slug}/drafts/{version}/validate", "data", func() interface{} { return &timelinesValidation{} }},
-	{"POST /api/v1/timelines/curricula/{slug}/drafts/{version}/publish", "data", func() interface{} { return &timelinesPublished{} }},
-	{"POST /api/v1/timelines/curricula/{slug}/members", "data", func() interface{} { return &timelinesMember{} }},
+	{"GET /api/v1/sandbox/runs", "data", func() interface{} { return &[]sandboxRun{} }},
+	{"POST /api/v1/sandbox/runs/{id}/advance", "data", func() interface{} { return &sandboxRun{} }},
+	{"GET /api/v1/sandbox/limits", "data", func() interface{} { return &sandbox.Limits{} }},
+	{"PUT /api/v1/sandbox/curricula/{slug}/drafts/{version}/parts/{sha256}", "data", func() interface{} { return &sandboxPartStored{} }},
+	{"PUT /api/v1/sandbox/curricula/{slug}/drafts/{version}/manifest", "data", func() interface{} { return &sandboxStatus{} }},
+	{"GET /api/v1/sandbox/curricula/{slug}/drafts/{version}/status", "data", func() interface{} { return &sandboxStatus{} }},
+	{"POST /api/v1/sandbox/curricula/{slug}/drafts/{version}/validate", "data", func() interface{} { return &sandboxValidation{} }},
+	{"POST /api/v1/sandbox/curricula/{slug}/drafts/{version}/publish", "data", func() interface{} { return &sandboxPublished{} }},
+	{"POST /api/v1/sandbox/curricula/{slug}/members", "data", func() interface{} { return &sandboxMember{} }},
 }
 
 func TestResponseStructsMatchTheContract(t *testing.T) {
