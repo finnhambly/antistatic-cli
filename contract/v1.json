@@ -209,8 +209,276 @@
               "type": "string"
             }
           }
+        },
+        "authoring": {
+          "type": "object",
+          "description": "A draft built a piece at a time: the keys its working manifest holds.",
+          "required": [
+            "checkpoints",
+            "questions",
+            "disclosures"
+          ],
+          "properties": {
+            "checkpoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "questions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "disclosures": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
+    },
+    "timeline_turn": {
+      "type": "object",
+      "description": "A future-timeline turn's result: the observations its clock reached (each dated at or before `clock`) and the run's bars it resolved. Nothing sealed.",
+      "properties": {
+        "run_id": {
+          "type": "number"
+        },
+        "turn": {
+          "type": "object",
+          "properties": {
+            "index": {
+              "type": "number"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "from",
+            "to"
+          ]
+        },
+        "clock": {
+          "type": "string"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "text"
+            ]
+          }
+        },
+        "resolved": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "market_code": {
+                "type": "string"
+              },
+              "bar": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no"
+                ]
+              }
+            },
+            "required": [
+              "market_code",
+              "bar",
+              "outcome"
+            ]
+          }
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "run_id",
+        "turn",
+        "clock",
+        "observations",
+        "resolved"
+      ]
+    },
+    "timeline_future": {
+      "type": "object",
+      "description": "A future timeline as its player sees it.",
+      "properties": {
+        "run_id": {
+          "type": "number"
+        },
+        "kind": {
+          "const": "future"
+        },
+        "template": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "title"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "clock": {
+          "type": "string"
+        },
+        "forked_from_run_id": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "bio": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modifications": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pace": {
+              "type": "string"
+            },
+            "complete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "bio",
+            "modifications",
+            "pace",
+            "complete"
+          ]
+        },
+        "turns": {
+          "type": "number"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/timeline_turn"
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "market_code": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "market_type": {
+                "type": "string"
+              },
+              "simulation_only": {
+                "type": "boolean"
+              },
+              "bars": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "resolved": {
+                      "type": "boolean"
+                    },
+                    "resolved_yes": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "resolved"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "market_code",
+              "title",
+              "simulation_only",
+              "bars"
+            ]
+          }
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "kind",
+        "template",
+        "status",
+        "clock",
+        "settings",
+        "turns",
+        "history",
+        "questions",
+        "url"
+      ]
     }
   },
   "routes": [
@@ -4653,7 +4921,7 @@
       "id": "timeline.index",
       "method": "GET",
       "path": "/api/v1/timelines",
-      "summary": "Timelines you can start, and your runs.",
+      "summary": "Timelines you can start (curricula and future-timeline templates), and your runs.",
       "group": "timelines",
       "auth": "read",
       "headers": [],
@@ -4680,7 +4948,10 @@
                         "type": "string"
                       },
                       "run_id": {
-                        "type": "number"
+                        "type": [
+                          "number",
+                          "null"
+                        ]
                       },
                       "slug": {
                         "type": "string"
@@ -4751,6 +5022,9 @@
                       },
                       "status": {
                         "type": "string"
+                      },
+                      "practice": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -4763,6 +5037,46 @@
                       "status"
                     ]
                   }
+                },
+                "templates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "premise": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "title",
+                      "kind",
+                      "premise"
+                    ]
+                  }
+                },
+                "future_timelines": {
+                  "type": "object",
+                  "properties": {
+                    "included": {
+                      "type": "boolean"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "included"
+                  ]
                 }
               },
               "required": [
@@ -4783,7 +5097,18 @@
           "body": {
             "data": {
               "curricula": [],
-              "runs": []
+              "runs": [],
+              "templates": [
+                {
+                  "key": "wargame-your-life",
+                  "title": "Wargame your life",
+                  "kind": "future",
+                  "premise": "It is October 2026. …"
+                }
+              ],
+              "future_timelines": {
+                "included": true
+              }
             }
           }
         }
@@ -4793,7 +5118,7 @@
       "id": "timeline.show",
       "method": "GET",
       "path": "/api/v1/timelines/runs/{id}",
-      "summary": "Where one of your timeline runs stands: its clock, checkpoint and open questions.",
+      "summary": "Where one of your timeline runs stands: a past run's clock, checkpoint and questions, or a future run's setup and history.",
       "group": "timelines",
       "auth": "read",
       "headers": [],
@@ -4806,156 +5131,169 @@
           "type": "object",
           "properties": {
             "data": {
-              "type": "object",
-              "properties": {
-                "blockers": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "key": {
-                        "type": "string"
-                      },
-                      "reason": {
-                        "type": "string"
-                      },
-                      "title": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "reason",
-                      "title"
-                    ]
-                  }
-                },
-                "checkpoint": {
+              "anyOf": [
+                {
                   "type": "object",
                   "properties": {
-                    "key": {
+                    "blockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "reason",
+                          "title"
+                        ]
+                      }
+                    },
+                    "checkpoint": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "occurred_at": {
+                          "type": "string"
+                        },
+                        "sequence": {
+                          "type": "number"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "occurred_at",
+                        "sequence",
+                        "text",
+                        "title"
+                      ]
+                    },
+                    "clock": {
                       "type": "string"
                     },
-                    "occurred_at": {
+                    "complete": {
+                      "type": "boolean"
+                    },
+                    "curriculum": {
+                      "type": "object",
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title"
+                      ]
+                    },
+                    "kind": {
                       "type": "string"
                     },
-                    "sequence": {
+                    "pending_resolutions": {
+                      "type": "array"
+                    },
+                    "previous_checkpoint_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "contaminated": {
+                            "type": "boolean"
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "market_code": {
+                            "type": "string"
+                          },
+                          "moderation": {
+                            "type": "null"
+                          },
+                          "open": {
+                            "type": "boolean"
+                          },
+                          "private": {
+                            "type": "boolean"
+                          },
+                          "resolved": {
+                            "type": "boolean"
+                          },
+                          "submitted": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "contaminated",
+                          "key",
+                          "market_code",
+                          "moderation",
+                          "open",
+                          "private",
+                          "resolved",
+                          "submitted",
+                          "title"
+                        ]
+                      }
+                    },
+                    "run_id": {
                       "type": "number"
                     },
-                    "text": {
+                    "status": {
                       "type": "string"
                     },
-                    "title": {
+                    "url": {
                       "type": "string"
                     }
                   },
                   "required": [
-                    "key",
-                    "occurred_at",
-                    "sequence",
-                    "text",
-                    "title"
+                    "blockers",
+                    "checkpoint",
+                    "clock",
+                    "complete",
+                    "curriculum",
+                    "kind",
+                    "pending_resolutions",
+                    "previous_checkpoint_at",
+                    "questions",
+                    "run_id",
+                    "status",
+                    "url"
                   ]
                 },
-                "clock": {
-                  "type": "string"
-                },
-                "complete": {
-                  "type": "boolean"
-                },
-                "curriculum": {
-                  "type": "object",
-                  "properties": {
-                    "slug": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "slug",
-                    "title"
-                  ]
-                },
-                "kind": {
-                  "type": "string"
-                },
-                "pending_resolutions": {
-                  "type": "array"
-                },
-                "previous_checkpoint_at": {
-                  "type": "null"
-                },
-                "questions": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "contaminated": {
-                        "type": "boolean"
-                      },
-                      "key": {
-                        "type": "string"
-                      },
-                      "market_code": {
-                        "type": "string"
-                      },
-                      "moderation": {
-                        "type": "null"
-                      },
-                      "open": {
-                        "type": "boolean"
-                      },
-                      "private": {
-                        "type": "boolean"
-                      },
-                      "resolved": {
-                        "type": "boolean"
-                      },
-                      "submitted": {
-                        "type": "null"
-                      },
-                      "title": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "contaminated",
-                      "key",
-                      "market_code",
-                      "moderation",
-                      "open",
-                      "private",
-                      "resolved",
-                      "submitted",
-                      "title"
-                    ]
-                  }
-                },
-                "run_id": {
-                  "type": "number"
-                },
-                "status": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
+                {
+                  "$ref": "#/$defs/timeline_future"
                 }
-              },
-              "required": [
-                "blockers",
-                "checkpoint",
-                "clock",
-                "complete",
-                "curriculum",
-                "kind",
-                "pending_resolutions",
-                "previous_checkpoint_at",
-                "questions",
-                "run_id",
-                "status",
-                "url"
               ]
             }
           },
@@ -4988,7 +5326,7 @@
               "complete": false,
               "curriculum": {
                 "slug": "retro-42115",
-                "title": "Biology retrocasting 42115"
+                "title": "Biology timeline 42115"
               },
               "kind": "past",
               "pending_resolutions": [],
@@ -5008,11 +5346,12 @@
               ],
               "run_id": 609,
               "status": "active",
-              "url": "http://localhost:4002/retrocasting/retro-42115"
+              "url": "http://localhost:4002/timelines/retro-42115"
             }
           }
         }
-      }
+      },
+      "description": "A past timeline's position (`kind: past`), or a future timeline's (`kind: future`): its clock, setup, the results of its last 50 turns and the questions written in it. Nothing past the clock."
     },
     {
       "id": "timeline.sources",
@@ -5103,7 +5442,10 @@
                         "type": "string"
                       },
                       "source_url": {
-                        "type": "null"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "text": {
                         "type": "string"
@@ -5140,7 +5482,10 @@
                   ]
                 },
                 "since": {
-                  "type": "null"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -5174,7 +5519,7 @@
                   "title": "Opening evidence"
                 },
                 "text": "Historical biology questions.",
-                "title": "Biology retrocasting 42115"
+                "title": "Biology timeline 42115"
               },
               "clock": "2020-01-01T00:00:00Z",
               "disclosures": [
@@ -5312,12 +5657,1169 @@
       }
     },
     {
+      "id": "timeline.start",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs",
+      "summary": "Start a timeline: a future one from a template, or a past one from a curriculum.",
+      "group": "timelines",
+      "description": "`template` starts a future timeline at today's date (Pro, or admin; at most 5 active): the response is the run with a `setup` object (template premise, bio prompt and choices, modification suggestions, pace options) whose answers go to `PATCH /timelines/runs/{id}/setup`. `curriculum` (a slug) starts or resumes a past timeline and returns its position (`kind: past`). Errors: 403 `pro_required`, 429 `timeline_quota`.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string"
+          },
+          "curriculum": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/timeline_future"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "setup": {
+                          "type": "object",
+                          "description": "What a host collects before the first turn.",
+                          "properties": {
+                            "template": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "premise": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "title",
+                                "premise"
+                              ]
+                            },
+                            "bio_prompt": {
+                              "type": "string"
+                            },
+                            "bio_choices": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "label"
+                                ]
+                              }
+                            },
+                            "modification_suggestions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "pace_options": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "label"
+                                ]
+                              }
+                            },
+                            "default_pace": {
+                              "type": "string"
+                            },
+                            "fields": {
+                              "type": "object"
+                            },
+                            "privacy": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "template",
+                            "bio_prompt",
+                            "bio_choices",
+                            "modification_suggestions",
+                            "pace_options",
+                            "default_pace"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "const": "past"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "kind"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "template": "wargame-your-life"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "run_id": 712,
+              "kind": "future",
+              "template": {
+                "key": "wargame-your-life",
+                "title": "Wargame your life"
+              },
+              "status": "active",
+              "clock": "2026-10-10T09:00:00Z",
+              "forked_from_run_id": null,
+              "settings": {
+                "bio": null,
+                "modifications": null,
+                "pace": "month",
+                "complete": false
+              },
+              "setup": {
+                "template": {
+                  "key": "wargame-your-life",
+                  "title": "Wargame your life",
+                  "premise": "It is October 2026. …"
+                },
+                "bio_prompt": "Who is the player? …",
+                "bio_choices": [
+                  {
+                    "key": "draft_from_context",
+                    "label": "Let the assistant draft it from what it knows about you, then edit"
+                  },
+                  {
+                    "key": "free_text",
+                    "label": "Write it yourself"
+                  },
+                  {
+                    "key": "skip",
+                    "label": "Skip: play an unnamed person"
+                  }
+                ],
+                "modification_suggestions": [
+                  "Slower AI progress than the forecasts suggest"
+                ],
+                "pace_options": [
+                  {
+                    "key": "week",
+                    "label": "One week per turn"
+                  },
+                  {
+                    "key": "month",
+                    "label": "One month per turn"
+                  },
+                  {
+                    "key": "quarter",
+                    "label": "Three months per turn"
+                  }
+                ],
+                "default_pace": "month",
+                "fields": {
+                  "bio": "text, at most 6000 characters"
+                },
+                "privacy": "The bio, modifications and actions go to Antistatic's planner …"
+              },
+              "turns": 0,
+              "history": [],
+              "questions": [],
+              "url": "https://antistatic.exchange/timelines/future-1a2b3c4d5e6f"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline.update_setup",
+      "method": "PATCH",
+      "path": "/api/v1/timelines/runs/{id}/setup",
+      "summary": "Set a future timeline's bio, modifications and pace.",
+      "group": "timelines",
+      "description": "Any of `bio` (at most 6,000 characters), `modifications` (2,000) and `pace` (a pace option key); omitted fields stay, empty text clears. Choosing a pace completes the setup, which turns need. Returns the run.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modifications": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pace": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_future"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "bio": "A nurse in Leeds.",
+            "pace": "month"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "run_id": 712,
+              "kind": "future",
+              "template": {
+                "key": "wargame-your-life",
+                "title": "Wargame your life"
+              },
+              "status": "active",
+              "clock": "2026-10-10T09:00:00Z",
+              "forked_from_run_id": null,
+              "settings": {
+                "bio": "A nurse in Leeds.",
+                "modifications": null,
+                "pace": "month",
+                "complete": true
+              },
+              "turns": 0,
+              "history": [],
+              "questions": [],
+              "url": "https://antistatic.exchange/timelines/future-1a2b3c4d5e6f"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline.take_turn",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/turns",
+      "summary": "Take a future timeline's turn.",
+      "group": "timelines",
+      "description": "The player's `actions` (at most 4,000 characters) and optionally `until` (an ISO date after the clock, at most a year ahead; a date-time counts as its date; default the clock plus the pace). The server plans the period, draws one outcome in code and moves the clock to midnight UTC of that date; the response holds the observations the clock has reached and the run's bars that resolved. Idempotent by `turn_id` (the client's key, per run): a completed turn sent again with the same `actions` and `until` returns its stored result with `replayed: true`; the same `turn_id` with other `actions` or another `until` is 409 `turn_id_conflict`. Pro (or admin), with a daily turn quota. Errors: 409 `setup_incomplete`, 409 `turn_in_progress`, 409 `turn_id_conflict`, 429 `turn_quota`, 403 `pro_required`, 502 `planner_invalid` / `planner_refused` and 503 `planner_unavailable` (the clock has not moved; retry with the same `turn_id`).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "turn_id": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "turn_id",
+          "actions"
+        ]
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_turn"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "turn_id": "7f9c2b1e-turn-1",
+            "actions": "Ask my manager for a pay review."
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "run_id": 712,
+              "turn": {
+                "index": 1,
+                "from": "2026-10-10T09:00:00Z",
+                "to": "2026-11-10T09:00:00Z"
+              },
+              "clock": "2026-11-10T09:00:00Z",
+              "observations": [
+                {
+                  "at": "2026-10-24T09:00:00Z",
+                  "text": "Your manager agrees to a pay review in January."
+                }
+              ],
+              "resolved": [],
+              "replayed": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline.fork",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/forks",
+      "summary": "Fork a timeline run.",
+      "group": "timelines",
+      "description": "A future run forks after `turn` (default its last; 0 is the start) into a new run with its history, clock and planner state up to then; questions and forecasts stay with the original. A past run forks at a reached `checkpoint` (key; default the current one) into a new run marked `practice`. The original is unchanged.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "turn": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "checkpoint": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/timeline_future"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "const": "past"
+                    },
+                    "practice": {
+                      "type": "boolean"
+                    },
+                    "forked_from_run_id": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "kind",
+                    "practice",
+                    "forked_from_run_id"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "turn": 1
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "run_id": 713,
+              "kind": "future",
+              "template": {
+                "key": "wargame-your-life",
+                "title": "Wargame your life"
+              },
+              "status": "active",
+              "clock": "2026-11-10T09:00:00Z",
+              "forked_from_run_id": 712,
+              "settings": {
+                "bio": "A nurse in Leeds.",
+                "modifications": null,
+                "pace": "month",
+                "complete": true
+              },
+              "turns": 1,
+              "history": [
+                {
+                  "run_id": 712,
+                  "turn": {
+                    "index": 1,
+                    "from": "2026-10-10T09:00:00Z",
+                    "to": "2026-11-10T09:00:00Z"
+                  },
+                  "clock": "2026-11-10T09:00:00Z",
+                  "observations": [
+                    {
+                      "at": "2026-10-24T09:00:00Z",
+                      "text": "Your manager agrees to a pay review in January."
+                    }
+                  ],
+                  "resolved": []
+                }
+              ],
+              "questions": [],
+              "url": "https://antistatic.exchange/timelines/future-1a2b3c4d5e6f"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline.delete",
+      "method": "DELETE",
+      "path": "/api/v1/timelines/runs/{id}",
+      "summary": "Delete a timeline run and everything in it.",
+      "group": "timelines",
+      "description": "Needs `confirm: true`. Deletes the run's history, setup (bio, modifications, actions), planner records, comments, forecasts and the questions written in it with their markets; for a future timeline, its synthetic curriculum too.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "deleted": {
+                  "type": "boolean"
+                },
+                "run_id": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "deleted",
+                "run_id"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "confirm": true
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "deleted": true,
+              "run_id": 712
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline.promote",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/questions/{code}/promote",
+      "summary": "Copy a future timeline's question into the real exchange today.",
+      "group": "timelines",
+      "description": "The question's definition is its spec in the run without the simulated `anchors` and `basis`; `spec` replaces any of its settings. Without `create` (or `create: false`) the answer is that spec and its preview as of today (as `POST /market-specs/preview`). Opening probabilities come from evidence available today, never from the timeline's history: send `anchors` (and `basis`) in `spec`. With `create: true` it is created as `POST /market-specs` does, a normal private market owned by the caller (201); 422 `invalid_spec` while the spec has errors. The run is unchanged. `POST /markets/{code}/publication-request` can then ask for a public listing. 404 for a past timeline's run or a code that isn't the run's question.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "p": {
+                      "type": "number"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "quantiles": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              },
+              "basis": {
+                "type": "object",
+                "properties": {
+                  "reference_classes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "k": {
+                          "type": "number"
+                        },
+                        "n": {
+                          "type": "number"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "url"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "evidence",
+                        "sources"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "reference_classes"
+                ]
+              },
+              "horizon": {
+                "type": "object",
+                "properties": {
+                  "cadence": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "end"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "details": {
+                    "type": "string"
+                  },
+                  "excludes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "includes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "details",
+                  "source"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "periods": {
+                "type": "object",
+                "properties": {
+                  "cadence": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "cadence",
+                  "from",
+                  "to"
+                ]
+              },
+              "thresholds": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "number"
+                  },
+                  "scale": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "from",
+                  "scale",
+                  "to"
+                ]
+              },
+              "unit": {
+                "type": "string"
+              }
+            }
+          },
+          "create": {
+            "type": [
+              "boolean",
+              "string"
+            ]
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "spec": {
+                  "type": "object"
+                },
+                "preview": {
+                  "type": "object",
+                  "properties": {
+                    "curves": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bars": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "starting_probability": {
+                                  "type": "number"
+                                },
+                                "threshold_date": {
+                                  "type": "string"
+                                },
+                                "threshold": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "starting_probability"
+                              ]
+                            }
+                          },
+                          "curve": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "end_date": {
+                            "type": "string"
+                          },
+                          "item": {
+                            "type": "string"
+                          },
+                          "ladder": {
+                            "type": "number"
+                          },
+                          "period": {
+                            "type": "string"
+                          },
+                          "trimmed": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "required": [
+                          "bars",
+                          "curve",
+                          "label"
+                        ]
+                      }
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "example": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "example",
+                          "field",
+                          "fix",
+                          "message",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "market": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "background_info_html": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "budget": {
+                          "type": "number"
+                        },
+                        "cumulative": {
+                          "type": "boolean"
+                        },
+                        "end_date": {
+                          "type": "string"
+                        },
+                        "resolution_criteria": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "svelte_params": {
+                          "type": "object",
+                          "properties": {
+                            "countObservationMode": {
+                              "type": "string"
+                            },
+                            "defaultView": {
+                              "type": "string"
+                            },
+                            "scaleBase": {
+                              "type": "number"
+                            },
+                            "scaleType": {
+                              "type": "string"
+                            },
+                            "timeCadence": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string"
+                        },
+                        "x_unit": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "background_info_html",
+                        "budget",
+                        "cumulative",
+                        "end_date",
+                        "resolution_criteria",
+                        "status",
+                        "svelte_params",
+                        "title",
+                        "type",
+                        "visibility",
+                        "x_unit"
+                      ]
+                    },
+                    "next_options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "default": {
+                            "type": [
+                              "object",
+                              "string",
+                              "number",
+                              "null"
+                            ],
+                            "properties": {
+                              "end": {
+                                "type": "string"
+                              },
+                              "start": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "end",
+                              "start"
+                            ]
+                          },
+                          "example": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "set": {
+                            "type": "boolean"
+                          },
+                          "setting": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "type": [
+                              "object",
+                              "array",
+                              "null"
+                            ],
+                            "properties": {
+                              "max": {
+                                "type": "number"
+                              },
+                              "min": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "max",
+                              "min"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "why": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "default",
+                          "example",
+                          "required",
+                          "set",
+                          "setting",
+                          "values",
+                          "why"
+                        ]
+                      }
+                    },
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "curves",
+                    "issues",
+                    "market",
+                    "next_options",
+                    "valid"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "spec",
+                "preview",
+                "note"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        },
+        "201": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "promoted_from": {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "integer"
+                    },
+                    "market_code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "market_code"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "title",
+                "visibility",
+                "url",
+                "promoted_from",
+                "note"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "create": true,
+            "spec": {
+              "anchors": [
+                {
+                  "by": "2027-06",
+                  "p": 0.3
+                },
+                {
+                  "by": "2028-12",
+                  "p": 0.7
+                }
+              ],
+              "basis": {
+                "reference_classes": [
+                  {
+                    "description": "Career changes into nursing management",
+                    "evidence": "About a third of ward nurses who apply are promoted within two years, from the NHS staff survey 2019-2024.",
+                    "sources": [
+                      {
+                        "title": "NHS staff survey",
+                        "url": "https://www.nhsstaffsurveys.com/"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "code": "~6612",
+              "title": "Date I become a ward manager",
+              "visibility": "private",
+              "url": "https://antistatic.exchange/m/~6612",
+              "promoted_from": {
+                "run_id": 712,
+                "market_code": "p712-1"
+              },
+              "note": "A normal private market, owned by you, with nothing from the timeline but its definition. To let others forecast on it, ask for a public listing (antistatic_request_public_listing)."
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "timelines.limits",
       "method": "GET",
       "path": "/api/v1/timelines/limits",
       "summary": "Curriculum upload limits, field limits, lint rules and the T5 hindsight list.",
       "group": "timeline authoring",
-      "description": "The same numbers the server's changesets enforce; `antistatic timelines check` applies them locally. Rule IDs are those of docs/timelines/RULES.md.",
+      "description": "The same numbers the server's changesets enforce; `antistatic timelines check` applies them locally. Rule IDs are those of priv/timelines/RULES.md.",
       "auth": "none",
       "headers": [],
       "rate_limit": "read",
@@ -5836,12 +7338,614 @@
       }
     },
     {
+      "id": "timelines.create_draft",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}",
+      "summary": "Start a curriculum draft built a piece at a time.",
+      "group": "timeline authoring",
+      "description": "Makes the curriculum when the slug is new (a first curriculum is free; more need Pro, 403 `pro_required`; non-admins' curricula stay `restricted`) and starts, or reopens, the version's draft with an empty working manifest. `title`, `description` (plain text) and `resolved_through` (a date) are optional. A draft already pushed with a manifest is 409 `pushed_draft`. Then add checkpoints, questions and disclosures and validate: `validate` imports the working manifest first. Limits: 40 questions, 60 checkpoints, 200 disclosures; push larger curricula.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "resolved_through": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "title": "RNAi, 1998-2006",
+            "description": "From the first worm papers to the first trials."
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "slug": "rnai-history",
+              "version": "1.0",
+              "state": "receiving",
+              "manifest_sha256": null,
+              "source_commit": null,
+              "schema_version": null,
+              "parts_expected": 0,
+              "parts_received": 0,
+              "parts_imported": 0,
+              "received": [],
+              "error": null,
+              "authoring": {
+                "checkpoints": [],
+                "questions": [],
+                "disclosures": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.add_checkpoint",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/checkpoints",
+      "summary": "Add or replace a checkpoint in a draft's working manifest.",
+      "group": "timeline authoring",
+      "description": "`key`, `title` and `occurred_at` (a date or ISO date-time), optional `body_html`. An entry with the same key replaces the earlier one. `sequence` follows `occurred_at`, then the order added. Returns the draft status (`receiving`).",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "occurred_at"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string"
+          },
+          "body_html": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "key": "cp01",
+            "title": "February 1998",
+            "occurred_at": "1998-02-19"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "rnai-history",
+              "version": "1.0",
+              "state": "receiving",
+              "manifest_sha256": null,
+              "source_commit": null,
+              "schema_version": null,
+              "parts_expected": 0,
+              "parts_received": 0,
+              "parts_imported": 0,
+              "received": [],
+              "error": null,
+              "authoring": {
+                "checkpoints": [
+                  "cp01"
+                ],
+                "questions": [],
+                "disclosures": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.add_question",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/questions",
+      "summary": "Add or replace a question (one compact-manifest item) in a draft.",
+      "group": "timeline authoring",
+      "description": "One item in the compact format (`/timelines/manifest.md`). Its shape is checked now (422 with a `path`, never a value); the publish rules run on validate. An item with the same key replaces the earlier one.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "introduced_at",
+          "market"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "introduced_at": {
+            "type": "string",
+            "description": "A checkpoint key."
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "market": {
+            "type": "object",
+            "required": [
+              "code",
+              "type",
+              "budget",
+              "resolution_criteria",
+              "x_unit"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "2-40 characters, [a-z0-9_-]; the question's stable identity in the curriculum."
+              },
+              "type": {
+                "enum": [
+                  "count",
+                  "date"
+                ]
+              },
+              "budget": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "resolution_criteria": {
+                "type": "string"
+              },
+              "x_unit": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "background_info_html": {
+                "type": "string"
+              },
+              "cumulative": {
+                "type": "boolean"
+              },
+              "end_date": {
+                "type": "string"
+              },
+              "resolution_date": {
+                "type": "string"
+              },
+              "number_format": {
+                "type": "string"
+              },
+              "svelte_params": {
+                "type": "object"
+              }
+            }
+          },
+          "curves": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "keys",
+                "thresholds",
+                "p0"
+              ],
+              "properties": {
+                "group": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "projection_group; omit for none."
+                },
+                "keys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "thresholds": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "description": "Numbers on count markets, ISO date-times on date markets."
+                },
+                "p0": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "description": "Opening probabilities, 0.001-0.999."
+                },
+                "labels": {
+                  "type": [
+                    "array",
+                    "string",
+                    "null"
+                  ]
+                },
+                "end_dates": {
+                  "type": [
+                    "array",
+                    "string",
+                    "null"
+                  ]
+                },
+                "closes_at": {
+                  "type": [
+                    "array",
+                    "string"
+                  ]
+                },
+                "resolves_at": {
+                  "type": [
+                    "array",
+                    "string",
+                    "null"
+                  ]
+                },
+                "outcomes": {
+                  "type": [
+                    "array",
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "resolution": {
+                  "type": [
+                    "array",
+                    "string"
+                  ],
+                  "description": "prepared (default) or learner."
+                },
+                "liquidity_schedule": {
+                  "type": [
+                    "array",
+                    "object",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "submarkets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The per-bar form, instead of curves."
+          },
+          "liquidity_cuts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "house_reprices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "count_observations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "key": "q01",
+            "title": "First RNAi therapy enters human trials",
+            "introduced_at": "cp01",
+            "market": {
+              "code": "rnai-trial",
+              "type": "date",
+              "budget": 100,
+              "resolution_criteria": "A registered trial of an RNAi therapeutic doses its first patient.",
+              "x_unit": "date"
+            },
+            "curves": [
+              {
+                "keys": [
+                  "y2002",
+                  "y2004"
+                ],
+                "thresholds": [
+                  "2002-12-31T23:59:59Z",
+                  "2004-12-31T23:59:59Z"
+                ],
+                "p0": [
+                  0.1,
+                  0.3
+                ],
+                "closes_at": "cp02",
+                "resolves_at": [
+                  "cp02",
+                  "cp03"
+                ],
+                "outcomes": [
+                  false,
+                  true
+                ]
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "rnai-history",
+              "version": "1.0",
+              "state": "receiving",
+              "manifest_sha256": null,
+              "source_commit": null,
+              "schema_version": null,
+              "parts_expected": 0,
+              "parts_received": 0,
+              "parts_imported": 0,
+              "received": [],
+              "error": null,
+              "authoring": {
+                "checkpoints": [
+                  "cp01",
+                  "cp02",
+                  "cp03"
+                ],
+                "questions": [
+                  "q01"
+                ],
+                "disclosures": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timelines.add_disclosure",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/disclosures",
+      "summary": "Add or replace a disclosure in a draft's working manifest.",
+      "group": "timeline authoring",
+      "description": "`key`, `checkpoint`, `title` and `body_html`; optional `item` (a question key), `kind` (`evidence`, `result`, `admin_explanation`) and `source_url` (an archived link, RULES.md S2). An entry with the same key replaces the earlier one.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "required": [
+          "key",
+          "checkpoint",
+          "title",
+          "body_html"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "checkpoint": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body_html": {
+            "type": "string"
+          },
+          "item": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_draft_status"
+            }
+          }
+        },
+        "403": {
+          "$ref": "#/$defs/error"
+        },
+        "404": {
+          "$ref": "#/$defs/error"
+        },
+        "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
+          "$ref": "#/$defs/push_error"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "key": "d01",
+            "checkpoint": "cp01",
+            "item": "q01",
+            "kind": "evidence",
+            "title": "Fire and Mello in Nature",
+            "body_html": "<p>Double-stranded RNA silences genes in worms.</p>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "rnai-history",
+              "version": "1.0",
+              "state": "receiving",
+              "manifest_sha256": null,
+              "source_commit": null,
+              "schema_version": null,
+              "parts_expected": 0,
+              "parts_received": 0,
+              "parts_imported": 0,
+              "received": [],
+              "error": null,
+              "authoring": {
+                "checkpoints": [
+                  "cp01",
+                  "cp02",
+                  "cp03"
+                ],
+                "questions": [
+                  "q01"
+                ],
+                "disclosures": [
+                  "d01"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "timelines.validate_draft",
       "method": "POST",
       "path": "/api/v1/timelines/curricula/{slug}/drafts/{version}/validate",
       "summary": "Validate an imported draft: publish rules (errors) and lint (warnings tagged with RULES.md IDs).",
       "group": "timeline authoring",
-      "description": "A learner of the curriculum gets counts only (`errors` redacted, `lint` empty, `lint_counts` kept).",
+      "description": "A draft built a piece at a time (`POST drafts/{version}` and its checkpoints, questions and disclosures) is imported first when it has changed: 422 with a `path` when it lacks checkpoints or questions or its import fails. A learner of the curriculum gets counts only (`errors` redacted, `lint` empty, `lint_counts` kept).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -5922,6 +8026,9 @@
           "$ref": "#/$defs/error"
         },
         "409": {
+          "$ref": "#/$defs/push_error"
+        },
+        "422": {
           "$ref": "#/$defs/push_error"
         }
       },
@@ -7546,9 +9653,9 @@
       }
     },
     {
-      "id": "retrocasting.append_items",
+      "id": "timeline_curriculum.append_items",
       "method": "POST",
-      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/items",
+      "path": "/api/v1/timelines/curricula/{slug}/versions/{version}/items",
       "summary": "Add new questions to a published curriculum release mid-run.",
       "group": "timeline authoring",
       "auth": "write",
@@ -7720,6 +9827,1517 @@
       }
     },
     {
+      "id": "timeline_curriculum.runs",
+      "method": "GET",
+      "path": "/api/v1/timelines/curricula/{slug}/runs",
+      "summary": "Runs of a curriculum you author.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": [
+              {
+                "attempt": 1,
+                "checkpoint_at": "2001-09-01T00:00:00Z",
+                "checkpoint_key": "cp2",
+                "checkpoint_sequence": 2,
+                "id": 690,
+                "learner": "fbhvkvm",
+                "status": "active",
+                "version": "0.1"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_curriculum.resolve_bars",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/versions/{version}/resolutions",
+      "summary": "Record outcomes for a curriculum version's bars.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "resolutions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": "string"
+                },
+                "resolves_at": {
+                  "type": "string"
+                },
+                "submarket": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item",
+                "outcome",
+                "resolves_at",
+                "submarket"
+              ]
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "resolutions": [
+              {
+                "item": "when",
+                "outcome": "yes",
+                "resolves_at": "cp4",
+                "submarket": "y04"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "resolved": 1,
+              "slug": "widget-open-86242"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_curriculum.import_feed",
+      "method": "POST",
+      "path": "/api/v1/timelines/curricula/{slug}/feed-items",
+      "summary": "Import feed items for a curriculum.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "imported": 5,
+              "slug": "retro-35043"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.index",
+      "method": "GET",
+      "path": "/api/v1/timelines/runs",
+      "summary": "Your timeline runs.",
+      "group": "timelines",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "blockers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "reason",
+                        "title"
+                      ]
+                    }
+                  },
+                  "checkpoint": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "occurred_at": {
+                        "type": "string"
+                      },
+                      "sequence": {
+                        "type": "number"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "occurred_at",
+                      "sequence",
+                      "title"
+                    ]
+                  },
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "curriculum": {
+                    "type": "object",
+                    "properties": {
+                      "slug": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "slug",
+                      "title"
+                    ]
+                  },
+                  "pending_resolutions": {
+                    "type": "array"
+                  },
+                  "questions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "contaminated": {
+                          "type": "boolean"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "market_code": {
+                          "type": "string"
+                        },
+                        "moderation": {
+                          "type": "null"
+                        },
+                        "open": {
+                          "type": "boolean"
+                        },
+                        "private": {
+                          "type": "boolean"
+                        },
+                        "resolved": {
+                          "type": "boolean"
+                        },
+                        "submitted": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "contaminated",
+                        "key",
+                        "market_code",
+                        "moderation",
+                        "open",
+                        "private",
+                        "resolved",
+                        "submitted",
+                        "title"
+                      ]
+                    }
+                  },
+                  "run_id": {
+                    "type": "number"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "blockers",
+                  "checkpoint",
+                  "complete",
+                  "curriculum",
+                  "pending_resolutions",
+                  "questions",
+                  "run_id",
+                  "status"
+                ]
+              }
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": [
+              {
+                "blockers": [
+                  {
+                    "key": "paper-a",
+                    "reason": "forecast",
+                    "title": "Will the paper's primary endpoint be positive?"
+                  }
+                ],
+                "checkpoint": {
+                  "key": "opening",
+                  "occurred_at": "2020-01-01T00:00:00Z",
+                  "sequence": 0,
+                  "title": "Opening evidence"
+                },
+                "complete": false,
+                "curriculum": {
+                  "slug": "retro-35812",
+                  "title": "Biology timeline 35812"
+                },
+                "pending_resolutions": [],
+                "questions": [
+                  {
+                    "contaminated": false,
+                    "key": "paper-a",
+                    "market_code": "rt35812",
+                    "moderation": null,
+                    "open": true,
+                    "private": false,
+                    "resolved": false,
+                    "submitted": null,
+                    "title": "Will the paper's primary endpoint be positive?"
+                  }
+                ],
+                "run_id": 618,
+                "status": "active"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.advance",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/advance",
+      "summary": "Move a run on to its next checkpoint, or by a week, month or year.",
+      "group": "timelines",
+      "description": "Refused with 422 `unanswered_items` while a question closing at the next checkpoint has neither a forecast nor a skip. With `by=week|month|year` it steps through checkpoints up to that much simulated time and stops early at one that discloses evidence, cuts liquidity, resolves or introduces a question; the response adds `step`. There is no endpoint for placing a timeline forecast: forecasting happens in the web UI.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "blockers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "reason",
+                      "title"
+                    ]
+                  }
+                },
+                "checkpoint": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "occurred_at": {
+                      "type": "string"
+                    },
+                    "sequence": {
+                      "type": "number"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "occurred_at",
+                    "sequence",
+                    "title"
+                  ]
+                },
+                "complete": {
+                  "type": "boolean"
+                },
+                "curriculum": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "title"
+                  ]
+                },
+                "pending_resolutions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "question": {
+                        "type": "string"
+                      },
+                      "submarket_id": {
+                        "type": "number"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "question",
+                      "submarket_id",
+                      "title"
+                    ]
+                  }
+                },
+                "questions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "contaminated": {
+                        "type": "boolean"
+                      },
+                      "key": {
+                        "type": "string"
+                      },
+                      "market_code": {
+                        "type": "string"
+                      },
+                      "moderation": {
+                        "type": "null"
+                      },
+                      "open": {
+                        "type": "boolean"
+                      },
+                      "private": {
+                        "type": "boolean"
+                      },
+                      "resolved": {
+                        "type": "boolean"
+                      },
+                      "submitted": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "contaminated",
+                      "key",
+                      "market_code",
+                      "moderation",
+                      "open",
+                      "private",
+                      "resolved",
+                      "submitted",
+                      "title"
+                    ]
+                  }
+                },
+                "run_id": {
+                  "type": "number"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "step": {
+                  "type": "object",
+                  "properties": {
+                    "checkpoints_passed": {
+                      "type": "number"
+                    },
+                    "landed_on_target": {
+                      "type": "boolean"
+                    },
+                    "stopped": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "interrupts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "checkpoints_passed",
+                    "landed_on_target",
+                    "stopped",
+                    "target"
+                  ]
+                }
+              },
+              "required": [
+                "blockers",
+                "checkpoint",
+                "complete",
+                "curriculum",
+                "pending_resolutions",
+                "questions",
+                "run_id",
+                "status"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "blockers": [],
+              "checkpoint": {
+                "key": "paper-reveal",
+                "occurred_at": "2020-01-01T00:00:00Z",
+                "sequence": 1,
+                "title": "Paper results"
+              },
+              "complete": false,
+              "curriculum": {
+                "slug": "retro-35972",
+                "title": "Biology timeline 35972"
+              },
+              "pending_resolutions": [],
+              "questions": [
+                {
+                  "contaminated": false,
+                  "key": "paper-a",
+                  "market_code": "rt35972",
+                  "moderation": null,
+                  "open": true,
+                  "private": false,
+                  "resolved": false,
+                  "submitted": "skipped",
+                  "title": "Will the paper's primary endpoint be positive?"
+                }
+              ],
+              "run_id": 621,
+              "status": "active"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.resolve",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/resolutions",
+      "summary": "Resolve a bar in your run.",
+      "group": "timelines",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "submarket_id": {
+            "type": "number"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "outcome": "no",
+            "submarket_id": 46960
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "blockers": [],
+              "checkpoint": {
+                "key": "a2003",
+                "occurred_at": "2003-01-01T00:00:00Z",
+                "sequence": 2,
+                "title": "a2003"
+              },
+              "complete": false,
+              "curriculum": {
+                "slug": "retro-69315",
+                "title": "Learner resolution 69283"
+              },
+              "pending_resolutions": [],
+              "questions": [
+                {
+                  "contaminated": false,
+                  "key": "when",
+                  "market_code": "lr69283",
+                  "moderation": null,
+                  "open": true,
+                  "private": false,
+                  "resolved": false,
+                  "submitted": "skipped",
+                  "title": "When will it happen?"
+                }
+              ],
+              "resolution": {
+                "implied_submarket_ids": [],
+                "resolved_yes": false,
+                "submarket_id": 46960
+              },
+              "run_id": 689,
+              "status": "active"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.feed",
+      "method": "GET",
+      "path": "/api/v1/timelines/runs/{id}/feed",
+      "summary": "A run's feed items up to its clock.",
+      "group": "timelines",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "string"
+          }
+        }
+      },
+      "body": null,
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "items": [
+                {
+                  "body_html": "<p>ok</p>bad()",
+                  "dated_at": "2019-06-01T00:00:00Z",
+                  "external_id": "1",
+                  "id": "leaky:1",
+                  "meta": {},
+                  "source": "leaky",
+                  "title": "OK_ITEM",
+                  "url": null
+                }
+              ],
+              "next_before": null,
+              "until": "2020-01-01T00:00:00Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.questions",
+      "method": "GET",
+      "path": "/api/v1/timelines/runs/{id}/questions",
+      "summary": "Questions written in a run.",
+      "group": "timelines",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": [
+              {
+                "bars": [
+                  {
+                    "closes_at": "cp2",
+                    "end_date": "2001-09-30T23:59:59Z",
+                    "key": "b1",
+                    "label": "By end of Sep 2001",
+                    "resolved": false,
+                    "resolved_yes": null,
+                    "submarket_id": 45553,
+                    "threshold_date": "2001-09-30T23:59:59Z",
+                    "threshold_decimal": null
+                  },
+                  {
+                    "closes_at": "cp2",
+                    "end_date": "2001-10-31T23:59:59Z",
+                    "key": "b2",
+                    "label": "By end of Oct 2001",
+                    "resolved": false,
+                    "resolved_yes": null,
+                    "submarket_id": 45554,
+                    "threshold_date": "2001-10-31T23:59:59Z",
+                    "threshold_decimal": null
+                  }
+                ],
+                "code": "p685-1",
+                "created_at_checkpoint": "cp1",
+                "created_on": "2001-09-01T00:00:00Z",
+                "market_type": "date",
+                "moderation": null,
+                "title": "Date the first widget factory opens"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.create_question",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/questions",
+      "summary": "Write a question in a run.",
+      "group": "timelines",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "p": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "p"
+                  ]
+                }
+              },
+              "basis": {
+                "type": "object",
+                "properties": {
+                  "reference_classes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "k": {
+                          "type": "number"
+                        },
+                        "n": {
+                          "type": "number"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "sources": {
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "evidence",
+                        "k",
+                        "n",
+                        "period",
+                        "sources"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "reference_classes"
+                ]
+              },
+              "horizon": {
+                "type": "object",
+                "properties": {
+                  "end": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "end"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "details": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "details",
+                  "source"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "basis",
+              "horizon",
+              "question",
+              "resolution",
+              "title"
+            ]
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "spec": {
+              "anchors": [
+                {
+                  "by": "2002-06",
+                  "p": 0.3
+                },
+                {
+                  "by": "2003-12",
+                  "p": 0.6
+                }
+              ],
+              "basis": {
+                "reference_classes": [
+                  {
+                    "description": "Announced widget factories that opened",
+                    "evidence": "Invented: 6 of 20 announced factories opened within two years.",
+                    "k": 6,
+                    "n": 20,
+                    "period": "1990-2000",
+                    "sources": []
+                  }
+                ]
+              },
+              "horizon": {
+                "end": "2003-12"
+              },
+              "question": "when",
+              "resolution": {
+                "details": "A factory counts once it ships its first widget.",
+                "source": "Reported by the widget trade gazette"
+              },
+              "title": "Date the first widget factory opens"
+            }
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "data": {
+              "code": "p679-1",
+              "created_at_checkpoint": "cp1",
+              "note": "Private to you in this run. It never joins the curriculum; a moderator may flag it, and its outcomes arrive as the run reaches them.",
+              "private": true,
+              "title": "Date the first widget factory opens",
+              "url": "http://localhost:4002/timelines/retro-354/m/p679-1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.preview_question",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/questions/preview",
+      "summary": "Check a run question's spec without creating it.",
+      "group": "timelines",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "p": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "p"
+                  ]
+                }
+              },
+              "basis": {
+                "type": "object",
+                "properties": {
+                  "reference_classes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "k": {
+                          "type": "number"
+                        },
+                        "n": {
+                          "type": "number"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "sources": {
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "evidence",
+                        "k",
+                        "n",
+                        "period",
+                        "sources"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "reference_classes"
+                ]
+              },
+              "horizon": {
+                "type": "object",
+                "properties": {
+                  "end": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "end"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "details": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "details",
+                  "source"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "basis",
+              "horizon",
+              "question",
+              "resolution",
+              "title"
+            ]
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "spec": {
+              "anchors": [
+                {
+                  "by": "2002-06",
+                  "p": 0.3
+                },
+                {
+                  "by": "2003-12",
+                  "p": 0.6
+                }
+              ],
+              "basis": {
+                "reference_classes": [
+                  {
+                    "description": "Announced widget factories that opened",
+                    "evidence": "Invented: 6 of 20 announced factories opened within two years.",
+                    "k": 6,
+                    "n": 20,
+                    "period": "1990-2000",
+                    "sources": []
+                  }
+                ]
+              },
+              "horizon": {
+                "end": "2003-12"
+              },
+              "question": "when",
+              "resolution": {
+                "details": "A factory counts once it ships its first widget.",
+                "source": "Reported by the widget trade gazette"
+              },
+              "title": "Date the first widget factory opens"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "curves": [
+                {
+                  "bars": [
+                    {
+                      "label": "By end of Sep 2001",
+                      "starting_probability": 0.035,
+                      "threshold_date": "2001-09-30T23:59:59Z"
+                    },
+                    {
+                      "label": "By end of Oct 2001",
+                      "starting_probability": 0.069,
+                      "threshold_date": "2001-10-31T23:59:59Z"
+                    }
+                  ],
+                  "curve": "main",
+                  "label": ""
+                }
+              ],
+              "issues": [],
+              "market": {
+                "background_info_html": "<p>The starting probabilities of this market were calculated from base rates: how often comparable things have happened.</p>\n<table><thead><tr><th>Reference class</th><th>What it shows</th><th>Sources</th></tr></thead><tbody>\n<tr><td>Announced widget factories that opened</td><td>6 of 20 (1990-2000)…",
+                "budget": 300,
+                "cumulative": true,
+                "end_date": "2003-12-31T23:59:59Z",
+                "resolution_criteria": "<p>Resolves using Reported by the widget trade gazette.</p>\n<p>A factory counts once it ships its first widget.</p>",
+                "status": "open",
+                "svelte_params": {},
+                "title": "Date the first widget factory opens",
+                "type": "date",
+                "visibility": "private",
+                "x_unit": "month"
+              },
+              "next_options": [
+                {
+                  "default": "one event",
+                  "example": "[{\"key\": \"ai_rd_high\", \"label\": \"AI R&D: high\"}]",
+                  "required": false,
+                  "set": false,
+                  "setting": "items",
+                  "values": null,
+                  "why": "Several related events in one market, each with its own curve and tab."
+                },
+                {
+                  "default": "none",
+                  "example": "{\"kind\": \"after_trigger\", \"trigger\": \"1,000 US troops deploy to Iran\", \"deadline\": \"2027-12-31\", \"window\": {\"months\": 24}, \"title_after\": \"Time for US forces to leave Iran\"}, with anchors like [{\"within\": 6, \"p\": 0.2}, {\"within\": 24, \"p\": 0.6}]",
+                  "required": false,
+                  "set": false,
+                  "setting": "condition",
+                  "values": [
+                    "none",
+                    "after_trigger"
+                  ],
+                  "why": "After a trigger: count time from an event that hasn't happened yet (\"months after 1,000 troops deploy\"). The market voids if the trigger doesn't happen by its deadline. Anchors then say how likely the event is within N periods of the trigger."
+                }
+              ],
+              "valid": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.moderate_question",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/questions/{code}/moderation",
+      "summary": "Accept or reject a run question (curriculum owners).",
+      "group": "timelines",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "accepted": true,
+            "note": "Clear and resolvable."
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "code": "p680-1",
+              "moderation": {
+                "note": "Clear and resolvable.",
+                "status": "accepted"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_run.resolve_question",
+      "method": "POST",
+      "path": "/api/v1/timelines/runs/{id}/questions/{code}/resolutions",
+      "summary": "Resolve a run question's bars.",
+      "group": "timelines",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "resolutions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string"
+                },
+                "resolves_at": {
+                  "type": "string"
+                },
+                "submarket_id": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "outcome",
+                "resolves_at",
+                "submarket_id"
+              ]
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "resolutions": [
+              {
+                "outcome": "yes",
+                "resolves_at": "cp4",
+                "submarket_id": 45553
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "code": "p685-1",
+              "resolved": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "retrocasting.append_items",
+      "method": "POST",
+      "path": "/api/v1/retrocasting/curricula/{slug}/versions/{version}/items",
+      "summary": "Add new questions to a published curriculum release mid-run.",
+      "group": "timeline authoring",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "envelope",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "introduced_at": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "market": {
+                  "type": "object",
+                  "properties": {
+                    "budget": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "cumulative": {
+                      "type": "boolean"
+                    },
+                    "resolution_criteria": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "x_unit": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "budget",
+                    "code",
+                    "cumulative",
+                    "resolution_criteria",
+                    "type",
+                    "x_unit"
+                  ]
+                },
+                "submarkets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "closes_at": {
+                        "type": "string"
+                      },
+                      "end_date": {
+                        "type": "string"
+                      },
+                      "initial_probability": {
+                        "type": "string"
+                      },
+                      "key": {
+                        "type": "string"
+                      },
+                      "resolved_yes": {
+                        "type": "boolean"
+                      },
+                      "resolves_at": {
+                        "type": "string"
+                      },
+                      "threshold_date": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "closes_at",
+                      "end_date",
+                      "initial_probability",
+                      "key",
+                      "resolves_at",
+                      "threshold_date"
+                    ]
+                  }
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "introduced_at",
+                "key",
+                "market",
+                "submarkets",
+                "title"
+              ]
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/$defs/envelope"
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "items": [
+              {
+                "introduced_at": "cp2",
+                "key": "p",
+                "market": {
+                  "budget": "100",
+                  "code": "wl4642p",
+                  "cumulative": true,
+                  "resolution_criteria": "First gadget shipped.",
+                  "type": "date",
+                  "x_unit": "date"
+                },
+                "submarkets": [
+                  {
+                    "closes_at": "cp3",
+                    "end_date": "2001-12-31T00:00:00Z",
+                    "initial_probability": "0.5",
+                    "key": "dec",
+                    "resolved_yes": true,
+                    "resolves_at": "cp3",
+                    "threshold_date": "2001-12-31T00:00:00Z"
+                  },
+                  {
+                    "closes_at": "cp4",
+                    "end_date": "2002-12-31T00:00:00Z",
+                    "initial_probability": "0.8",
+                    "key": "y02",
+                    "resolved_yes": true,
+                    "resolves_at": "cp4",
+                    "threshold_date": "2002-12-31T00:00:00Z"
+                  }
+                ],
+                "title": "When does gadget p ship?"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "added": [
+                {
+                  "appended_at": "2026-10-10T19:31:15Z",
+                  "key": "p",
+                  "title": "When does gadget p ship?"
+                }
+              ],
+              "slug": "retro-4674",
+              "status": "published",
+              "unresolved_past_bar_count": 0,
+              "version": "0.1",
+              "warnings": []
+            }
+          }
+        }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/curricula/{slug}/versions/{version}/items"
+      }
+    },
+    {
       "id": "retrocasting.runs",
       "method": "GET",
       "path": "/api/v1/retrocasting/curricula/{slug}/runs",
@@ -7755,6 +11373,12 @@
             ]
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "GET /api/v1/timelines/curricula/{slug}/runs"
       }
     },
     {
@@ -7826,6 +11450,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/curricula/{slug}/versions/{version}/resolutions"
       }
     },
     {
@@ -7861,6 +11491,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/curricula/{slug}/feed-items"
       }
     },
     {
@@ -7977,7 +11613,10 @@
                           "type": "boolean"
                         },
                         "submitted": {
-                          "type": "null"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "title": {
                           "type": "string"
@@ -8044,7 +11683,7 @@
                 "complete": false,
                 "curriculum": {
                   "slug": "retro-35812",
-                  "title": "Biology retrocasting 35812"
+                  "title": "Biology timeline 35812"
                 },
                 "pending_resolutions": [],
                 "questions": [
@@ -8066,6 +11705,12 @@
             ]
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "GET /api/v1/timelines/runs"
       }
     },
     {
@@ -8203,7 +11848,10 @@
                         "type": "boolean"
                       },
                       "submitted": {
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "title": {
                         "type": "string"
@@ -8283,6 +11931,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "GET /api/v1/timelines/runs/{id}"
       }
     },
     {
@@ -8531,7 +12185,7 @@
               "complete": false,
               "curriculum": {
                 "slug": "retro-35972",
-                "title": "Biology retrocasting 35972"
+                "title": "Biology timeline 35972"
               },
               "pending_resolutions": [],
               "questions": [
@@ -8552,6 +12206,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/advance"
       }
     },
     {
@@ -8628,6 +12288,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/resolutions"
       }
     },
     {
@@ -8680,6 +12346,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "GET /api/v1/timelines/runs/{id}/feed"
       }
     },
     {
@@ -8740,6 +12412,12 @@
             ]
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "GET /api/v1/timelines/runs/{id}/questions"
       }
     },
     {
@@ -8915,10 +12593,16 @@
               "note": "Private to you in this run. It never joins the curriculum; a moderator may flag it, and its outcomes arrive as the run reaches them.",
               "private": true,
               "title": "Date the first widget factory opens",
-              "url": "http://localhost:4002/retrocasting/retro-354/m/p679-1"
+              "url": "http://localhost:4002/timelines/retro-354/m/p679-1"
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/questions"
       }
     },
     {
@@ -9148,6 +12832,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/questions/preview"
       }
     },
     {
@@ -9196,6 +12886,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/questions/{code}/moderation"
       }
     },
     {
@@ -9262,6 +12958,12 @@
             }
           }
         }
+      },
+      "deprecated": {
+        "since": "2026-10-11",
+        "sunset": "2027-04-11",
+        "link": "https://antistatic.exchange/api.md#deprecated-routes",
+        "use": "POST /api/v1/timelines/runs/{id}/questions/{code}/resolutions"
       }
     },
     {

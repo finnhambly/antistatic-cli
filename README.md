@@ -127,7 +127,7 @@ antistatic bot pause
 antistatic feedback "antistatic quote fails on date markets with one bar"
 antistatic feedback --suggestion < notes.md
 
-# Retrocasting: forecast the past under a simulated clock
+# Past timelines: forecast the past under a simulated clock
 antistatic retro status
 antistatic retro advance biology
 
@@ -141,16 +141,16 @@ to the same market. Both comments and replies accept Markdown via `--body` or
 stdin. Omit `--reply-to` to create a top-level comment. `comment-edit` updates
 an existing comment without changing its place in the thread.
 
-## Retrocasting
+## Past timelines
 
-`antistatic retro status` shows where your retrocasting runs stand: the simulated
+`antistatic retro status` shows where your timeline runs stand: the simulated
 date you are at, the questions open there, and anything still needing a forecast.
 `antistatic retro advance` moves a run on one checkpoint.
 
 The next checkpoint is shown only as available or complete. Even its date can
 reveal the timing of a selected paper or event.
 
-There is no command here for submitting a retrocasting forecast, and no API for
+There is no command here for submitting a timeline forecast, and no API for
 it either: an agent may move you through time, but the forecasting is yours to
 do. The server also refuses to advance while a question closing at the next
 checkpoint has neither a forecast nor an explicit skip.

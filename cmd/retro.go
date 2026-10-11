@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// retroRun is the learner-facing view of a retrocasting run. The server reports
+// retroRun is the learner-facing view of a past timeline run. The server reports
 // whether another checkpoint exists, but deliberately exposes no metadata about
 // it: even the date can reveal the timing of a selected paper or event.
 type retroRun struct {
@@ -45,8 +45,8 @@ type retroRun struct {
 
 var retroCmd = &cobra.Command{
 	Use:   "retro",
-	Short: "Retrocasting: forecast the past under a simulated clock",
-	Long: `Retrocasting runs question sets from the past under a simulated clock.
+	Short: "Past timelines: forecast the past under a simulated clock",
+	Long: `A past timeline runs a curriculum from the past under a simulated clock.
 
 "antistatic retro status" shows where your runs stand. "antistatic retro advance"
 moves one forward in time.
@@ -58,14 +58,14 @@ UI, or "antistatic trade", for that.`,
 
 var retroStatusCmd = &cobra.Command{
 	Use:   "status [slug]",
-	Short: "Show where your retrocasting runs stand",
+	Short: "Show where your timeline runs stand",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireAuth(); err != nil {
 			return err
 		}
 
-		resp, err := client.Get("/retrocasting/runs", nil)
+		resp, err := client.Get("/timelines/runs", nil)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ var retroStatusCmd = &cobra.Command{
 		}
 
 		if len(runs) == 0 {
-			fmt.Println("No retrocasting runs. Visit /retrocasting to start one.")
+			fmt.Println("No timeline runs. Visit /timelines to start one.")
 			return nil
 		}
 
@@ -112,7 +112,7 @@ var retroStatusCmd = &cobra.Command{
 
 var retroAdvanceCmd = &cobra.Command{
 	Use:   "advance [slug]",
-	Short: "Move a retrocasting run forward one checkpoint",
+	Short: "Move a timeline run forward one checkpoint",
 	Long: `Move a run forward one checkpoint.
 
 The server refuses to advance while any question closing at that checkpoint has
@@ -158,7 +158,7 @@ learner's behalf to get past that: the point of the exercise is the forecast.`,
 			}
 		}
 
-		resp, err := client.Post(api.Path("/retrocasting/runs/{id}/advance", run.RunID), nil)
+		resp, err := client.Post(api.Path("/timelines/runs/{id}/advance", run.RunID), nil)
 		if err != nil {
 			return retroAdvanceError(err)
 		}
@@ -186,7 +186,7 @@ learner's behalf to get past that: the point of the exercise is the forecast.`,
 // resolveRetroRun picks the run to act on: an explicit --run id, a slug, or the
 // only run there is.
 func resolveRetroRun(runID int, args []string) (retroRun, error) {
-	resp, err := client.Get("/retrocasting/runs", nil)
+	resp, err := client.Get("/timelines/runs", nil)
 	if err != nil {
 		return retroRun{}, err
 	}
@@ -217,7 +217,7 @@ func resolveRetroRun(runID int, args []string) (retroRun, error) {
 
 	switch len(runs) {
 	case 0:
-		return retroRun{}, fmt.Errorf("no retrocasting runs; visit /retrocasting to start one")
+		return retroRun{}, fmt.Errorf("no timeline runs; visit /timelines to start one")
 	case 1:
 		return runs[0], nil
 	default:
