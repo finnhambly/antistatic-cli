@@ -21,6 +21,7 @@ Use --fuzzy to enable fuzzy code resolution (prefix matching).
 Resolution criteria are shown by default with a safe length cap.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		code := args[0]
 		fuzzy, _ := cmd.Flags().GetBool("fuzzy")
 		maxResolutionChars, _ := cmd.Flags().GetInt("max-resolution-chars")
@@ -98,6 +99,7 @@ Resolution criteria are shown by default with a safe length cap.`,
 }
 
 func init() {
+	addRunHeaderFlag(showCmd)
 	showCmd.Flags().Bool("fuzzy", false, "Enable fuzzy code matching (prefix search)")
 	showCmd.Flags().Int("max-resolution-chars", 800, "Max characters to print for resolution criteria")
 	showCmd.Flags().Int("max-background-chars", 600, "Max characters to print for background info")

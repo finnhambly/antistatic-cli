@@ -59,6 +59,7 @@ Use --limit/--max-comments/--max-body-chars to keep output compact.
 Use --cursor-inserted-at and --cursor-id to fetch the next page.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		if err := requireAuth(); err != nil {
 			return err
 		}
@@ -198,6 +199,7 @@ func flattenCommentRows(comments []commentItem, depth int, rows *[][]string) {
 }
 
 func init() {
+	addRunHeaderFlag(commentsCmd)
 	commentsCmd.Flags().String("sort", "newest", "Sort order: newest, oldest, hot, most_upvoted, most_tipped")
 	commentsCmd.Flags().String("filter", "all", "Filter: all, bot (no bots), following")
 	commentsCmd.Flags().IntP("limit", "l", 10, "Maximum root comments per page")

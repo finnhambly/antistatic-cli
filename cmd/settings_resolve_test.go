@@ -18,6 +18,7 @@ type recordedRequest struct {
 	path   string
 	query  string
 	asBot  string
+	run    string
 	body   map[string]interface{}
 }
 
@@ -39,7 +40,7 @@ func runAgainstServer(t *testing.T, command *cobra.Command, args []string, handl
 				}
 			}
 		}
-		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, asBot: r.Header.Get("X-Antistatic-As"), body: body})
+		requests = append(requests, recordedRequest{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, asBot: r.Header.Get("X-Antistatic-As"), run: r.Header.Get("X-Antistatic-Run"), body: body})
 		w.Header().Set("Content-Type", "application/json")
 		handler(w, r, body)
 	}))

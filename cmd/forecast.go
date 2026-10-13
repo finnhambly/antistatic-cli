@@ -26,6 +26,7 @@ Use --ascii --summary for compact one-line group summaries.
 Use --with-community to include community aggregates in output.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		code := args[0]
 		forParam, _ := cmd.Flags().GetString("for")
 		group, _ := cmd.Flags().GetString("group")
@@ -294,6 +295,7 @@ Use --with-community to include community aggregates in output.`,
 }
 
 func init() {
+	addRunHeaderFlag(forecastCmd)
 	forecastCmd.Flags().String("for", "", "Query specific point (date or threshold value)")
 	forecastCmd.Flags().String("group", "", "Filter by projection group (ISO id, fiscal label, or year; e.g. 2026-08, 2026/27, 2027)")
 	forecastCmd.Flags().String("year", "", "Filter by year")

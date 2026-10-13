@@ -55,6 +55,7 @@ For quote, pass one update with --submarket/--probability, or provide
 JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		if err := requireAuth(); err != nil {
 			return err
 		}
@@ -314,6 +315,7 @@ func requestSingleQuote(code string, update quoteUpdate) (quoteLine, error) {
 }
 
 func init() {
+	addRunHeaderFlag(quoteCmd)
 	quoteCmd.Flags().String("submarket", "", "Submarket reference for a single quote (sm_<id>)")
 	quoteCmd.Flags().Float64("probability", 0, "Target probability for a single quote (0..1)")
 	quoteCmd.Flags().Float64("from-probability", 0, "Optional starting probability override for a single quote (0..1)")

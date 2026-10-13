@@ -31,6 +31,8 @@ builds the bars, fits the starting curve and checks the house rules.
   antistatic market edit CODE --title "..."
                                         edit title, unit, items or (private)
                                         description
+  antistatic market extend CODE --to-threshold 70 --preview
+                                        more thresholds or periods
 
 Specs are JSON; pass a file path or - for stdin.`,
 }
@@ -300,7 +302,7 @@ func init() {
 	marketRequestPublicCmd.Flags().String("reason", "", "Why others should be able to forecast on it (sent to the admins)")
 	marketRequestPublicCmd.Flags().Bool("withdraw", false, "Withdraw your pending request")
 	marketRequestPublicCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt when withdrawing")
-	marketCmd.AddCommand(marketRecipeCmd, marketPreviewCmd, marketCreateCmd, marketRequestPublicCmd, marketListingCmd, newMarketEditCmd())
+	marketCmd.AddCommand(marketRecipeCmd, marketPreviewCmd, marketCreateCmd, marketRequestPublicCmd, marketListingCmd, newMarketEditCmd(), newMarketExtendCmd())
 	rootCmd.AddCommand(marketCmd)
 }
 

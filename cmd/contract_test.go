@@ -166,6 +166,7 @@ var contractDecodes = []struct {
 	{"POST /api/v1/sandbox/curricula/{slug}/drafts/{version}/validate", "data", func() interface{} { return &sandboxValidation{} }},
 	{"POST /api/v1/sandbox/curricula/{slug}/drafts/{version}/publish", "data", func() interface{} { return &sandboxPublished{} }},
 	{"POST /api/v1/sandbox/curricula/{slug}/members", "data", func() interface{} { return &sandboxMember{} }},
+	{"POST /api/v1/markets/{code}/extend", "data", func() interface{} { return &marketExtension{} }},
 }
 
 func TestResponseStructsMatchTheContract(t *testing.T) {
