@@ -498,7 +498,9 @@ func newSandboxStartCmd() *cobra.Command {
 				if p := str(d, "setup", "pacing"); p != "" {
 					fmt.Println("Turn lengths: " + p)
 				}
-				if get(d, "settings", "complete") == false {
+				if n := str(d, "next"); n != "" {
+					fmt.Println("Next: " + n)
+				} else if get(d, "settings", "complete") == false {
 					fmt.Println("Set it up before the first turn: antistatic sandbox setup " + str(d, "run_id") + " --bio ...")
 				}
 			})

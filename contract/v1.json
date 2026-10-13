@@ -17,7 +17,7 @@
   },
   "headers": {
     "x-antistatic-as": "`bot`: forecast or comment as your bot account (routes that list this header).",
-    "x-antistatic-run": "A sandbox run id: read the market inside your run, as of its clock (GET only; routes that list this header; also `?run_id=`).",
+    "x-antistatic-run": "A sandbox run id: read the market inside your run, as of its clock (routes that list this header; also `?run_id=`). On a future sandbox's questions, quote and forecast too (POST routes that list it); a past sandbox is read-only (403 `not_allowed_in_run`).",
     "user-agent": "Clients identify themselves, e.g. `antistatic-cli/1.2.3`."
   },
   "rate_limits": "Per account with a token, per IP without; read and write allowances are separate. Responses carry x-ratelimit-limit, x-ratelimit-remaining and x-ratelimit-scope; a 429 carries retry-after.",
@@ -5372,6 +5372,7 @@
       "description": "Name a bar with `submarket` (`sm_42`) or `submarket_id` and the probability with `to_p`; `from_p` defaults to your current forecast, or the starting probability. For several bars send `updates` (a JSON array as for positions). `cost` is points paid; `profit_if_yes`/`profit_if_no` what the change wins or loses; `draft_url` opens it on the market page as an unsaved draft.",
       "auth": "read",
       "headers": [
+        "x-antistatic-run",
         "x-antistatic-as"
       ],
       "rate_limit": "read",
@@ -5489,6 +5490,7 @@
       "description": "The bar updates a `targets`/`shift` request would make, and a `draft_url`. Works without a token (curves start from the house line); with one, it needs `read` and starts from your forecast.",
       "auth": "optional",
       "headers": [
+        "x-antistatic-run",
         "x-antistatic-as"
       ],
       "rate_limit": "read",
@@ -7297,6 +7299,10 @@
                             "curveballs",
                             "default_pace"
                           ]
+                        },
+                        "next": {
+                          "type": "string",
+                          "description": "What to do next with a future run: its setup round with the user and, with characters, how to play them."
                         }
                       }
                     }
@@ -11518,9 +11524,10 @@
       "path": "/api/v1/markets/{code}/positions",
       "summary": "Submit a forecast: bar probabilities, targets or a shift. Changes your forecast and points.",
       "group": "forecasting",
-      "description": "Send `updates` (`[{\"submarket\": \"sm_42\", \"probability\": 0.65}]`), `targets` and/or a `shift`. Each update moves your forecast on that bar; the cost follows the LMSR. Returns 201.\n\nBars on a curve stay in order: date curves don't fall from earlier to later dates, count curves don't rise with the threshold. A forecast that breaks the order is refused (422 `out_of_order`, naming the bars, with `keep_in_order_preview`) unless `rest_of_curve` is `keep_in_order` (other bars move only as far as order needs) or `interpolate` (bars between yours sit on a straight line). Your bars are kept as sent.\n\nA target (`{\"curve\": ..., \"threshold\" or \"label\": ..., \"probability\": ...}`) sets one point exactly and the rest of its curve follows by the same log-odds change; several targets interpolate between them. A `shift` (`{\"curve\": ..., \"quantile\": 0.5, \"by\": \"+10%\"}` or `\"to\"`) moves a quantile. `curve` can be left out when the market has one open curve. With targets or a shift, `rest_of_curve` defaults to `keep_in_order`.",
+      "description": "Send `updates` (`[{\"submarket\": \"sm_42\", \"probability\": 0.65}]`), `targets` and/or a `shift`. Each update moves your forecast on that bar; the cost follows the LMSR. Returns 201.\n\nBars on a curve stay in order: date curves don't fall from earlier to later dates, count curves don't rise with the threshold. A forecast that breaks the order is refused (422 `out_of_order`, naming the bars, with `keep_in_order_preview`) unless `rest_of_curve` is `keep_in_order` (other bars move only as far as order needs) or `interpolate` (bars between yours sit on a straight line). Your bars are kept as sent.\n\nA target (`{\"curve\": ..., \"threshold\" or \"label\": ..., \"probability\": ...}`) sets one point exactly and the rest of its curve follows by the same log-odds change; several targets interpolate between them. A `shift` (`{\"curve\": ..., \"quantile\": 0.5, \"by\": \"+10%\"}` or `\"to\"`) moves a quantile. `curve` can be left out when the market has one open curve. With targets or a shift, `rest_of_curve` defaults to `keep_in_order`.\n\nWith `X-Antistatic-Run`, the forecast is on a question of your future sandbox run (a goal is scored this way), as of its clock.",
       "auth": "write",
       "headers": [
+        "x-antistatic-run",
         "x-antistatic-as"
       ],
       "rate_limit": "write",
