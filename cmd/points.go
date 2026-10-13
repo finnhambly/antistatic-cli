@@ -21,6 +21,7 @@ Use --at (or --scenario) to query a specific resolution point.
 This reports scenario points, not an account balance.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		if err := requireAuth(); err != nil {
 			return err
 		}
@@ -83,6 +84,7 @@ This reports scenario points, not an account balance.`,
 }
 
 func init() {
+	addRunHeaderFlag(pointsCmd)
 	pointsCmd.Flags().String("at", "", "Query specific resolution point")
 	pointsCmd.Flags().String("scenario", "", "Alias of --at (scenario point for count/date markets)")
 	pointsCmd.Flags().Bool("all", false, "Also list outcomes already ruled out by resolved bars")

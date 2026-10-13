@@ -117,6 +117,7 @@ antistatic close my-market
 antistatic open my-market
 antistatic reopen my-market --threshold 2026-05
 antistatic market edit my-market --title "..." --unit MPs --item lab=Labour:#e4003b --dry-run
+antistatic market extend my-market --to-threshold 70 --anchors anchors.json --preview
 
 # Your bot: a second account you forecast and comment as
 antistatic bot create
@@ -128,8 +129,9 @@ antistatic feedback "antistatic quote fails on date markets with one bar"
 antistatic feedback --suggestion < notes.md
 
 # Sandboxes: forecast in a private world with its own clock
-antistatic sandbox status
+antistatic sandbox list
 antistatic sandbox advance biology
+antistatic sandbox turn 712 --action "Ask for a pay review"
 
 # Curriculum authoring: check, push and publish a sandbox manifest
 antistatic sandbox check manifest.json
@@ -153,14 +155,34 @@ checkpoint.
 The next checkpoint is shown only as available or complete. Even its date can
 reveal the timing of a selected paper or event.
 
-There is no command here for submitting a sandbox forecast, and no API for
-it either: an agent may move you through time, but the forecasting is yours to
-do. The server also refuses to advance while a question closing at the next
-checkpoint has neither a forecast nor an explicit skip.
+Past sandboxes are forecast by the learner on the site: an agent may move a
+run through time, but the forecasting is the learner's. The server refuses to
+advance while a question closing at the next checkpoint has neither a forecast
+nor an explicit skip. A future run's questions can be forecast with `--run`.
 
 ```sh
 antistatic sandbox status --json          # for agents
 antistatic sandbox advance --run 3 -y     # when you have several runs
+```
+
+### Future sandboxes
+
+```sh
+antistatic sandbox start --template wargame-your-life --bio "A nurse in Leeds"
+antistatic sandbox setup 712 --pace month --ends-on 2027-06-01
+antistatic sandbox ask 712 --info "When is my contract up?"
+antistatic sandbox turn 712 --action "Ask for a pay review" --until auto
+antistatic sandbox turn 712 --turn-id ID --answer q1="In March"   # retry, answering
+antistatic sandbox show 712 --audit
+antistatic sandbox orders 712 --character c2 --decree "..." --draft  # multiplayer
+antistatic sandbox wait 712 --since VERSION
+antistatic sandbox correct 712 --strike o3f9 --reason "..."
+antistatic sandbox question 712 spec.json --preview
+antistatic sandbox goal 712 p712-1 --liquidity 500
+antistatic trade p712-1 --run 712 --updates '[...]'   # also quote, show, odds, points, comments
+antistatic sandbox fork 712 --turn 3
+antistatic sandbox wrapup 712
+antistatic sandbox planner job pj_x       # client-planned runs; plan, draw, script, notes
 ```
 
 Sandboxes were called timelines, and the run commands lived under `retro`:

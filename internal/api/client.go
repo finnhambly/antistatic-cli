@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,9 @@ type Client struct {
 	// AsBot sends X-Antistatic-As: bot, so forecasting and commenting act as
 	// the caller's bot account (--as-bot, ANTISTATIC_AS_BOT=1).
 	AsBot bool
+	// Run sends X-Antistatic-Run: <id>, so market calls act inside that
+	// future sandbox run (--run).
+	Run int
 	// Version is sent as User-Agent: antistatic-cli/<Version>.
 	Version string
 	// Warn receives one line per deprecated route the server reports
@@ -50,6 +54,11 @@ func NewClient(cfg *config.Config) *Client {
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// SetTimeout changes the HTTP timeout, for long requests such as a sandbox turn.
+func (c *Client) SetTimeout(d time.Duration) {
+	c.httpClient.Timeout = d
 }
 
 // HasAuth returns true if a token is configured.
@@ -137,8 +146,11 @@ func (c *Client) Patch(path string, body interface{}) (*Response, error) {
 	return c.do("PATCH", path, nil, body)
 }
 
-// Delete performs a DELETE request.
-func (c *Client) Delete(path string) (*Response, error) {
+// Delete performs a DELETE request, with a JSON body when one is given.
+func (c *Client) Delete(path string, body ...interface{}) (*Response, error) {
+	if len(body) > 0 {
+		return c.do("DELETE", path, nil, body[0])
+	}
 	return c.do("DELETE", path, nil, nil)
 }
 
@@ -185,6 +197,9 @@ func (c *Client) send(method, path string, query url.Values, body []byte) (*Resp
 	}
 	if c.AsBot {
 		req.Header.Set("X-Antistatic-As", "bot")
+	}
+	if c.Run > 0 {
+		req.Header.Set("X-Antistatic-Run", strconv.Itoa(c.Run))
 	}
 
 	resp, err := c.httpClient.Do(req)

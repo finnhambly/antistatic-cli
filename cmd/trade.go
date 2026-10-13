@@ -33,6 +33,7 @@ Example:
   echo '{"updates": [...]}' | antistatic trade my-market`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyRunHeader(cmd)
 		if err := requireAuth(); err != nil {
 			return err
 		}
@@ -165,6 +166,7 @@ Example:
 }
 
 func init() {
+	addRunHeaderFlag(tradeCmd)
 	tradeCmd.Flags().String("updates", "", "Probability updates as JSON array")
 	tradeCmd.Flags().Bool("from-draft", false, "Treat input as draft planner output ({\"updates\": [...]})")
 	tradeCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")

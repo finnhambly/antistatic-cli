@@ -95,8 +95,19 @@ sandbox replays a curriculum, a future one is played forward turn by turn.
 
 Your runs:
 
-  antistatic sandbox status [slug]
+  antistatic sandbox list
+  antistatic sandbox status [slug]            past runs
   antistatic sandbox advance [slug] [--run ID]
+  antistatic sandbox show RUN [--audit]
+
+Future runs:
+
+  antistatic sandbox start --template KEY | --premise TEXT
+  antistatic sandbox setup RUN --bio TEXT --pace month
+  antistatic sandbox turn RUN --action TEXT [--until DATE|auto]
+  antistatic sandbox ask RUN --info TEXT
+  antistatic sandbox wait RUN
+  antistatic trade CODE --run RUN ...          forecast a run question
 
 Authoring curricula from a compact (schema_version 2) manifest:
 
@@ -112,13 +123,13 @@ Authoring curricula from a compact (schema_version 2) manifest:
 Manifests contain sealed answers, so these commands never print a manifest's
 values: each problem is shown as a path and a code.
 
-There is no command here for submitting a forecast, and that is deliberate: an
-agent may move you through time, but the forecasting is yours to do. Use the web
-UI, or "antistatic trade", for that.`,
+Past sandboxes are forecast by the learner on the site: an agent may move a
+run through time, but the forecasting is the learner's.`,
 	}
 	command.AddCommand(newSandboxCheckCmd(), newSandboxPushCmd(), newSandboxStatusCmd(),
 		newSandboxValidateCmd(), newSandboxPublishCmd(), newSandboxGrantCmd(), newSandboxDeleteCmd(),
 		newSandboxAdvanceCmd())
+	command.AddCommand(futureSandboxCommands()...)
 	return command
 }
 
@@ -739,10 +750,16 @@ func newSandboxPublishCmd() *cobra.Command {
 
 func newSandboxDeleteCmd() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "delete --curriculum SLUG --version MAJOR.MINOR",
-		Short: "Delete a draft and its stored parts",
-		Args:  cobra.NoArgs,
+		Use:   "delete (RUN -y | --curriculum SLUG --version MAJOR.MINOR)",
+		Short: "Delete a sandbox run, or a curriculum draft and its stored parts",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if cmd.Flags().Changed("curriculum") || cmd.Flags().Changed("version") {
+					return errors.New("give a run id or --curriculum, not both")
+				}
+				return runSandboxRunDelete(cmd, args[0])
+			}
 			if err := requireSandboxAuth(); err != nil {
 				return err
 			}
