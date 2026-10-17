@@ -34,7 +34,7 @@ func init() {
 Logs in first if needed. The first time, it shows a new 6-word recovery
 phrase and asks you to retype two of its words; after that, it asks for
 the phrase.`,
-		Args: cobra.NoArgs,
+		Args: usageArgs(cobra.NoArgs),
 		RunE: runEncrypt,
 	}
 	encryptCmd.Flags().Bool("no-browser", false, "Print the login URL instead of opening a browser")
@@ -42,7 +42,7 @@ the phrase.`,
 	unlockCmd := &cobra.Command{
 		Use:   "unlock",
 		Short: "Unlock encrypted wargames with your recovery phrase",
-		Args:  cobra.NoArgs,
+		Args:  usageArgs(cobra.NoArgs),
 		RunE:  runUnlock,
 	}
 	unlockCmd.Flags().Bool("no-browser", false, "Print the login URL instead of opening a browser")
@@ -50,7 +50,7 @@ the phrase.`,
 	lockCmd := &cobra.Command{
 		Use:   "lock",
 		Short: "Delete this machine's key for encrypted wargames",
-		Args:  cobra.NoArgs,
+		Args:  usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := forgetKeys(); err != nil {
 				return err
@@ -70,7 +70,7 @@ structured data).
 
 Exit codes: 2 bad arguments, 3 not logged in, 4 not set up, 5 locked,
 6 the tool refused the call.`,
-		Args: cobra.RangeArgs(1, 2),
+		Args: usageArgs(cobra.RangeArgs(1, 2)),
 		RunE: runCall,
 	}
 
@@ -131,6 +131,11 @@ func writeKeys(keys map[string]savedKey) error {
 func keySlot(userID string) string { return client.BaseURL() + " " + userID }
 
 func saveKey(setup e2e.Setup, raw e2e.Raw) error {
+	unlock, err := config.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	keys, err := readKeys()
 	if err != nil {
 		return err
@@ -141,6 +146,11 @@ func saveKey(setup e2e.Setup, raw e2e.Raw) error {
 
 // forgetKeys deletes the saved keys for this server.
 func forgetKeys() error {
+	unlock, err := config.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	keys, err := readKeys()
 	if err != nil {
 		return err
@@ -229,6 +239,9 @@ func toolErr(err error) error {
 
 var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
 
+// The phrase is shown on stdout: only to a terminal, never a file or pipe.
+var stdoutIsTerminal = func() bool { return term.IsTerminal(int(os.Stdout.Fd())) }
+
 // readSecret reads a line without echo; readLine with it.
 var readSecret = func(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
@@ -249,7 +262,7 @@ var readLine = func(prompt string) (string, error) {
 }
 
 func needTerminal() error {
-	if !stdinIsTerminal() {
+	if !stdinIsTerminal() || !stdoutIsTerminal() {
 		return exitErr(ExitUsage, "this asks for your recovery phrase: %s", encryptHint)
 	}
 	return nil
@@ -313,11 +326,16 @@ func unlock(setup e2e.Setup) error {
 		}
 		raw, err := e2e.UnlockRaw(phrase, setup, e2e.Iterations)
 		if err != nil {
+			// Never echo what was typed (a word, or a suggestion near it).
+			msg := "wrong recovery phrase"
+			if !errors.Is(err, e2e.ErrWrongPhrase) {
+				msg = "not a recovery phrase (6 words from the list)"
+			}
 			if tries < 2 {
-				fmt.Fprintf(os.Stderr, "%s. Try again.\n", capitalize(err.Error()))
+				fmt.Fprintf(os.Stderr, "%s. Try again.\n", capitalize(msg))
 				continue
 			}
-			return err
+			return errors.New(msg)
 		}
 		if err := saveKey(setup, raw); err != nil {
 			return err

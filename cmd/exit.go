@@ -3,6 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 // Exit codes agents act on.
@@ -34,7 +37,20 @@ func ExitCode(err error) int {
 	if errors.As(err, &e) {
 		return e.Code
 	}
+	if strings.HasPrefix(err.Error(), "unknown command") {
+		return ExitUsage
+	}
 	return ExitFailure
+}
+
+// usageArgs makes an argument check's error a usage error (exit 2).
+func usageArgs(check cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := check(cmd, args); err != nil {
+			return &ExitError{Code: ExitUsage, Err: err}
+		}
+		return nil
+	}
 }
 
 const encryptHint = `run "antistatic encrypt" in your terminal`

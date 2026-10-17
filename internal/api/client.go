@@ -47,13 +47,30 @@ func (c *Client) UserAgent() string {
 // NewClient creates an API client from the loaded config.
 func NewClient(cfg *config.Config) *Client {
 	return &Client{
-		baseURL: strings.TrimRight(cfg.ResolveBaseURL(), "/"),
-		token:   cfg.ResolveToken(),
-		cfg:     cfg,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+		baseURL:    strings.TrimRight(cfg.ResolveBaseURL(), "/"),
+		token:      cfg.ResolveToken(),
+		cfg:        cfg,
+		httpClient: NoRedirectClient(30 * time.Second),
+	}
+}
+
+// NoRedirectClient never follows redirects: requests carrying a token, a
+// code or a refresh token must not be replayed to another URL.
+func NoRedirectClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
 	}
+}
+
+// redirectError is a 3xx answer, which no API, OAuth or MCP route sends.
+func redirectError(resp *http.Response) error {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return fmt.Errorf("unexpected redirect (HTTP %d) to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	return nil
 }
 
 // SetTimeout changes the HTTP timeout, for long requests such as a sandbox turn.
@@ -213,6 +230,9 @@ func (c *Client) send(method, path string, query url.Values, body []byte) (*Resp
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
+	if err := redirectError(resp); err != nil {
+		return nil, err
+	}
 	c.warnDeprecated(method, path, resp.Header)
 
 	if resp.StatusCode >= 400 {
@@ -290,12 +310,32 @@ func (c *Client) ensureToken() error {
 		return nil
 	}
 
-	if c.cfg.OAuthClientID == "" || c.cfg.OAuthRefreshToken == "" {
+	if c.cfg.OAuthClientID == "" || c.cfg.OAuthRefreshToken == "" || !c.cfg.BoundTo(c.baseURL) {
 		return nil
 	}
 
 	if !c.shouldRefreshOAuthToken() {
 		return nil
+	}
+
+	// One refresh at a time across processes: a refresh token rotates on
+	// use, and redeeming a used one revokes the login. Under the lock, read
+	// the login again: another process may have refreshed it already.
+	unlock, err := config.Lock()
+	if err != nil {
+		return fmt.Errorf("locking config: %w", err)
+	}
+	defer unlock()
+	if fresh, err := config.Load(); err == nil {
+		if !fresh.BoundTo(c.baseURL) || fresh.OAuthRefreshToken == "" {
+			return ErrLoginRequired
+		}
+		c.cfg.Token, c.cfg.OAuthRefreshToken, c.cfg.OAuthTokenExpiry = fresh.Token, fresh.OAuthRefreshToken, fresh.OAuthTokenExpiry
+		c.cfg.OAuthClientID, c.cfg.AuthServer = fresh.OAuthClientID, fresh.AuthServer
+		c.token = fresh.Token
+		if !c.shouldRefreshOAuthToken() {
+			return nil
+		}
 	}
 
 	return c.refreshOAuthToken()
@@ -338,6 +378,9 @@ func (c *Client) refreshOAuthToken() error {
 		return fmt.Errorf("refreshing OAuth token: %w", err)
 	}
 	defer resp.Body.Close()
+	if err := redirectError(resp); err != nil {
+		return err
+	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -73,3 +73,61 @@ func TestPutRawSendsBytesAndErrorsCarryPathAndParts(t *testing.T) {
 		t.Fatalf("err = %#v", err)
 	}
 }
+
+func TestNoRedirectsWithCredentials(t *testing.T) {
+	var leaked bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { leaked = true }))
+	defer other.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	t.Setenv("ANTISTATIC_TOKEN", "secret")
+	t.Setenv("ANTISTATIC_URL", server.URL)
+	c := NewClient(&config.Config{})
+	if _, err := c.CallTool("antistatic_list_sandboxes", nil); err == nil || !strings.Contains(err.Error(), "redirect") {
+		t.Fatalf("MCP: %v", err)
+	}
+	if _, err := c.Get("/markets", nil); err == nil || !strings.Contains(err.Error(), "redirect") {
+		t.Fatalf("API: %v", err)
+	}
+	if leaked {
+		t.Fatal("followed a redirect with the token")
+	}
+}
+
+func TestRefreshReadsTheLoginAgainUnderTheLock(t *testing.T) {
+	var refreshes int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			refreshes++
+			w.WriteHeader(400)
+			w.Write([]byte(`{"error":"invalid_grant"}`))
+		default:
+			if r.Header.Get("Authorization") != "Bearer fresh" {
+				t.Errorf("sent %q", r.Header.Get("Authorization"))
+			}
+			w.Write([]byte(`{"data":{}}`))
+		}
+	}))
+	defer server.Close()
+	t.Setenv("ANTISTATIC_TOKEN", "")
+	t.Setenv("ANTISTATIC_URL", server.URL)
+	t.Setenv("ANTISTATIC_CONFIG_DIR", t.TempDir())
+
+	stale := &config.Config{Token: "old", AuthServer: server.URL, OAuthClientID: "c", OAuthRefreshToken: "r1", OAuthTokenExpiry: "2000-01-01T00:00:00Z"}
+	c := NewClient(stale)
+	// Another process refreshed meanwhile and saved the rotated login.
+	fresh := *stale
+	fresh.Token, fresh.OAuthRefreshToken, fresh.OAuthTokenExpiry = "fresh", "r2", "2999-01-01T00:00:00Z"
+	if err := fresh.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Get("/markets", nil); err != nil {
+		t.Fatal(err)
+	}
+	if refreshes != 0 {
+		t.Fatalf("redeemed the used refresh token %d times", refreshes)
+	}
+}

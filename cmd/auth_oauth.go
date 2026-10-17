@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/finnhambly/antistatic-cli/internal/api"
+	"github.com/finnhambly/antistatic-cli/internal/config"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -96,7 +99,8 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 
 	resultCh := make(chan oauthCallbackResult, 1)
 	httpServer := &http.Server{
-		Handler: callbackHandler(resultCh),
+		Handler:           callbackHandler(resultCh, state, baseURL),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	serverDone := make(chan error, 1)
@@ -144,14 +148,6 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 		return fmt.Errorf("authorization failed: %s", callback.Error)
 	}
 
-	if callback.State == "" || callback.State != state {
-		return fmt.Errorf("authorization failed: state mismatch")
-	}
-
-	if err := checkOAuthIssuer(baseURL, callback.Issuer); err != nil {
-		return err
-	}
-
 	if callback.Code == "" {
 		return fmt.Errorf("authorization failed: missing code")
 	}
@@ -175,7 +171,13 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 		output.Warn("OAuth response did not include a refresh token; you may need to log in again when the access token expires.")
 	}
 
+	unlock, err := config.Lock()
+	if err != nil {
+		return fmt.Errorf("locking config: %w", err)
+	}
+	defer unlock()
 	cfg.Token = tokenPayload.AccessToken
+	cfg.AuthServer = baseURL
 	cfg.OAuthClientID = clientID
 	cfg.OAuthRefreshToken = tokenPayload.RefreshToken
 	cfg.OAuthTokenExpiry = tokenExpiryString(tokenPayload.ExpiresIn)
@@ -188,10 +190,10 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 }
 
 // checkOAuthIssuer guards against authorization-server mix-up (RFC 9207):
-// when the server says who issued the code, it must be the server we asked.
+// the server always says who issued the code, and it must be the server we asked.
 func checkOAuthIssuer(baseURL, issuer string) error {
 	if issuer == "" {
-		return nil
+		return fmt.Errorf("authorization failed: no issuer in the response")
 	}
 	if strings.TrimRight(issuer, "/") != strings.TrimRight(baseURL, "/") {
 		return fmt.Errorf("authorization failed: response came from %s, expected %s", issuer, baseURL)
@@ -215,12 +217,14 @@ func exchangeOAuthCode(baseURL, clientID, redirectURI, code, codeVerifier string
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "antistatic-cli/"+Version)
 
-	client := &http.Client{Timeout: oauthHTTPTimeout}
-	resp, err := client.Do(req)
+	resp, err := api.NoRedirectClient(oauthHTTPTimeout).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("exchanging OAuth code: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return nil, fmt.Errorf("OAuth token exchange failed: unexpected redirect (HTTP %d)", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -239,7 +243,9 @@ func exchangeOAuthCode(baseURL, clientID, redirectURI, code, codeVerifier string
 	return &out, nil
 }
 
-func callbackHandler(resultCh chan<- oauthCallbackResult) http.Handler {
+// callbackHandler takes the first callback with the right state (and
+// issuer); anything else is refused and the login keeps waiting.
+func callbackHandler(resultCh chan<- oauthCallbackResult, state, baseURL string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(oauthCallbackPath, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -250,19 +256,24 @@ func callbackHandler(resultCh chan<- oauthCallbackResult) http.Handler {
 			Error:            q.Get("error"),
 			ErrorDescription: q.Get("error_description"),
 		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if subtle.ConstantTimeCompare([]byte(result.State), []byte(state)) != 1 || checkOAuthIssuer(baseURL, result.Issuer) != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprint(w, "<html><body><h2>Not this login.</h2></body></html>")
+			return
+		}
 
 		select {
 		case resultCh <- result:
 		default:
 		}
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if result.Error != "" {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprint(w, "<html><body><h2>Authentication failed.</h2><p>You can close this tab and return to the terminal.</p></body></html>")
+			_, _ = fmt.Fprint(w, "<html><body><h2>Login failed.</h2><p>You can close this tab.</p></body></html>")
 			return
 		}
-		_, _ = fmt.Fprint(w, "<html><body><h2>Authentication complete.</h2><p>You can close this tab and return to the terminal.</p></body></html>")
+		_, _ = fmt.Fprint(w, "<html><body><h2>Logged in.</h2><p>You can close this tab and return to the terminal.</p></body></html>")
 	})
 	return mux
 }

@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -21,6 +24,67 @@ type Config struct {
 	OAuthClientID     string `json:"oauth_client_id,omitempty"`
 	OAuthRefreshToken string `json:"oauth_refresh_token,omitempty"`
 	OAuthTokenExpiry  string `json:"oauth_token_expiry,omitempty"`
+	// AuthServer is the server the saved login is for; it is sent nowhere else.
+	AuthServer string `json:"auth_server,omitempty"`
+}
+
+// Lock takes the config directory's lock, across processes, for a
+// read-modify-write of the login or the saved keys. Call the returned
+// function to release it. It isn't reentrant.
+func Lock() (func(), error) {
+	dir, err := configDir()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockFile(f); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return func() {
+		_ = unlockFile(f)
+		f.Close()
+	}, nil
+}
+
+// NormalizeURL is a server URL without trailing slashes.
+func NormalizeURL(u string) string { return strings.TrimRight(u, "/") }
+
+// BoundTo reports whether the saved login belongs to the server base. A
+// login saved before logins were bound is the default server's.
+func (c *Config) BoundTo(base string) bool {
+	server := c.AuthServer
+	if server == "" {
+		server = DefaultBaseURL
+	}
+	return NormalizeURL(server) == NormalizeURL(base)
+}
+
+// CheckServerURL refuses a server URL that isn't https, except on loopback.
+func CheckServerURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("invalid server URL %q", raw)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := u.Hostname()
+		if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+			return nil
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			return nil
+		}
+	}
+	return fmt.Errorf("server URL %q must use https (http only for localhost)", raw)
 }
 
 // configDir returns the OS-appropriate config directory.
@@ -114,10 +178,14 @@ func WritePrivate(path string, data []byte) error {
 }
 
 // ResolveToken returns the effective token, preferring the ANTISTATIC_TOKEN
-// environment variable over the saved config.
+// environment variable over the saved login, which is used only for the
+// server it was made for.
 func (c *Config) ResolveToken() string {
 	if t := os.Getenv("ANTISTATIC_TOKEN"); t != "" {
 		return t
+	}
+	if !c.BoundTo(c.ResolveBaseURL()) {
+		return ""
 	}
 	return c.Token
 }
@@ -137,6 +205,7 @@ func (c *Config) ResolveBaseURL() string {
 
 // ClearOAuthState removes saved OAuth session fields.
 func (c *Config) ClearOAuthState() {
+	c.AuthServer = ""
 	c.OAuthClientID = ""
 	c.OAuthRefreshToken = ""
 	c.OAuthTokenExpiry = ""

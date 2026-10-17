@@ -68,8 +68,8 @@ func TestBuildAuthorizeURLUsesMetadataClientID(t *testing.T) {
 func TestCheckOAuthIssuer(t *testing.T) {
 	base := "https://antistatic.exchange"
 
-	if err := checkOAuthIssuer(base, ""); err != nil {
-		t.Errorf("missing iss should be accepted, got %v", err)
+	if err := checkOAuthIssuer(base, ""); err == nil {
+		t.Error("missing iss accepted")
 	}
 	if err := checkOAuthIssuer(base, "https://antistatic.exchange/"); err != nil {
 		t.Errorf("matching iss rejected: %v", err)

@@ -3,7 +3,6 @@ package e2e
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -507,6 +506,3 @@ func (s *schema) encryptCall(k *Keys, tool string, args any) (any, error) {
 		return k.Encrypt(v), nil
 	}, nil)
 }
-
-// ErrNotJSON is arguments that aren't a JSON object.
-var ErrNotJSON = errors.New("arguments must be a JSON object")

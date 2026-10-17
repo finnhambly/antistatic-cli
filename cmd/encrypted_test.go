@@ -138,8 +138,10 @@ func newCLIEnv(t *testing.T) *cliEnv {
 	t.Setenv("ANTISTATIC_URL", site.server.URL)
 	t.Setenv("ANTISTATIC_TOKEN", "")
 
-	prevOpen, prevTTY, prevSecret, prevLine := openBrowser, stdinIsTerminal, readSecret, readLine
-	t.Cleanup(func() { openBrowser, stdinIsTerminal, readSecret, readLine = prevOpen, prevTTY, prevSecret, prevLine })
+	prevOpen, prevTTY, prevOut, prevSecret, prevLine := openBrowser, stdinIsTerminal, stdoutIsTerminal, readSecret, readLine
+	t.Cleanup(func() {
+		openBrowser, stdinIsTerminal, stdoutIsTerminal, readSecret, readLine = prevOpen, prevTTY, prevOut, prevSecret, prevLine
+	})
 	// The browser: follow the authorize redirect to the CLI's callback.
 	openBrowser = func(u string) error {
 		go func() {
@@ -151,6 +153,7 @@ func newCLIEnv(t *testing.T) *cliEnv {
 		return nil
 	}
 	stdinIsTerminal = func() bool { return true }
+	stdoutIsTerminal = func() bool { return true }
 	return &cliEnv{t: t, site: site, dir: dir}
 }
 
@@ -312,6 +315,29 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 	_, err = e.run(`{"title": "x"}`, "call", "antistatic_start_sandbox")
 	if ExitCode(err) != ExitNotLoggedIn {
 		t.Fatalf("revoked: %v", err)
+	}
+
+	// The login is the server's it was made for: another server gets no token.
+	e.site.refreshOK = true
+	e.site.access = "access-1rr"
+	site2 := newFakeSite(t)
+	t.Setenv("ANTISTATIC_URL", site2.server.URL)
+	_, err = e.run(`{"title": "x"}`, "call", "antistatic_start_sandbox")
+	if ExitCode(err) != ExitNotLoggedIn || len(site2.calls) != 0 {
+		t.Fatalf("other server: %v, %d calls", err, len(site2.calls))
+	}
+	t.Setenv("ANTISTATIC_URL", "http://example.com")
+	if _, err = e.run("", "status"); ExitCode(err) != ExitUsage {
+		t.Fatalf("plain http: %v", err)
+	}
+	t.Setenv("ANTISTATIC_URL", e.site.server.URL)
+
+	// Usage errors are exit 2.
+	if _, err = e.run("", "call"); ExitCode(err) != ExitUsage {
+		t.Fatalf("no tool: %v", err)
+	}
+	if _, err = e.run("", "call", "antistatic_get_sandbox", "--nope"); ExitCode(err) != ExitUsage {
+		t.Fatalf("unknown flag: %v", err)
 	}
 
 	// logout locks too.

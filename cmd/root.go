@@ -39,6 +39,9 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
+		if err := config.CheckServerURL(cfg.ResolveBaseURL()); err != nil {
+			return &ExitError{Code: ExitUsage, Err: err}
+		}
 		client = api.NewClient(cfg)
 		client.Version = Version
 		client.AsBot = asBot || envAsBot()
@@ -51,6 +54,9 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return &ExitError{Code: ExitUsage, Err: err}
+	})
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output raw JSON (default when stdout is not a terminal)")
 	rootCmd.PersistentFlags().BoolVar(&asBot, "as-bot", false, "Forecast and comment as your bot (or ANTISTATIC_AS_BOT=1)")
 	rootCmd.Version = Version

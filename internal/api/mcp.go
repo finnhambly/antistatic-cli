@@ -63,12 +63,14 @@ func (c *Client) CallTool(tool string, args []byte) (*MCPResult, error) {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("User-Agent", c.UserAgent())
 
-	hc := &http.Client{Timeout: MCPTimeout}
-	resp, err := hc.Do(req)
+	resp, err := NoRedirectClient(MCPTimeout).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s: request to %s failed: %w", tool, c.baseURL, err)
 	}
 	defer resp.Body.Close()
+	if err := redirectError(resp); err != nil {
+		return nil, fmt.Errorf("%s: %w", tool, err)
+	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%s: reading response: %w", tool, err)
