@@ -76,6 +76,14 @@
       {"array": ["when_anchor", "how_much_anchor"]},
       {"map": {"keys": "key", "values": {"array": ["when_anchor", "how_much_anchor"]}}}
     ],
+    "valence_value": [
+      {"enum": ["higher", "lower", "sooner", "later", "neutral"]},
+      {"object": {"target": {"array": "number"}}}
+    ],
+    "valence": [
+      {"ref": "valence_value"},
+      {"map": {"keys": "key", "values": {"ref": "valence_value"}}}
+    ],
     "item": {"object": {"key": "key", "label": "text", "color": "colour", "player_choice": "bool", "anchors": {"array": ["when_anchor", "how_much_anchor"]}, "basis": {"ref": "basis"}}},
     "spec": {"object": {
       "question": {"enum": ["when", "how_much"]},
@@ -86,6 +94,8 @@
       "running": "bool",
       "player_choice": "bool",
       "persistence": "number",
+      "valence": {"ref": "valence"},
+      "tier": {"enum": ["terminal", "instrumental"]},
       "resets": {"enum": ["never", "yearly"]},
       "budget": "number",
       "horizon": {"object": {"start": ["date", "period"], "end": ["date", "period"], "cadence": {"enum": ["day", "week", "month", "quarter", "year"]}, "dates": {"array": "date"}}},
@@ -145,6 +155,7 @@
       "draw": {"object": {"action": "text", "label": "text", "basis": "text", "p": "number", "visible": "bool"}},
       "sample": {"object": {"action": "text", "label": "text", "basis": "text", "visible": "bool", "outcomes": {"array": {"object": {"outcome": [{"enum": ["done", "partly", "slipped", "unknown"]}, "text"], "p": "number"}}}}},
       "adjust": {"object": {"action": "text", "basis": "text", "factor": "number", "item": "key", "market": "run_question", "value": "number", "at": "date", "evidence": ["observation", "text"], "lasting": "bool", "shift": "number", "noise": "number",
+        "research": {"object": {"anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}}},
         "given": {"object": {"market": "run_question", "item": "key", "outcome": {"enum": ["yes", "no"]}, "keep_marginal": "bool"}}}},
       "settle_item": {"object": {"basis": "text", "date": "date", "evidence": ["observation", "text"], "item": "key", "market": "run_question", "outcome": {"enum": ["yes", "no", "not_before"]}}},
       "correlate": {"object": {"basis": "text", "market": "run_question", "item": "key", "with": "run_question", "with_item": "key", "rho": "number", "lift": "number", "by": "date", "remove": "bool"}},
@@ -184,7 +195,7 @@
     "antistatic_ask_sandbox": {"run_id": "int", "character": "char", "entries": {"array": {"ref": "ask_entry"}}},
     "antistatic_submit_orders": {"run_id": "int", "character": "char", "submit": "bool", "entries": {"array": {"ref": "order_entry"}}},
     "antistatic_correct_sandbox": {"run_id": "int", "strike": "observation", "reopen": "run_question", "item": "key", "reason": "text", "fact": "text"},
-    "antistatic_set_sandbox_goal": {"run_id": "int", "code": "run_question", "liquidity": "int", "remove": "bool"},
+    "antistatic_set_sandbox_goal": {"run_id": "int", "code": "run_question", "liquidity": "int", "tier": {"enum": ["terminal", "instrumental"]}, "valence": {"ref": "valence"}, "remove": "bool"},
     "antistatic_advance_sandbox": {"run_id": "int", "by": {"enum": ["week", "month", "year"]}},
     "antistatic_rename_sandbox": {"run_id": "int", "name": "text"},
     "antistatic_archive_sandbox": {"run_id": "int", "archived": "bool"},
