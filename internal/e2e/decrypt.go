@@ -5,8 +5,20 @@ import (
 	"strings"
 )
 
-// Locked stands in for a token that isn't this key's.
-const Locked = "🔒"
+// Unreadable stands in for a token that doesn't open (not this key's, its
+// context or handle changed), isn't the run family's the call expects, or
+// a handle the server didn't expand: never other text.
+const Unreadable = "⚠ Unreadable"
+
+var handleRe = regexp.MustCompile(`§e:[0-9a-f]{32}§`)
+
+// InFamily is the keys reading a run family's results: tokens of another
+// family read Unreadable. "" reads any family's (a list of runs).
+func (k *Keys) InFamily(family string) *Keys {
+	c := *k
+	c.family = family
+	return &c
+}
 
 var sentenceEnd = regexp.MustCompile(`[.!?…][)\]"'’”»]*$`)
 
@@ -15,6 +27,9 @@ var sentenceEnd = regexp.MustCompile(`[.!?…][)\]"'’”»]*$`)
 // In an html block (the run card's widget, its data JSON in a script), a
 // plaintext is escaped as a JSON string's content.
 func (k *Keys) DecryptText(text string) string {
+	if strings.Contains(text, "§e:") {
+		text = handleRe.ReplaceAllString(text, Unreadable)
+	}
 	if !strings.Contains(text, TokenPrefix) {
 		return text
 	}
@@ -48,10 +63,11 @@ func (k *Keys) decryptText(text string, inScript bool) string {
 		}
 		pt, ok := plain[p.Token]
 		if !ok {
-			var err error
-			if pt, err = k.Decrypt(p.Token); err != nil {
-				pt = Locked
+			text, t, err := k.Decrypt(p.Token)
+			if err != nil || (k.family != "" && t.Family != k.family) {
+				text = Unreadable
 			}
+			pt = text
 			if inScript {
 				q := EncodeJSON(pt, 0)
 				pt = strings.ReplaceAll(q[1:len(q)-1], "</", `<\/`)

@@ -1,17 +1,25 @@
-// Package e2e is encrypted wargames' crypto, format 2, byte-for-byte the
+// Package e2e is encrypted wargames' crypto, format 3, byte-for-byte the
 // site's (assets/js/e2e_crypto.js in antistatic_exchange; the vectors in
 // testdata are checked on both sides).
+//
+// The key setup is format 2's, unchanged:
 //
 //	phrase  6 EFF words, compared without hyphens, joined by spaces
 //	master  32 random bytes, made once at setup
 //	kek     HMAC-SHA256(PBKDF2-SHA256(phrase, salt 16 bytes, 600000), "antistatic/2/wrap")
-//	wrapped "wrap2:" + base64(iv 12 || AES-256-GCM(kek, master; aad)), 60 bytes
-//	enc,ivk HMAC-SHA256(master, "antistatic/2/enc" | "antistatic/2/iv")
-//	token   "enc2:" + base64(iv 12 || AES-256-GCM(enc, padded; aad)), with
-//	        padded = uint32 length || utf-8 text || zeros, to a bucket,
-//	        iv = HMAC-SHA256(ivk, aad || 0 || text)[0..12)
-//	aad     "antistatic/2/<user id>"
-//	check   the token of "antistatic": the server keeps salt, wrapped and check.
+//	wrapped "wrap2:" + base64(iv 12 || AES-256-GCM(kek, master; "antistatic/2/<user id>")), 60 bytes
+//	raw     Enc, IV = HMAC-SHA256(master, "antistatic/2/enc" | "antistatic/2/iv"): what's saved
+//	check   "enc2:" + base64(iv 12 || AES-256-GCM(raw.Enc, padded "antistatic"; "antistatic/2/<user id>"))
+//
+// Content, format 3:
+//
+//	keys    text = HMAC(raw.Enc, "antistatic/3/text"), mac = HMAC(raw.IV, "antistatic/3/mac")
+//	family  "f" + 16 random hex, made when a run starts; its forks share it
+//	ctx     family "." kind (the field's schema path without indices or "antistatic_")
+//	handle  32 hex of HMAC(mac, "antistatic/3/handle" || 0 || family || 0 || text)
+//	token   "enc3:" handle ":" ctx ":" base64(nonce 12 || AES-256-GCM(text, padded; aad)),
+//	        nonce random, padded = uint32 length || utf-8 text || zeros, to a bucket
+//	aad     "antistatic/3/<user id>/" ctx "/" handle
 package e2e
 
 import (
@@ -32,17 +40,42 @@ import (
 )
 
 const (
-	Format      = 2
+	Format      = 3
 	Iterations  = 600000
 	CheckText   = "antistatic"
 	MinBucket   = 32
 	step        = 65536
-	TokenPrefix = "enc2:"
+	TokenPrefix = "enc3:"
+	CheckPrefix = "enc2:"
 	WrapPrefix  = "wrap2:"
 )
 
 // ErrWrongPhrase is a phrase that doesn't open the account's key.
 var ErrWrongPhrase = errors.New("wrong recovery phrase")
+
+// FamilyRe is a run family id.
+var FamilyRe = regexp.MustCompile(`^f[0-9a-f]{16}$`)
+
+// A token's handle and context, before its base64.
+var headRe = regexp.MustCompile(`^([0-9a-f]{32}):(f[0-9a-f]{16})\.([a-z0-9_]+(?:\.[a-z0-9_]+)*):`)
+
+var indexRe = regexp.MustCompile(`\[\d+\]`)
+
+// KindOf is a field's kind from its schema path: no indices, no "antistatic_".
+var keyRe = regexp.MustCompile(`(?s) key( .*)?$`)
+
+func KindOf(path string) string {
+	return strings.TrimPrefix(keyRe.ReplaceAllString(indexRe.ReplaceAllString(path, ""), "._key"), "antistatic_")
+}
+
+// NewFamily is a new run family id: "f" + 16 random hex.
+func NewFamily() (string, error) {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return "f" + hex.EncodeToString(b), nil
+}
 
 // Bucket is the padded size for n bytes: powers of two from 32 bytes, then 64 KiB steps.
 func Bucket(n int) int {
@@ -81,7 +114,12 @@ func hmacSHA256(key []byte, parts ...[]byte) []byte {
 	return m.Sum(nil)
 }
 
-func aad(userID string) []byte { return []byte(fmt.Sprintf("antistatic/%d/%s", Format, userID)) }
+// setupAad binds the wrapped key and the check to the account.
+func setupAad(userID string) []byte { return []byte("antistatic/2/" + userID) }
+
+func aad(userID, ctx, handle string) []byte {
+	return []byte(fmt.Sprintf("antistatic/%d/%s/%s/%s", Format, userID, ctx, handle))
+}
 
 // DeriveKek is the key-encryption key for a parsed phrase.
 func DeriveKek(phrase string, salt []byte, iterations int) ([]byte, error) {
@@ -89,7 +127,7 @@ func DeriveKek(phrase string, salt []byte, iterations int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return hmacSHA256(km, []byte(fmt.Sprintf("antistatic/%d/wrap", Format))), nil
+	return hmacSHA256(km, []byte("antistatic/2/wrap")), nil
 }
 
 func gcm(key []byte) (cipher.AEAD, error) {
@@ -110,7 +148,7 @@ func WrapMaster(kek, master []byte, userID string) (string, error) {
 	if _, err := rand.Read(iv); err != nil {
 		return "", err
 	}
-	return WrapPrefix + ToB64(g.Seal(iv, iv, master, aad(userID))), nil
+	return WrapPrefix + ToB64(g.Seal(iv, iv, master, setupAad(userID))), nil
 }
 
 // UnwrapMaster opens a wrapped master key; it fails on a wrong key or account.
@@ -126,86 +164,72 @@ func UnwrapMaster(kek []byte, wrapped, userID string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return g.Open(nil, b[:12], b[12:], aad(userID))
+	return g.Open(nil, b[:12], b[12:], setupAad(userID))
 }
 
-// Raw is an account's content keys, 32 bytes each.
+// Raw is an account's saved keys, 32 bytes each.
 type Raw struct {
 	Enc []byte
 	IV  []byte
 }
 
-// ContentKeys derives the content keys from a master key.
+// ContentKeys derives the raw keys from a master key.
 func ContentKeys(master []byte) Raw {
 	return Raw{
-		Enc: hmacSHA256(master, []byte(fmt.Sprintf("antistatic/%d/enc", Format))),
-		IV:  hmacSHA256(master, []byte(fmt.Sprintf("antistatic/%d/iv", Format))),
+		Enc: hmacSHA256(master, []byte("antistatic/2/enc")),
+		IV:  hmacSHA256(master, []byte("antistatic/2/iv")),
 	}
 }
 
-// Keys are content keys bound to one account.
+// Keys are raw keys bound to one account.
 type Keys struct {
 	UserID string
-	aead   cipher.AEAD
-	iv     []byte
+	check  cipher.AEAD
+	text   cipher.AEAD
+	mac    []byte
+	// family is the run family results are read in ("": any).
+	family string
+	// nonce makes a token's nonce; tests fix it.
+	nonce func() ([]byte, error)
 }
 
-// ImportKeys binds raw content keys to an account.
+func randomNonce() ([]byte, error) {
+	b := make([]byte, 12)
+	_, err := rand.Read(b)
+	return b, err
+}
+
+// ImportKeys binds raw keys to an account.
 func ImportKeys(raw Raw, userID string) (*Keys, error) {
 	if userID == "" {
 		return nil, errors.New("keys need the account's user id")
 	}
 	if len(raw.Enc) != 32 || len(raw.IV) != 32 {
-		return nil, errors.New("content keys are 32 bytes each")
+		return nil, errors.New("keys are 32 bytes each")
 	}
-	g, err := gcm(raw.Enc)
+	check, err := gcm(raw.Enc)
 	if err != nil {
 		return nil, err
 	}
-	return &Keys{UserID: userID, aead: g, iv: append([]byte(nil), raw.IV...)}, nil
+	text, err := gcm(hmacSHA256(raw.Enc, []byte(fmt.Sprintf("antistatic/%d/text", Format))))
+	if err != nil {
+		return nil, err
+	}
+	mac := hmacSHA256(raw.IV, []byte(fmt.Sprintf("antistatic/%d/mac", Format)))
+	return &Keys{UserID: userID, check: check, text: text, mac: mac, nonce: randomNonce}, nil
 }
 
-// Encrypt makes the token of text: the same text, the same token.
-func (k *Keys) Encrypt(text string) string {
+func pad(text string) []byte {
 	data := []byte(text)
-	ad := aad(k.UserID)
 	padded := make([]byte, Bucket(4+len(data)))
 	binary.BigEndian.PutUint32(padded, uint32(len(data)))
 	copy(padded[4:], data)
-	iv := hmacSHA256(k.iv, ad, []byte{0}, data)[:12]
-	return TokenPrefix + ToB64(k.aead.Seal(append([]byte(nil), iv...), iv, padded, ad))
+	return padded
 }
 
-// TokenBytes is a well-formed token's bytes.
-func TokenBytes(token string) ([]byte, error) {
-	if !strings.HasPrefix(token, TokenPrefix) {
-		return nil, errors.New("not an enc2 token")
-	}
-	b, err := FromB64(token[len(TokenPrefix):])
-	if err != nil {
-		return nil, err
-	}
-	if !isBucket(len(b) - 28) {
-		return nil, errors.New("not an enc2 token")
-	}
-	return b, nil
-}
-
-// IsToken reports whether s is a well-formed enc2 token.
-func IsToken(s string) bool {
-	_, err := TokenBytes(s)
-	return err == nil
-}
-
-// Decrypt opens a token; it fails when the token isn't this key's (or account's).
-func (k *Keys) Decrypt(token string) (string, error) {
-	b, err := TokenBytes(token)
-	if err != nil {
-		return "", err
-	}
-	pt, err := k.aead.Open(nil, b[:12], b[12:], aad(k.UserID))
-	if err != nil {
-		return "", errors.New("not this key's token")
+func unpad(pt []byte) (string, error) {
+	if len(pt) < 4 {
+		return "", errors.New("bad padding")
 	}
 	n := int(binary.BigEndian.Uint32(pt))
 	if n > len(pt)-4 {
@@ -223,10 +247,114 @@ func (k *Keys) Decrypt(token string) (string, error) {
 	return string(text), nil
 }
 
+// Handle is the handle of text in a family: the same text in one family
+// has the same handle (the server matches text by it), in another not.
+func (k *Keys) Handle(family, text string) string {
+	mac := hmacSHA256(k.mac, []byte(fmt.Sprintf("antistatic/%d/handle", Format)), []byte{0}, []byte(family), []byte{0}, []byte(text))
+	return hex.EncodeToString(mac[:16])
+}
+
+// Encrypt makes a token of text in a family, for the field kind, with a random nonce.
+func (k *Keys) Encrypt(family, kind, text string) (string, error) {
+	ctx := family + "." + kind
+	if !FamilyRe.MatchString(family) || !headRe.MatchString(strings.Repeat("0", 32)+":"+ctx+":") {
+		return "", fmt.Errorf("not a context: %s", ctx)
+	}
+	nonce, err := k.nonce()
+	if err != nil {
+		return "", err
+	}
+	handle := k.Handle(family, text)
+	return TokenPrefix + handle + ":" + ctx + ":" + ToB64(k.text.Seal(append([]byte(nil), nonce...), nonce, pad(text), aad(k.UserID, ctx, handle))), nil
+}
+
+// Token is a well-formed token's parts.
+type Token struct {
+	Handle string
+	Ctx    string
+	Family string
+	Kind   string
+	bytes  []byte
+}
+
+// ParseToken checks a token's form and splits it.
+func ParseToken(token string) (Token, error) {
+	bad := errors.New("not an enc3 token")
+	if !strings.HasPrefix(token, TokenPrefix) {
+		return Token{}, bad
+	}
+	rest := token[len(TokenPrefix):]
+	m := headRe.FindStringSubmatch(rest)
+	if m == nil {
+		return Token{}, bad
+	}
+	b, err := FromB64(rest[len(m[0]):])
+	if err != nil || !isBucket(len(b)-28) {
+		return Token{}, bad
+	}
+	return Token{Handle: m[1], Ctx: m[2] + "." + m[3], Family: m[2], Kind: m[3], bytes: b}, nil
+}
+
+// IsToken reports whether s is a well-formed enc3 token.
+func IsToken(s string) bool {
+	_, err := ParseToken(s)
+	return err == nil
+}
+
+// PaddedSize is the padded size of a token's text.
+func PaddedSize(token string) (int, error) {
+	t, err := ParseToken(token)
+	if err != nil {
+		return 0, err
+	}
+	return len(t.bytes) - 28, nil
+}
+
+// Decrypt opens a token. It fails when the token isn't this account's, its
+// context or handle were changed, or the handle isn't its text's.
+func (k *Keys) Decrypt(token string) (string, Token, error) {
+	t, err := ParseToken(token)
+	if err != nil {
+		return "", t, err
+	}
+	pt, err := k.text.Open(nil, t.bytes[:12], t.bytes[12:], aad(k.UserID, t.Ctx, t.Handle))
+	if err != nil {
+		return "", t, errors.New("not this key's token")
+	}
+	text, err := unpad(pt)
+	if err != nil {
+		return "", t, err
+	}
+	if !hmac.Equal([]byte(k.Handle(t.Family, text)), []byte(t.Handle)) {
+		return "", t, errors.New("not this text's handle")
+	}
+	return text, t, nil
+}
+
+// sealCheck makes a new setup's check token.
+func (k *Keys) sealCheck() (string, error) {
+	iv := make([]byte, 12)
+	if _, err := rand.Read(iv); err != nil {
+		return "", err
+	}
+	return CheckPrefix + ToB64(k.check.Seal(append([]byte(nil), iv...), iv, pad(CheckText), setupAad(k.UserID))), nil
+}
+
 // Verify reports whether the keys open the account's check token.
 func (k *Keys) Verify(check string) bool {
-	t, err := k.Decrypt(check)
-	return err == nil && t == CheckText
+	if !strings.HasPrefix(check, CheckPrefix) {
+		return false
+	}
+	b, err := FromB64(check[len(CheckPrefix):])
+	if err != nil || len(b) != 28+MinBucket {
+		return false
+	}
+	pt, err := k.check.Open(nil, b[:12], b[12:], setupAad(k.UserID))
+	if err != nil {
+		return false
+	}
+	text, err := unpad(pt)
+	return err == nil && text == CheckText
 }
 
 // OpaqueID makes a client-chosen id (a turn_id) opaque: t + 32 hex of an
@@ -236,7 +364,7 @@ func (k *Keys) OpaqueID(id string) string {
 	if opaqueRe.MatchString(id) {
 		return id
 	}
-	mac := hmacSHA256(k.iv, []byte(fmt.Sprintf("antistatic/%d/opaque\x00%s", Format, id)))
+	mac := hmacSHA256(k.mac, []byte(fmt.Sprintf("antistatic/%d/opaque", Format)), []byte{0}, []byte(id))
 	return "t" + hex.EncodeToString(mac[:16])
 }
 
@@ -257,7 +385,7 @@ type Setup struct {
 	Check   string `json:"check"`
 }
 
-// NewSetup makes a phrase, the setup for the server and the content keys.
+// NewSetup makes a phrase, the setup for the server and the raw keys.
 func NewSetup(userID string, iterations int) (phrase string, setup Setup, raw Raw, err error) {
 	phrase, err = GeneratePhrase()
 	if err != nil {
@@ -288,11 +416,15 @@ func NewSetup(userID string, iterations int) (phrase string, setup Setup, raw Ra
 	if err != nil {
 		return
 	}
-	setup = Setup{UserID: userID, Version: Format, Salt: ToB64(salt), Wrapped: wrapped, Check: keys.Encrypt(CheckText)}
+	check, err := keys.sealCheck()
+	if err != nil {
+		return
+	}
+	setup = Setup{UserID: userID, Version: Format, Salt: ToB64(salt), Wrapped: wrapped, Check: check}
 	return
 }
 
-// UnlockRaw gives the content keys for a typed phrase and the account's setup.
+// UnlockRaw gives the raw keys for a typed phrase and the account's setup.
 func UnlockRaw(input string, setup Setup, iterations int) (Raw, error) {
 	if setup.Version != Format {
 		return Raw{}, fmt.Errorf("unknown encryption format %d", setup.Version)
@@ -327,9 +459,10 @@ type Piece struct {
 	Token string
 }
 
-// SplitTokens splits text into text and token pieces. A token is "enc2:"
-// and the longest run of base64 after it that is a well-formed token, so a
-// token may sit right against other text. A malformed one stays text.
+// SplitTokens splits text into text and token pieces. A token is "enc3:",
+// its handle and context, and the longest run of base64 after them that
+// makes a well-formed token, so a token may sit right against other text.
+// A malformed one stays text.
 func SplitTokens(text string) []Piece {
 	var out []Piece
 	rest := text
@@ -339,30 +472,33 @@ func SplitTokens(text string) []Piece {
 			break
 		}
 		after := rest[at+len(TokenPrefix):]
-		run := after[:b64RunLen(after)]
+		head := headRe.FindString(after)
+		run := after[len(head) : len(head)+b64RunLen(after[len(head):])]
 		length := 0
-		var lens []int
-		for b := MinBucket; ; {
-			l := 4 * ((28 + b + 2) / 3)
-			if l > len(run) {
-				for i := len(lens) - 1; i >= 0; i-- {
-					if IsToken(TokenPrefix + run[:lens[i]]) {
-						length = lens[i]
-						break
+		if head != "" {
+			var lens []int
+			for b := MinBucket; ; {
+				l := 4 * ((28 + b + 2) / 3)
+				if l > len(run) {
+					for i := len(lens) - 1; i >= 0; i-- {
+						if IsToken(TokenPrefix + head + run[:lens[i]]) {
+							length = lens[i]
+							break
+						}
 					}
+					break
 				}
-				break
-			}
-			lens = append(lens, l)
-			if b < step {
-				b *= 2
-			} else {
-				b += step
+				lens = append(lens, l)
+				if b < step {
+					b *= 2
+				} else {
+					b += step
+				}
 			}
 		}
-		end := at + len(TokenPrefix) + length
+		end := at + len(TokenPrefix) + len(head) + length
 		if length == 0 {
-			end = at + len(TokenPrefix) + len(run)
+			end = at + len(TokenPrefix) + len(head) + len(run)
 		}
 		if at > 0 {
 			out = append(out, Piece{Text: rest[:at]})

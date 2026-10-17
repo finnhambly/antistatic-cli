@@ -3,6 +3,7 @@ package e2e
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -409,19 +410,24 @@ var markers = regexp.MustCompile(`^(\s*(?:(?:#{1,6}|[-*+]|\d+[.)])\s+|>\s*)*)`)
 
 var boldLine = regexp.MustCompile(`^(\s*)\*\*(.+?)\*\*(\s*)$`)
 
-func encryptLine(k *Keys, line string) string {
+// sealFunc encrypts one piece of a field's text.
+type sealFunc func(text string) (string, error)
+
+func encryptLine(seal sealFunc, line string) (string, error) {
 	if strings.TrimSpace(line) == "" || plainLine.MatchString(line) {
-		return line
+		return line, nil
 	}
 	if m := boldLine.FindStringSubmatch(line); m != nil {
-		return m[1] + "**" + k.Encrypt(m[2]) + "**" + m[3]
+		t, err := seal(m[2])
+		return m[1] + "**" + t + "**" + m[3], err
 	}
 	prefix := markers.FindStringSubmatch(line)[1]
 	rest := line[len(prefix):]
 	if strings.TrimSpace(rest) == "" {
-		return line
+		return line, nil
 	}
-	return prefix + k.Encrypt(rest)
+	t, err := seal(rest)
+	return prefix + t, err
 }
 
 var suffixUnits = map[string]bool{"‰": true, "pp": true, "p.p.": true, "bp": true, "bps": true, "°": true, "°C": true, "°F": true}
@@ -447,14 +453,14 @@ func UnitTemplate(unit string) string {
 }
 
 // encryptUnit encrypts a unit's text around the plain X (and a % right after it).
-func encryptUnit(k *Keys, unit string) string {
+func encryptUnit(seal sealFunc, unit string) (string, error) {
 	u := strings.TrimSpace(unit)
 	if u == "" || u == "date" {
-		return u
+		return u, nil
 	}
 	t := UnitTemplate(u)
 	if strings.HasPrefix(t, "X ") {
-		return k.Encrypt(strings.TrimSpace(t[2:]))
+		return seal(strings.TrimSpace(t[2:]))
 	}
 	at := strings.Index(t, "X")
 	before, after := t[:at], t[at+1:]
@@ -464,13 +470,21 @@ func encryptUnit(k *Keys, unit string) string {
 	}
 	out := ""
 	if before != "" {
-		out += k.Encrypt(before)
+		b, err := seal(before)
+		if err != nil {
+			return "", err
+		}
+		out += b
 	}
 	out += "X" + pct
 	if after != "" {
-		out += k.Encrypt(after)
+		a, err := seal(after)
+		if err != nil {
+			return "", err
+		}
+		out += a
 	}
-	return out
+	return out, nil
 }
 
 // Shape is the arguments a tool takes, from the schema, two levels deep:
@@ -564,14 +578,18 @@ func (s *schema) shape(n *node, depth int) string {
 	return "{" + strings.Join(parts, ", ") + "}"
 }
 
-// EncryptCall encrypts a call's arguments by the schema: text and key
-// fields encrypted, opaque ids hashed, dropped fields left out. A tool or
-// field encrypted runs don't take is an error.
-func EncryptCall(k *Keys, tool string, args any) (any, error) {
-	return fieldSchema.encryptCall(k, tool, args)
+// ErrNoFamily is text to encrypt for a call that names no encrypted run.
+var ErrNoFamily = errors.New("not an encrypted run's call: its text can't be encrypted")
+
+// EncryptCall encrypts a call's arguments by the schema, in the run family:
+// text and key fields encrypted (each token bound to its field), opaque ids
+// hashed, dropped fields left out. A tool or field encrypted runs don't take
+// is an error.
+func EncryptCall(k *Keys, family, tool string, args any) (any, error) {
+	return fieldSchema.encryptCall(k, family, tool, args)
 }
 
-func (s *schema) encryptCall(k *Keys, tool string, args any) (any, error) {
+func (s *schema) encryptCall(k *Keys, family, tool string, args any) (any, error) {
 	t, ok := s.tools[tool]
 	if !ok {
 		return nil, fmt.Errorf("%s isn't available for encrypted runs", tool)
@@ -597,17 +615,26 @@ func (s *schema) encryptCall(k *Keys, tool string, args any) (any, error) {
 		}
 	}
 	return s.walk(n, args, tool, func(kind, v, path string) (string, error) {
+		seal := func(text string) (string, error) {
+			if family == "" {
+				return "", ErrNoFamily
+			}
+			return k.Encrypt(family, KindOf(path), text)
+		}
 		switch kind {
 		case "lines":
 			lines := strings.Split(v, "\n")
 			for i, l := range lines {
-				lines[i] = encryptLine(k, l)
+				var err error
+				if lines[i], err = encryptLine(seal, l); err != nil {
+					return "", err
+				}
 			}
 			return strings.Join(lines, "\n"), nil
 		case "opaque":
 			return k.OpaqueID(v), nil
 		case "unit":
-			return encryptUnit(k, v), nil
+			return encryptUnit(seal, v)
 		case "text":
 			if v == "" {
 				return "", nil
@@ -616,6 +643,6 @@ func (s *schema) encryptCall(k *Keys, tool string, args any) (any, error) {
 		if v == "" {
 			return "", fmt.Errorf("%s: a key can't be empty", tool)
 		}
-		return k.Encrypt(v), nil
+		return seal(v)
 	}, nil)
 }

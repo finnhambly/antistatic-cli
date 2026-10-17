@@ -1,8 +1,9 @@
 {
-  "version": 1,
-  "about": "Encrypted wargames: every argument field of every tool a private run may use, and what it is. The antistatic CLI (antistatic call, which embeds a copy) encrypts by it and refuses anything else; the server (AntistaticExchange.E2E.Fields) checks private-run calls against it. text: encrypted whole; lines: encrypted line by line (markdown markers and script headings stay plain); key: a client-chosen id, encrypted whole (deterministic, so reuse it verbatim); drop: a field the server ignores for run questions, which the CLI leaves out; unit: a how-much unit, sent as a template the server writes numbers into, its text encrypted around the plain X (\"£Xk\" is <£>X<k>; a word unit such as \"pence per litre\" is one token; a leading % after X stays plain, as the server reads percentages); opaque: a client-chosen id the CLI replaces with t + 32 hex (HMAC under the key: the same id, the same replacement); other names: plain formats below. A node is a kind name, a list (the first that fits), {object}, {array}, {map: {keys, values}}, {json} (JSON in a string), {enum}, {ref}, or {switch: sibling field, cases}.",
+  "version": 2,
+  "about": "Encrypted wargames: every argument field of every tool a private run may use, and what it is. The antistatic CLI (antistatic call, which embeds a copy) encrypts by it and refuses anything else; the server (AntistaticExchange.E2E.Fields) checks private-run calls against it. Each piece of text is encrypted in the run's family (family: made by the CLI when the run starts; its forks share it) and bound to its field (its path here, without indices). text: encrypted whole; lines: encrypted line by line (markdown markers and script headings stay plain); key: a client-chosen id, encrypted whole (its handle, like any text's, is the same for the same text in one family, so reuse it verbatim); drop: a field the server ignores for run questions, which the CLI leaves out; unit: a how-much unit, sent as a template the server writes numbers into, its text encrypted around the plain X (\"£Xk\" is <£>X<k>; a word unit such as \"pence per litre\" is one token; a leading % after X stays plain, as the server reads percentages); opaque: a client-chosen id the CLI replaces with t + 32 hex (HMAC under the key: the same id, the same replacement); other names: plain formats below. A node is a kind name, a list (the first that fits), {object}, {array}, {map: {keys, values}}, {json} (JSON in a string), {enum}, {ref}, or {switch: sibling field, cases}.",
   "formats": {
     "int": {"type": "integer"},
+    "family": {"pattern": "^f[0-9a-f]{16}$"},
     "number": {"type": "number"},
     "bool": {"type": "boolean"},
     "null": {"type": "null"},
@@ -158,7 +159,7 @@
     "antistatic_list_sandboxes": {},
     "antistatic_market_recipe": {},
     "antistatic_start_sandbox": {
-      "private": "bool", "title": "text", "premise": "text", "bio": "text",
+      "private": "bool", "family": "family", "title": "text", "premise": "text", "bio": "text",
       "mode": {"enum": ["mortal", "god"]}, "planner": {"enum": ["client"]},
       "model": {"enum": ["opus", "sonnet", "haiku"]}, "sample_from": {"enum": ["house", "user"]},
       "starts_on": "date", "ends_on": "date",

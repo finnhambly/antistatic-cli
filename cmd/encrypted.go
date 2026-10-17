@@ -196,18 +196,29 @@ func loadKeys(setup e2e.Setup) (*e2e.Keys, error) {
 
 // fetchSetup is the account's key setup; ok is false before set-up.
 func fetchSetup() (setup e2e.Setup, ok bool, err error) {
+	setup, _, ok, err = fetchSetupFor(nil)
+	return
+}
+
+// fetchSetupFor is the setup and, given a call's run ids (run_id, job_id,
+// code), the family of the encrypted run they name ("" for none).
+func fetchSetupFor(refs e2e.Object) (setup e2e.Setup, family string, ok bool, err error) {
 	if !client.HasAuth() {
-		return setup, false, errNotLoggedIn
+		return setup, "", false, errNotLoggedIn
 	}
-	res, err := client.CallTool("antistatic_private_setup", nil)
+	var body []byte
+	if len(refs) > 0 {
+		body = []byte(e2e.EncodeJSON(refs, 0))
+	}
+	res, err := client.CallTool("antistatic_private_setup", body)
 	if err != nil {
-		return setup, false, toolErr(err)
+		return setup, "", false, toolErr(err)
 	}
 	if res.IsError {
 		if strings.Contains(res.Text(), "Sign in") {
-			return setup, false, errNotLoggedIn
+			return setup, "", false, errNotLoggedIn
 		}
-		return setup, false, errors.New(res.Text())
+		return setup, "", false, errors.New(res.Text())
 	}
 	var s struct {
 		UserID  json.Number `json:"user_id"`
@@ -215,23 +226,54 @@ func fetchSetup() (setup e2e.Setup, ok bool, err error) {
 		Salt    *string     `json:"salt"`
 		Wrapped *string     `json:"wrapped"`
 		Check   *string     `json:"check"`
+		Family  *string     `json:"family"`
 	}
-	body := res.StructuredContent
-	if len(body) == 0 {
-		body = []byte(res.Text())
+	data := res.StructuredContent
+	if len(data) == 0 {
+		data = []byte(res.Text())
 	}
-	if err := json.Unmarshal(body, &s); err != nil || s.UserID == "" {
-		return setup, false, fmt.Errorf("unexpected setup response")
+	if err := json.Unmarshal(data, &s); err != nil || s.UserID == "" {
+		return setup, "", false, fmt.Errorf("unexpected setup response")
 	}
 	setup.UserID = s.UserID.String()
 	if s.Salt == nil || s.Wrapped == nil || s.Check == nil {
-		return setup, false, nil
+		return setup, "", false, nil
 	}
 	if s.Version == nil || *s.Version != e2e.Format {
-		return setup, false, fmt.Errorf("this account uses an encryption format this CLI doesn't know: brew upgrade finnhambly/tap/antistatic")
+		return setup, "", false, fmt.Errorf("this account uses an encryption format this CLI doesn't know: brew upgrade finnhambly/tap/antistatic")
 	}
 	setup.Version, setup.Salt, setup.Wrapped, setup.Check = *s.Version, *s.Salt, *s.Wrapped, *s.Check
-	return setup, true, nil
+	if s.Family != nil {
+		if !e2e.FamilyRe.MatchString(*s.Family) {
+			return setup, "", false, fmt.Errorf("unexpected setup response")
+		}
+		family = *s.Family
+	}
+	return setup, family, true, nil
+}
+
+// runRefs are the plain ids in a call's arguments that name its run, for
+// the server to say which encrypted run (family) it is.
+func runRefs(args e2e.Object) e2e.Object {
+	refs := e2e.Object{}
+	for _, k := range []string{"run_id", "job_id", "code", "market_code"} {
+		if v, ok := args.Get(k); ok && v != nil {
+			if k == "market_code" {
+				k = "code"
+			}
+			if _, dup := refs.Get(k); !dup {
+				refs = append(refs, e2e.Member{Key: k, Value: v})
+			}
+		}
+	}
+	if v, ok := args.Get("market_codes"); ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			if _, dup := refs.Get("code"); !dup {
+				refs = append(refs, e2e.Member{Key: "code", Value: list[0]})
+			}
+		}
+	}
+	return refs
 }
 
 func toolErr(err error) error {
@@ -433,8 +475,16 @@ func runCall(cmd *cobra.Command, args []string) error {
 	if !e2e.HasTool(tool) {
 		return exitErr(ExitUsage, "%s isn't available for encrypted runs", tool)
 	}
+	callArgs := parsed.(e2e.Object)
 
-	setup, ok, err := fetchSetup()
+	// The run family the call's text is encrypted in and its results read
+	// in: a new one for a new run (its forks share it), else the named run's.
+	starting := tool == "antistatic_start_sandbox"
+	var refs e2e.Object
+	if !starting {
+		refs = runRefs(callArgs)
+	}
+	setup, family, ok, err := fetchSetupFor(refs)
 	if err != nil {
 		return err
 	}
@@ -445,10 +495,26 @@ func runCall(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	sealed, err := e2e.EncryptCall(keys, tool, parsed)
+	if starting {
+		if family, err = e2e.NewFamily(); err != nil {
+			return err
+		}
+		rest := e2e.Object{}
+		for _, m := range callArgs {
+			if m.Key != "family" {
+				rest = append(rest, m)
+			}
+		}
+		callArgs = append(rest, e2e.Member{Key: "family", Value: family})
+	}
+	sealed, err := e2e.EncryptCall(keys, family, tool, callArgs)
+	if errors.Is(err, e2e.ErrNoFamily) {
+		return exitErr(ExitUsage, "%s: no encrypted run of yours has these ids (run_id, job_id or code)", tool)
+	}
 	if err != nil {
 		return exitErr(ExitUsage, "%v\n%s takes %s", err, tool, e2e.Shape(tool))
 	}
+	keys = keys.InFamily(family)
 	res, err := client.CallTool(tool, []byte(e2e.EncodeJSON(sealed, 0)))
 	if err != nil {
 		return toolErr(err)

@@ -24,6 +24,7 @@ type fakeSite struct {
 	sync.Mutex
 	server     *httptest.Server
 	setup      map[string]any // the stored key setup
+	family     string         // the encrypted run's family
 	challenge  string
 	access     string
 	refresh    string
@@ -100,14 +101,24 @@ func (f *fakeSite) handle(w http.ResponseWriter, r *http.Request) {
 				result = map[string]any{"content": []any{map[string]any{"type": "text", "text": "Set."}}}
 				break
 			}
-			s := f.setup
-			if s == nil {
-				s = map[string]any{"user_id": 42, "version": nil, "salt": nil, "wrapped": nil, "check": nil}
+			s := map[string]any{"user_id": 42, "version": nil, "salt": nil, "wrapped": nil, "check": nil}
+			for k, v := range f.setup {
+				s[k] = v
+			}
+			// The family of an encrypted run the call names (run 7 only).
+			if args["run_id"] != nil {
+				s["family"] = nil
+				if args["run_id"] == float64(7) && f.family != "" {
+					s["family"] = f.family
+				}
 			}
 			text, _ := json.Marshal(s)
 			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": string(text)}}, "structuredContent": s}
 		case "antistatic_start_sandbox":
 			title, _ := args["title"].(string)
+			if fam, ok := args["family"].(string); ok {
+				f.family = fam
+			}
 			if title == "" {
 				result = map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": "A title is needed."}}}
 				break
@@ -234,7 +245,7 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 		t.Fatalf("call: %q", out)
 	}
 	sent := e.site.calls[len(e.site.calls)-1]["args"].(map[string]any)
-	if !strings.HasPrefix(sent["title"].(string), "enc2:") || sent["private"] != true {
+	if !strings.HasPrefix(sent["title"].(string), "enc3:") || sent["private"] != true || !e2e.FamilyRe.MatchString(sent["family"].(string)) || !strings.Contains(sent["title"].(string), ":"+sent["family"].(string)+".start_sandbox.title:") {
 		t.Fatalf("sent %v", sent)
 	}
 	out, err = e.run(`{"title": "Bakery gamble"}`, "call", "antistatic_start_sandbox", "--json")
@@ -266,6 +277,12 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 	_, err = e.run(`{"run_id": 7, "entries": [{"type": "action", "text": "In the cave."}]}`, "call", "antistatic_take_turn")
 	if ExitCode(err) != ExitToolError || err.Error() != "No such character: In the cave." {
 		t.Fatalf("tool error decrypted: %v", err)
+	}
+
+	// A run that isn't an encrypted run of the user's: no family, refused.
+	_, err = e.run(`{"run_id": 8, "entries": [{"type": "action", "text": "x"}]}`, "call", "antistatic_take_turn")
+	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "no encrypted run of yours") {
+		t.Fatalf("unknown run: %v", err)
 	}
 
 	// encrypt again: already unlocked.

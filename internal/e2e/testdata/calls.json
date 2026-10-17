@@ -1,0 +1,382 @@
+[
+ {
+  "tool": "antistatic_take_turn",
+  "args": {
+   "run_id": 3,
+   "turn_id": "6b0f3a52-8c1e",
+   "until": "2026-11-01",
+   "entries": [
+    {
+     "type": "action",
+     "character": "c2",
+     "text": "Call the bank",
+     "settle": {
+      "market": "p1-3",
+      "item": "oven",
+      "outcome": "yes"
+     }
+    },
+    {
+     "type": "feed",
+     "text": ""
+    }
+   ]
+  }
+ },
+ {
+  "tool": "antistatic_submit_script",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "script": "**Header**\n- first\n\n**Markets**\n## Two\n> quoted line\n1. numbered\nWhat do you do?"
+  }
+ },
+ {
+  "tool": "antistatic_submit_plan",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "plan": {
+    "branches": [
+     {
+      "label": "Calm",
+      "weight": 0.6,
+      "observations": [
+       {
+        "visible_at": "2026-11-02",
+        "text": "Mum lends £5k",
+        "audience": [
+         "c1",
+         "c2"
+        ]
+       }
+      ],
+      "action_outcomes": [
+       {
+        "action": "Call the bank",
+        "status": "done"
+       }
+      ],
+      "sealed_updates": [
+       {
+        "key": "mum",
+        "text": "Lent £5k",
+        "due_at": null
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ {
+  "tool": "antistatic_planner_draw",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "events": [
+    {
+     "tool": "create_question",
+     "input": {
+      "spec": {
+       "code": "bakery-open",
+       "question": "when",
+       "title": "Bakery opens",
+       "unit": "loaves",
+       "items": [
+        {
+         "key": "oven"
+        }
+       ],
+       "anchors": {
+        "oven": [
+         {
+          "by": "2027-01",
+          "p": 0.2
+         }
+        ]
+       },
+       "shares": {
+        "total": 100,
+        "oven": 50
+       }
+      }
+     }
+    },
+    {
+     "tool": "add_item",
+     "input": {
+      "market": "p1-2",
+      "key": "three_phase",
+      "label": "Upgrade",
+      "anchors": [
+       {
+        "by": "2027-01",
+        "p": 0.4
+       }
+      ]
+     }
+    },
+    {
+     "tool": "settle_item",
+     "input": {
+      "market": "p1-2",
+      "item": "three_phase",
+      "outcome": "not_before",
+      "evidence": "o9baef87079",
+      "date": "2026-12-01"
+     }
+    },
+    {
+     "tool": "sample",
+     "input": {
+      "action": "Hand in notice",
+      "label": "Notice",
+      "basis": "b",
+      "visible": true,
+      "outcomes": [
+       {
+        "outcome": "done",
+        "p": 0.6
+       },
+       {
+        "outcome": "A new offer",
+        "p": 0.4
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ {
+  "tool": "antistatic_planner_draw",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "events": [
+    {
+     "tool": "create_question",
+     "input": {
+      "spec": {
+       "question": "how_much",
+       "unit": "pence per litre",
+       "anchors": [
+        {
+         "period": "2027-03",
+         "quantiles": {
+          "10": 36,
+          "50": 40
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  }
+ },
+ {
+  "tool": "antistatic_show_market",
+  "args": {
+   "run_id": 1,
+   "market_code": "p1-2"
+  }
+ },
+ {
+  "tool": "antistatic_start_sandbox",
+  "args": {
+   "title": "Bakery gamble",
+   "premise": "I quit my job to open a bakery in Leeds.",
+   "private": true,
+   "family": "f00112233445566ff"
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "£Xk"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "$"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "%"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "X% of GDP"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "pence per litre"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": ""
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "€"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "seats"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "how_much",
+    "unit": "X‰"
+   }
+  }
+ },
+ {
+  "tool": "antistatic_preview_market",
+  "args": {
+   "run_id": 1,
+   "spec": {
+    "question": "when",
+    "title": "Which offer lands first",
+    "items": [
+     {
+      "key": "cuf",
+      "label": "CUF offer"
+     },
+     {
+      "key": "ucl",
+      "label": "UCL offer"
+     }
+    ],
+    "anchors": {
+     "cuf": [
+      {
+       "by": "2027-Q2",
+       "p": 0.4
+      }
+     ],
+     "ucl": [
+      {
+       "by": "2027",
+       "p": 0.2
+      }
+     ]
+    },
+    "shares": {
+     "total": 1,
+     "cuf": 0.6
+    }
+   }
+  }
+ },
+ {
+  "tool": "antistatic_correct_sandbox",
+  "args": {
+   "run_id": 1,
+   "item": "cuf",
+   "reason": "It was withdrawn",
+   "fact": "CUF withdrew the offer"
+  }
+ },
+ {
+  "tool": "antistatic_ask_sandbox",
+  "args": {
+   "run_id": 1,
+   "entries": [
+    {
+     "type": "info",
+     "text": "What does the bank say?"
+    },
+    {
+     "type": "feed",
+     "text": "Rates rose",
+     "settle": {
+      "item": "cuf",
+      "market": "p1-2",
+      "outcome": "no"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "tool": "antistatic_planner_draw",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "events": [
+    {
+     "tool": "settle_item",
+     "input": {
+      "market": "p1-2",
+      "item": "cuf",
+      "outcome": "yes",
+      "basis": "The letter came",
+      "evidence": "The letter came"
+     }
+    },
+    {
+     "tool": "ask_player",
+     "input": {
+      "question": "Do you accept?",
+      "why": "It decides the move",
+      "blocking": false
+     }
+    }
+   ]
+  }
+ },
+ {
+  "tool": "antistatic_planner_notes",
+  "args": {
+   "job_id": "pj_abcdefghijklmnop",
+   "notes": "Mum is wary.\nThe bank is slow."
+  }
+ }
+]
