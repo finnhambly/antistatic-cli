@@ -300,7 +300,8 @@ func pkceChallenge(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func openBrowser(targetURL string) error {
+// openBrowser opens a URL in the user's browser (a variable for tests).
+var openBrowser = func(targetURL string) error {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {

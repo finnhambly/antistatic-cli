@@ -17,46 +17,33 @@ Alternative install methods:
 - `go install github.com/finnhambly/antistatic-cli@latest`
 - Download a prebuilt binary from [Releases](https://github.com/finnhambly/antistatic-cli/releases)
 
-### 2) Authenticate
-
-Browser OAuth (recommended):
+### 2) Log in
 
 ```sh
 antistatic login
 ```
 
-The CLI identifies itself with a client metadata document
+It opens your browser (`--no-browser` prints the link). The CLI identifies
+itself with a client metadata document
 (`https://antistatic.exchange/oauth/clients/cli.json`) rather than registering
-a new client each time. Versions before 0.2.0 can no longer start a fresh
-login; upgrade if `antistatic login` fails.
-
-Headless/CI token auth:
-
-```sh
-export ANTISTATIC_TOKEN=axk_YOUR_TOKEN_HERE
-```
-
-Check auth status:
+a new client each time.
 
 ```sh
 antistatic status
+antistatic logout
 ```
 
 For separate accounts, set `ANTISTATIC_CONFIG_DIR` to a dedicated directory.
-OAuth login and refresh use that directory; the default login is unchanged.
-`ANTISTATIC_TOKEN` still overrides the selected saved login. Your bot doesn't
-need its own login: use `--as-bot` with your normal one.
+Your bot doesn't need its own login: use `--as-bot` with your normal one.
 
 ```sh
 ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic login
-ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic status
 ```
 
 Environment variables:
 
 | Variable | Effect |
 |---|---|
-| `ANTISTATIC_TOKEN` | API token; overrides the saved login |
 | `ANTISTATIC_CONFIG_DIR` | Where the login is saved (one directory per account) |
 | `ANTISTATIC_AS_BOT=1` | Act as your bot, like `--as-bot` |
 | `ANTISTATIC_URL` | Server URL (default https://antistatic.exchange) |
@@ -188,6 +175,30 @@ antistatic sandbox planner job pj_x       # client-planned runs; plan, draw, scr
 Sandboxes were called timelines, and the run commands lived under `retro`:
 `antistatic timelines ...` and `antistatic retro ...` still work as hidden
 aliases.
+
+### Encrypted wargames
+
+```sh
+antistatic encrypt
+```
+
+Logs in if needed, then sets up (shows a new 6-word recovery phrase once and
+asks you to retype words 2 and 5) or unlocks (asks for the phrase). The phrase
+and keys stay on your machine. Then ask Claude: "Start an encrypted wargame
+about …".
+
+```sh
+antistatic status        # not logged in / not set up / locked / unlocked
+antistatic lock
+antistatic call antistatic_start_sandbox <<'EOF'
+{"title": "Bakery gamble", "premise": "I quit my job to open a bakery.", "private": true}
+EOF
+```
+
+`antistatic call <tool>` takes the tool's JSON arguments on stdin (or
+`@file.json`), encrypts its text with your key, and prints the result
+decrypted (`--json`: its structured data). Exit codes: 2 bad arguments,
+3 not logged in, 4 not set up, 5 locked, 6 the tool refused the call.
 
 ## Curricula (past sandboxes)
 

@@ -1,0 +1,663 @@
+{
+ "user_id": "42",
+ "raw": {
+  "enc": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=",
+  "iv": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ="
+ },
+ "setup": {
+  "user_id": "42",
+  "version": 2,
+  "salt": "kipU5P7spxhehToPhooPpQ==",
+  "wrapped": "wrap2:LI+R3NVH8KrVG7jcGQ8HQMEp+lzQdU6ClFU5wSBuT0I/blgdAKRpywqWGhegv+z0AdzM+fPz4ZHymR4R",
+  "check": "enc2:m4vM/oigbuyhmUeSZNEwLwWzX+o2vZctk4lxo608ODjvkaSbQahs7U9Y5Qa19SZkfdQgGMS1FeFBcemB",
+  "phrase": "grumpily directory fancy spearfish unfixable dwarf",
+  "raw": {
+   "enc": "lm1TERByf0Rk3tcCPHuTXLvKzSDaJKnw3Jc/EytoV4s=",
+   "iv": "M8DcCTR3Kk85nD7X1rojH7v9J5LHl3PgtSdiPo2c2oY="
+  },
+  "fingerprint": "25389320e5baebf2"
+ },
+ "tokens": [
+  {
+   "text": "",
+   "token": "enc2:tLo9VAZ8CrCWsfujdZFnw6wXkHOZUEN5HqlDtU9XkPHmUR2S6bNsUlrXzUDSzuZTUH1tUDL46W9c9OZQ"
+  },
+  {
+   "text": "x",
+   "token": "enc2:ull5QYSDInrTGO2KY3vfS1pUX/3qokuyOj3VpjjM0ZSv+BC4742vNyYn3pf3HJGWB7YrelquUvREImZr"
+  },
+  {
+   "text": "antistatic",
+   "token": "enc2:4ecOZRJUKMDPdzLBNadLlnc5xXkAS76PCiIVfngxjz+SQxlAUIlqUR7+UXmhjChuzs/FA41s0xbLqWvu"
+  },
+  {
+   "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "token": "enc2:47mlTWzfvJWbbhWD1xXSsKiYg+kn+bfhF1CfG+qFjzNybxkWRrB9g+ta9eGuC2M684cRQMJfA612YZEd"
+  },
+  {
+   "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "token": "enc2:9WVfl+lsfzrgHEUoC/S026UjqhgcE2QlThTfkE6adZfl0mcSV4Wfg8k31ED80o+VhwJL6nUfV5QUnuvShS6DLCNc+of2ovtRd3CbmDOGDkMHCnYSnMzXYq/vlPA="
+  },
+  {
+   "text": "£36k ☕ naïve",
+   "token": "enc2:M5XhjG8s7r94hADY5bGPWft10zQ3DJ1PNYWydx+JD1KloWbwPgBGs+iScafrqBX6e2lxCvL/rUFXTuhi"
+  },
+  {
+   "text": "line one\nline \"two\"",
+   "token": "enc2:dIESSeFNSTcxKUmPn627zzPKNWkqzIq8kx6Je2dFXwjMnqyIdl742FWFD5ThpowL6fvOxAQcZNlaKpyt"
+  },
+  {
+   "text": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "token": "enc2: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"
+  }
+ ],
+ "opaque": [
+  {
+   "id": "6b0f3a52-8c1e",
+   "opaque": "t84349280cc8922c6405d3662aa987f8f"
+  },
+  {
+   "id": "turn-1",
+   "opaque": "t1b0d9c102a7e338fd22cd4af777c0a24"
+  },
+  {
+   "id": "t0123456789abcdef0123456789abcdef",
+   "opaque": "t0123456789abcdef0123456789abcdef"
+  }
+ ],
+ "calls": [
+  {
+   "tool": "antistatic_take_turn",
+   "args": {
+    "run_id": 3,
+    "turn_id": "6b0f3a52-8c1e",
+    "until": "2026-11-01",
+    "entries": [
+     {
+      "type": "action",
+      "character": "c2",
+      "text": "Call the bank",
+      "settle": {
+       "market": "p1-3",
+       "item": "oven",
+       "outcome": "yes"
+      }
+     },
+     {
+      "type": "feed",
+      "text": ""
+     }
+    ]
+   },
+   "out": {
+    "run_id": 3,
+    "turn_id": "t84349280cc8922c6405d3662aa987f8f",
+    "until": "2026-11-01",
+    "entries": [
+     {
+      "type": "action",
+      "character": "c2",
+      "text": "enc2:ObPzTkhN9fvddGapyoaAf6xmTBFuIhOKt+wdAb4YD6BknENumsO1J4MKhy/Ys7E8zlN4ETs66zTU062O",
+      "settle": {
+       "market": "p1-3",
+       "item": "enc2:C+NaUylh/icTDyu80VxI5tuZ1tKlh0Dal/Cu0//yKOB2k+DAyKa4E8Tn7eWhLGADGnkCOgd7+dLrw9aD",
+       "outcome": "yes"
+      }
+     },
+     {
+      "type": "feed",
+      "text": ""
+     }
+    ]
+   }
+  },
+  {
+   "tool": "antistatic_submit_script",
+   "args": {
+    "job_id": "pj_abcdefghijklmnop",
+    "script": "**Header**\n- first\n\n**Markets**\n## Two\n> quoted line\n1. numbered\nWhat do you do?"
+   },
+   "out": {
+    "job_id": "pj_abcdefghijklmnop",
+    "script": "**enc2:/K4z1Kd47MEr2Luy+S6OaLKx4IUDTTPRKG4CbrCCqNLAIFFChnkHHseEnOcrwVHbdJ/6MHr0xxkRrA/p**\n- enc2:PG4E06FWDsfUY+RXWfI7/dkfWIwZbQezQblp1H8BDs3ihFQGdt0JBslhyPmYOh4lLgv+zPQ3GnzbbbZl\n\n**Markets**\n## enc2:BJNznjhntIhdheYDg3ROHLN5vshmYDNWzu5F643Ajn3af7T0U3mAb2UChXE5f4rRJ4ZFOakqrphiBGMR\n> enc2:8e5imkj11R0ChcIGQxsVE1mGEcp+lrwV/XSz71/RoTpBdnp3GtCb0nMl0gWFsaGRCLmxBW29eI5BXx/w\n1. enc2:8RDd7mEceMQxv+rGpxNeNLS6xMFnNbrwOl8jYqqFRnEvQhUa5QYbm3p1OinQbpMj6O6z53fHHdvuoYYZ\nWhat do you do?"
+   }
+  },
+  {
+   "tool": "antistatic_submit_plan",
+   "args": {
+    "job_id": "pj_abcdefghijklmnop",
+    "plan": {
+     "branches": [
+      {
+       "label": "Calm",
+       "weight": 0.6,
+       "observations": [
+        {
+         "visible_at": "2026-11-02",
+         "text": "Mum lends £5k",
+         "audience": [
+          "c1",
+          "c2"
+         ]
+        }
+       ],
+       "action_outcomes": [
+        {
+         "action": "Call the bank",
+         "status": "done"
+        }
+       ],
+       "sealed_updates": [
+        {
+         "key": "mum",
+         "text": "Lent £5k",
+         "due_at": null
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "out": {
+    "job_id": "pj_abcdefghijklmnop",
+    "plan": {
+     "branches": [
+      {
+       "label": "enc2:nDlIqraZVINS30g3gmVW7iCsK+ChmJQZAINbnwkpjczDXjQaILXSDP4ro+GGSzqV29F6KlVN/o/IdlP8",
+       "weight": 0.6,
+       "observations": [
+        {
+         "visible_at": "2026-11-02",
+         "text": "enc2:Wd7+gdcLjqtpKRgpCQiPcl1VUqZK6o0dQKHSarqKRMDej33Ld4H7fFkCmsj42UekTVRG484GaKC2EJfN",
+         "audience": [
+          "c1",
+          "c2"
+         ]
+        }
+       ],
+       "action_outcomes": [
+        {
+         "action": "enc2:ObPzTkhN9fvddGapyoaAf6xmTBFuIhOKt+wdAb4YD6BknENumsO1J4MKhy/Ys7E8zlN4ETs66zTU062O",
+         "status": "done"
+        }
+       ],
+       "sealed_updates": [
+        {
+         "key": "enc2:JuG0IuY6cStcUrENyP1uDJAxmJQNrTSuMZr3USaAfyaNK4w9rTu5Fh+mBazXfaUh+oNj3bLZ6vwKmh8s",
+         "text": "enc2:bg+dOQmtvB5Uo/sclTq5cXIVV4Kjkov3dVDUgtRmAqnfCd5DPOOEgxcHEd8NtgSZOi8xIDPQ2ikBQl4m",
+         "due_at": null
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "tool": "antistatic_planner_draw",
+   "args": {
+    "job_id": "pj_abcdefghijklmnop",
+    "events": [
+     {
+      "tool": "create_question",
+      "input": {
+       "spec": {
+        "code": "bakery-open",
+        "question": "when",
+        "title": "Bakery opens",
+        "unit": "loaves",
+        "items": [
+         {
+          "key": "oven"
+         }
+        ],
+        "anchors": {
+         "oven": [
+          {
+           "by": "2027-01",
+           "p": 0.2
+          }
+         ]
+        },
+        "shares": {
+         "total": 100,
+         "oven": 50
+        }
+       }
+      }
+     },
+     {
+      "tool": "add_item",
+      "input": {
+       "market": "p1-2",
+       "key": "three_phase",
+       "label": "Upgrade",
+       "anchors": [
+        {
+         "by": "2027-01",
+         "p": 0.4
+        }
+       ]
+      }
+     },
+     {
+      "tool": "settle_item",
+      "input": {
+       "market": "p1-2",
+       "item": "three_phase",
+       "outcome": "not_before",
+       "evidence": "o9baef87079",
+       "date": "2026-12-01"
+      }
+     },
+     {
+      "tool": "sample",
+      "input": {
+       "action": "Hand in notice",
+       "label": "Notice",
+       "basis": "b",
+       "visible": true,
+       "outcomes": [
+        {
+         "outcome": "done",
+         "p": 0.6
+        },
+        {
+         "outcome": "A new offer",
+         "p": 0.4
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "out": {
+    "job_id": "pj_abcdefghijklmnop",
+    "events": [
+     {
+      "tool": "create_question",
+      "input": {
+       "spec": {
+        "question": "when",
+        "title": "enc2:8cU54iKZLk75THtF9sAURNRkca6Z8Nd0dAsIF5swB9kDjwMxZ7VzzxCH1UsZ4WTaZCpFLLybJCmMncwQ",
+        "unit": "enc2:llQrzA0rxDDAsMrFDq8OV+cAO0du/5BEe/BbCwhetVXKd0b94bmQiZEZJpB50dTMh20LSLLi7NTqC7n9",
+        "items": [
+         {
+          "key": "enc2:C+NaUylh/icTDyu80VxI5tuZ1tKlh0Dal/Cu0//yKOB2k+DAyKa4E8Tn7eWhLGADGnkCOgd7+dLrw9aD"
+         }
+        ],
+        "anchors": {
+         "enc2:C+NaUylh/icTDyu80VxI5tuZ1tKlh0Dal/Cu0//yKOB2k+DAyKa4E8Tn7eWhLGADGnkCOgd7+dLrw9aD": [
+          {
+           "by": "2027-01",
+           "p": 0.2
+          }
+         ]
+        },
+        "shares": {
+         "total": 100,
+         "enc2:C+NaUylh/icTDyu80VxI5tuZ1tKlh0Dal/Cu0//yKOB2k+DAyKa4E8Tn7eWhLGADGnkCOgd7+dLrw9aD": 50
+        }
+       }
+      }
+     },
+     {
+      "tool": "add_item",
+      "input": {
+       "market": "p1-2",
+       "key": "enc2:Awel0v3LhaJtRXhVGOhFxVmy12X2CjDaZr0V0GEYFkG6KzsZq/4/Fh3gCjxUlOt9PQLaFc8ctN30ASVD",
+       "label": "enc2:nCVlW10M5UPQQ0yxdB4CsWu1afoCL140/sH5V09XuzKVBVndXMcrJxvFAOiFuSoWd48rcW+fqUa76z1W",
+       "anchors": [
+        {
+         "by": "2027-01",
+         "p": 0.4
+        }
+       ]
+      }
+     },
+     {
+      "tool": "settle_item",
+      "input": {
+       "market": "p1-2",
+       "item": "enc2:Awel0v3LhaJtRXhVGOhFxVmy12X2CjDaZr0V0GEYFkG6KzsZq/4/Fh3gCjxUlOt9PQLaFc8ctN30ASVD",
+       "outcome": "not_before",
+       "evidence": "o9baef87079",
+       "date": "2026-12-01"
+      }
+     },
+     {
+      "tool": "sample",
+      "input": {
+       "action": "enc2:6idEJEQc+jZXYotkAP4NEl5fAVs/L/Ha5pSCwfQ+kJ441esNCoOQ6oBWlhKMuhohkeNVh9rKEDTgMbV3",
+       "label": "enc2:5OO3krXKqDEomuOnQkb0gEQSOnu5csrygEt9mBl5t5NRFXlvE2uKK5qxvz7T8GhxM9dbtEGf9fP+5LqI",
+       "basis": "enc2:nOWVCHAHsQV2pd5skmpSF7RQT2Ow24fd2cob+xLZXCtAr+jQI7zvS7H9HZdhIeFdOgty8oLk1jNeBHbo",
+       "visible": true,
+       "outcomes": [
+        {
+         "outcome": "done",
+         "p": 0.6
+        },
+        {
+         "outcome": "enc2:YSy6rOUyOQqUMWgF5ye42bghHxeaSC+3WGiB2OWzbWEe9+64ju6EHIR0nF/8vT7Jz69oQV1RN0fTit4K",
+         "p": 0.4
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "tool": "antistatic_planner_draw",
+   "args": {
+    "job_id": "pj_abcdefghijklmnop",
+    "events": [
+     {
+      "tool": "create_question",
+      "input": {
+       "spec": {
+        "question": "how_much",
+        "unit": "pence per litre",
+        "anchors": [
+         {
+          "period": "2027-03",
+          "quantiles": {
+           "10": 36,
+           "50": 40
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "out": {
+    "job_id": "pj_abcdefghijklmnop",
+    "events": [
+     {
+      "tool": "create_question",
+      "input": {
+       "spec": {
+        "question": "how_much",
+        "unit": "enc2:U5C+94Q5I1yZnIrpnTBuHvZ1PlUrYqIL7XAPpMiBOo99BoV7/RszmVgvyDp5CFEX49yZxW5f6Bg/vZvy",
+        "anchors": [
+         {
+          "period": "2027-03",
+          "quantiles": {
+           "10": 36,
+           "50": 40
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "tool": "antistatic_show_market",
+   "args": {
+    "run_id": 1,
+    "market_code": "p1-2"
+   },
+   "out": {
+    "run_id": 1,
+    "code": "p1-2"
+   }
+  },
+  {
+   "tool": "antistatic_start_sandbox",
+   "args": {
+    "title": "Bakery gamble",
+    "premise": "I quit my job to open a bakery in Leeds.",
+    "private": true
+   },
+   "out": {
+    "title": "enc2:DFABZwrXVadf3CeYQi9iK3NUcdadq+Islcf9lGiyB/ek6Fz53jpcGKHhpYRM08kbgzX9nS6w8y2HqsBW",
+    "premise": "enc2:+W+767J4Hy2ajbGGEh54bnMjXp9ske8GTc+xgHLdskZFE4vZNW65vI+Be3Y9uoCTMYfqqxSmo4FCLF5ZjX2pt7nroAidLEdJgBC9RWx8ZisCZsQigL7fXmS3kMs=",
+    "private": true
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "£Xk"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "enc2:4tLMViXTtPiWJvyVYSss2evvdxnZNaK2rihbizhm+JTP9BKpTxFmdAsKMUyT5IpDeErz76Stc3pF4d+iXenc2:8AoXpIaVRtqNM76WRSPmYyi6/hLE5b2/XKjdj6OVNql7bwUf1AHSTcsYTKIqX8fDR7NXSUBga5K4zwZc"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "$"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "enc2:HYAjAH5MHM7G14Ly+Nb3x+bRPQtyHgxa0G2ndPuozmT4sdzPSOBkgQVB498UIpFlgaTBv1XmVJy55r9NX"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "%"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "X%"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "X% of GDP"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "X%enc2:3TDO8yrPFPF+Nwm3Dtl4djRuZdtOlQVLGRHyVtTaf6JBDQ3TfY8MlEiRPiwq8VRsFC2IoNc/hOEgVoL2"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "pence per litre"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "enc2:U5C+94Q5I1yZnIrpnTBuHvZ1PlUrYqIL7XAPpMiBOo99BoV7/RszmVgvyDp5CFEX49yZxW5f6Bg/vZvy"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": ""
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": ""
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "€"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "enc2:XaBNADTYdpRhZGAhvnOkuDK7C3kozHGk7r6h4xzsr7S4TBWvnRXefacjUJOnV+wB1v3MpJ2MDHJPjmxjX"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "seats"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "enc2:uZf39E4He14K6RnYP7zYJVTBAF4PRFgNV7uuHUN/QAec4ooHpqJ832Ma7jK5IGgNNqoMSEMbUPlp39dY"
+    }
+   }
+  },
+  {
+   "tool": "antistatic_preview_market",
+   "args": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "X‰"
+    }
+   },
+   "out": {
+    "run_id": 1,
+    "spec": {
+     "question": "how_much",
+     "unit": "Xenc2:ZG7hY1VcudmDQb/WbG/Cq8N+e/SXreJ54oqfTULGtiCcf5mFhWJn5P5348vYwXWqXlStY+M8jG4AuncT"
+    }
+   }
+  }
+ ],
+ "errors": [
+  {
+   "tool": "antistatic_take_turn",
+   "args": {
+    "run_id": 3,
+    "note": "x"
+   },
+   "error": "antistatic_take_turn.note: not a field encrypted runs take"
+  },
+  {
+   "tool": "antistatic_post_comment",
+   "args": {
+    "body": "x"
+   },
+   "error": "antistatic_post_comment isn't available for encrypted runs."
+  },
+  {
+   "tool": "antistatic_take_turn",
+   "args": {
+    "run_id": 3,
+    "entries": [
+     {
+      "type": "action",
+      "character": "Mum"
+     }
+    ]
+   },
+   "error": "antistatic_take_turn.entries[0].character: expected char"
+  },
+  {
+   "tool": "antistatic_take_turn",
+   "args": {
+    "run_id": "3"
+   },
+   "error": "antistatic_take_turn.run_id: expected int"
+  },
+  {
+   "tool": "antistatic_planner_draw",
+   "args": {
+    "job_id": "pj_abcdefghijklmnop",
+    "events": [
+     {
+      "tool": "nuke",
+      "input": {}
+     }
+    ]
+   },
+   "error": "antistatic_planner_draw.events[0].tool: expected one of curveball, ask_player, set_until, draw, sample, adjust, settle_item, correlate, link, create_question, import_question, extend_question, add_item"
+  }
+ ],
+ "decrypt_text": [
+  {
+   "in": "Made: done. enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5.\n(Assumed for now: enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5.)",
+   "out": "Made: done. In the cave.\n(Assumed for now: In the cave.)"
+  },
+  {
+   "in": "enc2:4tLMViXTtPiWJvyVYSss2evvdxnZNaK2rihbizhm+JTP9BKpTxFmdAsKMUyT5IpDeErz76Stc3pF4d+i36enc2:8AoXpIaVRtqNM76WRSPmYyi6/hLE5b2/XKjdj6OVNql7bwUf1AHSTcsYTKIqX8fDR7NXSUBga5K4zwZc",
+   "out": "£36k"
+  },
+  {
+   "in": "a enc2: b",
+   "out": "a enc2: b"
+  },
+  {
+   "in": "x enc2:gUJ4ZgpTDFDM6C4ecYiuoZO+AozM/0qh32k/wUc0xu9kLMg+eM1cJ5sLQWsXi7k6QI4oAfi1zr5wZre4 y",
+   "out": "x 🔒 y"
+  },
+  {
+   "in": "enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5",
+   "out": "In the cave.In the cave."
+  }
+ ],
+ "decrypt_result": [
+  {
+   "in": "Page 1 of 2.\n{\"job\":{\"notes\":\"enc2:mhMy1jZqcw+itXBNzZP9QS4P1nvVH2kgKedk9+0zvqa0nCAKnVfjFkKM38kH8+UaYaRRzqTsYZKYpaiW\"}}",
+   "out": "Page 1 of 2.\n{\"job\":{\"notes\":\"She said \\\"no\\\"\\nthen left\"}}"
+  },
+  {
+   "in": "{\n  \"a\": \"enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5\",\n  \"enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5\": [1, 2.5, true, null]\n}",
+   "out": "{\n  \"a\": \"In the cave.\",\n  \"In the cave.\": [\n    1,\n    2.5,\n    true,\n    null\n  ]\n}"
+  },
+  {
+   "in": "Plain enc2:fKPHcbR9e8akqAlcfl6lp00+sIhiwZ8mVRvI3JZppk0jWgeIneQRGkF5BJ9XdObvrdwwFM0Foq+8Rbp5.",
+   "out": "Plain In the cave."
+  }
+ ]
+}

@@ -344,6 +344,10 @@ func (c *Client) refreshOAuthToken() error {
 		return fmt.Errorf("reading OAuth refresh response: %w", err)
 	}
 
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
+		// invalid_grant: the login expired or was revoked.
+		return fmt.Errorf("%w (%s)", ErrLoginRequired, oauthErrorMessage(resp.StatusCode, respBody))
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("refreshing OAuth token failed: %s", oauthErrorMessage(resp.StatusCode, respBody))
 	}

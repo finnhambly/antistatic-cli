@@ -1,8 +1,9 @@
 name: Contract drift
 
 # Compares the pinned API contract (contract/v1.json, which the Go tests
-# check the CLI against) with production's, and opens an issue when they
-# differ. Update the pin with:
+# check the CLI against) and the embedded field schema of encrypted runs
+# (internal/e2e/private-fields.json) with production's, and opens an issue
+# when they differ. Update the pin with:
 #   curl -fsS https://antistatic.exchange/api/v1/contract.json -o contract/v1.json
 # then run go test ./... and fix whatever no longer matches.
 
@@ -53,6 +54,39 @@ jobs:
             } > issue.md
             cat issue.md
           fi
+
+      - name: Compare the embedded field schema with production's
+        id: fields
+        run: |
+          curl -fsS https://antistatic.exchange/e2e/fields.json -o fields.json
+          if cmp -s fields.json internal/e2e/private-fields.json; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No field schema drift."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "Production's [field schema](https://antistatic.exchange/e2e/fields.json) for encrypted runs differs from \`internal/e2e/private-fields.json\`."
+              echo
+              echo "Update it (\`curl -fsS https://antistatic.exchange/e2e/fields.json -o internal/e2e/private-fields.json\`), run \`go test ./...\` and release."
+              echo
+              echo '```diff'
+              diff -u internal/e2e/private-fields.json fields.json | head -c 50000
+              echo '```'
+            } > fields-issue.md
+            cat fields-issue.md
+          fi
+
+      - name: Open a field schema issue (unless one is open)
+        if: steps.fields.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"Field schema drift" in:title' --json number --jq 'length')
+          if [ "$open" != "0" ]; then
+            echo "A field schema drift issue is already open."
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Field schema drift" --body-file fields-issue.md
 
       - name: Open an issue (unless one is open)
         if: steps.compare.outputs.drift == 'true'

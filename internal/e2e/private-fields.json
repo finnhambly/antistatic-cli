@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "about": "Encrypted wargames: every argument field of every tool a private run may use, and what it is. The antistatic CLI (antistatic call, which embeds a copy) encrypts by it and refuses anything else; the server (AntistaticExchange.E2E.Fields) checks private-run calls against it. text: encrypted whole; lines: encrypted line by line (markdown markers and script headings stay plain); key: a client-chosen id, encrypted whole (deterministic, so reuse it verbatim); drop: a field the server ignores for run questions, which the CLI leaves out; unit: a how-much unit, sent as a template the server writes numbers into, its text encrypted around the plain X (\"£Xk\" is <£>X<k>; a word unit such as \"pence per litre\" is one token; a leading % after X stays plain, as the server reads percentages); opaque: a client-chosen id the CLI replaces with t + 32 hex (HMAC under the key: the same id, the same replacement); other names: plain formats below. A node is a kind name, a list (the first that fits), {object}, {array}, {map: {keys, values}}, {json} (JSON in a string), {enum}, {ref}, or {switch: sibling field, cases}.",
+  "formats": {
+    "int": {"type": "integer"},
+    "number": {"type": "number"},
+    "bool": {"type": "boolean"},
+    "null": {"type": "null"},
+    "date": {"pattern": "^\\d{4}(-\\d{2}(-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?)?)?)?$"},
+    "char": {"pattern": "^c\\d{1,3}$"},
+    "run_question": {"pattern": "^p\\d+-\\d+$"},
+    "job": {"pattern": "^pj_[A-Za-z0-9_-]{16,64}$"},
+    "observation": {"pattern": "^o[A-Za-z0-9_-]{8,12}$"},
+    "player_question": {"pattern": "^q[0-9a-f]{8}$"},
+    "submarket": {"pattern": "^sm_\\d+$"},
+    "version": {"pattern": "^[A-Za-z0-9:._-]{1,100}$"},
+    "turns": {"pattern": "^\\d{1,4}(-\\d{1,4})?$"},
+    "colour": {"pattern": "^#[0-9a-fA-F]{6}$"},
+    "numeric": {"pattern": "^[+-]?\\d+(\\.\\d+)?%?$"},
+    "percentile": {"pattern": "^\\d{1,2}(\\.\\d+)?$"},
+    "url": {"pattern": "^https?://\\S{1,2000}$"}
+  },
+  "types": {
+    "character_new": {"object": {
+      "name": "text", "tagline": "text", "bio": "text",
+      "controller": {"enum": ["me", "ai"]}
+    }},
+    "character_change": {"object": {
+      "key": "char", "name": "text", "tagline": "text", "bio": "text",
+      "controller": {"enum": ["me", "ai"]}
+    }},
+    "entry": {"object": {
+      "type": {"enum": ["action", "decree", "feed", "info"]},
+      "character": "char",
+      "text": "text",
+      "answers": "player_question",
+      "strike": "observation",
+      "settle": {"ref": "settle"}
+    }},
+    "ask_entry": {"object": {
+      "type": {"enum": ["feed", "info"]},
+      "text": "text",
+      "answers": "player_question",
+      "strike": "observation",
+      "settle": {"ref": "settle"}
+    }},
+    "order_entry": {"object": {"type": {"enum": ["action", "decree"]}, "text": "text"}},
+    "settle": {"object": {"item": "key", "market": "run_question", "outcome": {"enum": ["yes", "no"]}}},
+    "forecast_read": {"object": {
+      "run_id": "int", "code": "run_question",
+      "shift": {"ref": "shift"}, "targets": {"ref": "targets"}, "updates": {"ref": "updates"}
+    }},
+    "forecast": {"object": {
+      "run_id": "int", "code": "run_question", "as_bot": "bool",
+      "rest_of_curve": {"enum": ["leave", "keep_in_order", "interpolate"]},
+      "shift": {"ref": "shift"}, "targets": {"ref": "targets"}, "updates": {"ref": "updates"}
+    }},
+    "shift": {"object": {"to": ["number", "numeric", "date"], "by": ["number", "numeric"], "curve": "curve", "quantile": "number"}},
+    "targets": {"array": {"object": {"curve": "curve", "probability": "number", "threshold": ["number", "date"]}}},
+    "updates": {"array": {"object": {"probability": "number", "submarket": "submarket"}}},
+    "curve": ["date", {"enum": ["main"]}, "key"],
+    "source": ["text", {"object": {"title": "text", "url": "text"}}],
+    "basis": {"object": {
+      "reference_classes": {"array": {"object": {
+        "description": "text", "evidence": "text", "k": "int", "n": "int", "period": "text",
+        "cases": {"array": {"object": {"case": "text", "start": "text", "end": "text", "outcome": "text", "note": "text", "url": "text"}}},
+        "sources": {"array": {"ref": "source"}}
+      }}},
+      "weighting": "text", "method": "text", "judgement": "text", "code": "text", "notes": "text"
+    }},
+    "when_anchor": {"object": {"by": "date", "in_year": ["int", "date"], "within": "int", "p": "number"}},
+    "how_much_anchor": {"object": {"period": "date", "quantiles": {"map": {"keys": "percentile", "values": "number"}}}},
+    "anchors": [
+      {"array": ["when_anchor", "how_much_anchor"]},
+      {"map": {"keys": "key", "values": {"array": ["when_anchor", "how_much_anchor"]}}}
+    ],
+    "item": {"object": {"key": "key", "label": "text", "color": "colour", "anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}}},
+    "spec": {"object": {
+      "question": {"enum": ["when", "how_much"]},
+      "title": "text",
+      "code": "drop",
+      "unit": "unit",
+      "measure": {"enum": ["value_at_end", "highest", "lowest", "total_over_period"]},
+      "running": "bool",
+      "resets": {"enum": ["never", "yearly"]},
+      "budget": "number",
+      "horizon": {"object": {"start": "date", "end": "date", "cadence": {"enum": ["day", "week", "month", "quarter", "year"]}, "dates": {"array": "date"}}},
+      "periods": [
+        {"object": {"cadence": {"enum": ["week", "month", "quarter", "year"]}, "from": "date", "to": "date"}},
+        {"array": {"object": {"end": "date", "label": "text"}}}
+      ],
+      "thresholds": {"object": {
+        "from": "number", "to": "number", "scale": {"enum": ["linear", "log"]}, "count": "int", "step": "number",
+        "extend": {"object": {"below": "int", "above": "int"}}
+      }},
+      "anchors": {"ref": "anchors"},
+      "items": {"array": {"ref": "item"}},
+      "shares": {"map": {"keys": [{"enum": ["total"]}, "key"], "values": "number"}},
+      "condition": {"object": {
+        "kind": {"enum": ["after_trigger", "scenarios"]},
+        "trigger": "text", "deadline": "date", "title_after": "text",
+        "window": {"object": {"months": "int", "weeks": "int", "years": "int"}},
+        "scenarios": {"array": {"object": {"key": "key", "label": "text"}}}
+      }},
+      "resolution": {"object": {"source": "text", "details": "text", "includes": {"array": "text"}, "excludes": {"array": "text"}}},
+      "basis": {"ref": "basis"}
+    }},
+    "observation": {"object": {"visible_at": "date", "as_of": "date", "text": "text", "audience": {"array": "char"}}},
+    "plan": {"object": {
+      "branches": {"array": {"object": {
+        "label": "text",
+        "weight": "number",
+        "observations": {"array": {"ref": "observation"}},
+        "action_outcomes": {"array": {"object": {
+          "action": "text", "label": "text", "note": "text",
+          "status": {"enum": ["done", "partly", "slipped", "unknown"]}
+        }}},
+        "sealed_updates": {"array": {"object": {"key": "key", "text": "text", "due_at": ["date", "null"]}}}
+      }}},
+      "evidence": {"array": "text"},
+      "assumptions": {"array": "text"},
+      "info_answers": "text",
+      "questions_for_player": {"array": {"object": {
+        "question": "text", "assumption": "text", "answer": "text",
+        "kind": {"enum": ["fact", "probability"]}
+      }}}
+    }},
+    "item_ref": {"object": {"market": "run_question", "item": "key"}},
+    "draw_event": {"object": {
+      "tool": {"enum": ["curveball", "ask_player", "set_until", "draw", "sample", "adjust", "settle_item", "correlate", "link", "create_question", "import_question", "extend_question", "add_item"]},
+      "input": "draw_input"
+    }},
+    "draw_input": {"switch": "tool", "cases": {
+      "curveball": {"object": {"label": "text", "basis": "text", "p": "number", "visible": "bool"}},
+      "ask_player": {"object": {"question": "text", "why": "text", "assumption": "text", "blocking": "bool", "kind": {"enum": ["fact", "probability"]}}},
+      "set_until": {"object": {"date": "date", "reason": "text"}},
+      "draw": {"object": {"action": "text", "label": "text", "basis": "text", "p": "number", "visible": "bool"}},
+      "sample": {"object": {"action": "text", "label": "text", "basis": "text", "visible": "bool", "outcomes": {"array": {"object": {"outcome": [{"enum": ["done", "partly", "slipped", "unknown"]}, "text"], "p": "number"}}}}},
+      "adjust": {"object": {"action": "text", "basis": "text", "factor": "number", "item": "key", "market": "run_question", "value": "number", "at": "date", "evidence": ["observation", "text"], "lasting": "bool", "shift": "number", "noise": "number",
+        "given": {"object": {"market": "run_question", "item": "key", "outcome": {"enum": ["yes", "no"]}, "keep_marginal": "bool"}}}},
+      "settle_item": {"object": {"basis": "text", "date": "date", "evidence": ["observation", "text"], "item": "key", "market": "run_question", "outcome": {"enum": ["yes", "no", "not_before"]}}},
+      "correlate": {"object": {"basis": "text", "market": "run_question", "item": "key", "with": "run_question", "with_item": "key", "rho": "number", "lift": "number", "by": "date", "remove": "bool"}},
+      "link": {"object": {"kind": {"enum": ["exclusive", "requires"]}, "items": {"array": {"ref": "item_ref"}}, "item": {"ref": "item_ref"}, "after": {"ref": "item_ref"}, "remove": "bool", "basis": "text"}},
+      "import_question": {"object": {"from_run_id": "int", "code": "run_question"}},
+      "create_question": {"object": {"draw": {"object": {"basis": "text", "p": "number", "visible": "bool"}}, "spec": {"ref": "spec"}}},
+      "extend_question": {"object": {"market": "run_question", "to": "date", "anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}, "thresholds": {"object": {"from": "number", "to": "number"}}}},
+      "add_item": {"object": {"market": "run_question", "key": "key", "label": "text", "player_choice": "bool", "anchors": {"array": ["when_anchor", "how_much_anchor"]}, "basis": {"ref": "basis"}}}
+    }}
+  },
+  "tools": {
+    "antistatic_list_sandboxes": {},
+    "antistatic_market_recipe": {},
+    "antistatic_start_sandbox": {
+      "private": "bool", "title": "text", "premise": "text", "bio": "text",
+      "mode": {"enum": ["mortal", "god"]}, "planner": {"enum": ["client"]},
+      "model": {"enum": ["opus", "sonnet", "haiku"]}, "sample_from": {"enum": ["house", "user"]},
+      "starts_on": "date", "ends_on": "date",
+      "characters": {"array": {"ref": "character_new"}}
+    },
+    "antistatic_update_sandbox_setup": {
+      "run_id": "int", "character": "char", "title": "text", "premise": "text", "bio": "text", "modifications": "text",
+      "mode": {"enum": ["mortal", "god"]}, "planner": {"enum": ["client"]},
+      "model": {"enum": ["opus", "sonnet", "haiku"]}, "sample_from": {"enum": ["house", "user"]},
+      "starts_on": "date", "ends_on": ["date", "null"],
+      "pace": {"enum": ["auto", "days", "week", "month", "quarter"]},
+      "characters": {"array": {"ref": "character_change"}}
+    },
+    "antistatic_get_sandbox": {"run_id": "int", "character": "char", "turns": ["int", "turns"], "include_audit": "bool", "script": ["int", {"enum": ["latest"]}]},
+    "antistatic_wait_sandbox": {"run_id": "int", "character": "char", "since": "version", "wait_seconds": "int"},
+    "antistatic_show_turn_status": {"run_id": "int", "character": "char"},
+    "antistatic_sandbox_sources": {"run_id": "int", "limit": "int", "since": ["date", {"enum": ["previous", "start"]}]},
+    "antistatic_take_turn": {
+      "run_id": "int", "turn_id": "opaque", "until": ["date", {"enum": ["auto"]}],
+      "entries": {"array": {"ref": "entry"}}
+    },
+    "antistatic_ask_sandbox": {"run_id": "int", "character": "char", "entries": {"array": {"ref": "ask_entry"}}},
+    "antistatic_submit_orders": {"run_id": "int", "character": "char", "submit": "bool", "entries": {"array": {"ref": "order_entry"}}},
+    "antistatic_correct_sandbox": {"run_id": "int", "strike": "observation", "reopen": "run_question", "item": "key", "reason": "text", "fact": "text"},
+    "antistatic_set_sandbox_goal": {"run_id": "int", "code": "run_question", "liquidity": "int", "remove": "bool"},
+    "antistatic_advance_sandbox": {"run_id": "int", "by": {"enum": ["week", "month", "year"]}},
+    "antistatic_rename_sandbox": {"run_id": "int", "name": "text"},
+    "antistatic_archive_sandbox": {"run_id": "int", "archived": "bool"},
+    "antistatic_delete_sandbox": {"run_id": "int", "confirm": "bool"},
+    "antistatic_show_market": {"run_id": "int", "code": "run_question", "curve": "curve", "history": ["int", {"enum": ["none", "all"]}], "as_bot": "bool", "show_crowd": "bool", "view": {"enum": ["years", "all"]}},
+    "antistatic_show_markets": {"run_id": "int", "market_codes": {"array": "run_question"}, "as_bot": "bool"},
+    "antistatic_quote": {"ref": "forecast_read"},
+    "antistatic_preview_forecast": {"ref": "forecast_read"},
+    "antistatic_submit_forecast": {"ref": "forecast"},
+    "antistatic_preview_market": {"run_id": "int", "spec": {"ref": "spec"}},
+    "antistatic_create_market": {"run_id": "int", "spec": {"ref": "spec"}},
+    "antistatic_planner_job": {"job_id": "job", "page": "int"},
+    "antistatic_planner_draw": {"job_id": "job", "events": {"array": "draw_event"}},
+    "antistatic_submit_plan": {"job_id": "job", "plan": {"ref": "plan"}},
+    "antistatic_submit_script": {"job_id": "job", "script": "lines"},
+    "antistatic_planner_notes": {"job_id": "job", "notes": "text"}
+  }
+}
