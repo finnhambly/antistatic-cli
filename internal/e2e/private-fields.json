@@ -118,7 +118,11 @@
           "action": "text", "label": "text", "note": "text",
           "status": {"enum": ["done", "partly", "slipped", "unknown"]}
         }}},
-        "sealed_updates": {"array": {"object": {"key": "key", "text": "text", "due_at": ["date", "null"]}}}
+        "sealed_updates": {"array": {"object": {"key": "key", "text": "text", "due_at": ["date", "null"]}}},
+        "adjust": {"array": {"object": {
+          "market": "run_question", "item": "key", "shift": "number", "factor": "number",
+          "action": "text", "basis": "text"
+        }}}
       }}},
       "evidence": {"array": "text"},
       "assumptions": {"array": "text"},
