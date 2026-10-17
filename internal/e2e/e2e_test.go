@@ -390,9 +390,9 @@ func TestShapeAndValueErrors(t *testing.T) {
 
 func TestDecryptTextEscapesTheWidgetData(t *testing.T) {
 	keys, _ := ImportKeys(Raw{Enc: make([]byte, 32), IV: make([]byte, 32)}, "42")
-	a := keys.Encrypt(`Say "hi" </script>`)
+	a := keys.Encrypt(`Say "hi" </script> "`)
 	got := keys.DecryptText("Card " + a + ".\n```html\n<script>const D={\"l\":\"" + a + "\"};</script>```\nAfter " + a)
-	want := "Card Say \"hi\" </script>.\n```html\n<script>const D={\"l\":\"Say \\\"hi\\\" <\\/script>\"};</script>```\nAfter Say \"hi\" </script>"
+	want := "Card Say \"hi\" </script> \".\n```html\n<script>const D={\"l\":\"Say \\\"hi\\\" <\\/script> \\\"\"};</script>```\nAfter Say \"hi\" </script> \""
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}

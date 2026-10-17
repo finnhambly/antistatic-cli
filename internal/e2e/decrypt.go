@@ -53,7 +53,8 @@ func (k *Keys) decryptText(text string, inScript bool) string {
 				pt = Locked
 			}
 			if inScript {
-				pt = strings.ReplaceAll(strings.Trim(EncodeJSON(pt, 0), `"`), "</", `<\/`)
+				q := EncodeJSON(pt, 0)
+				pt = strings.ReplaceAll(q[1:len(q)-1], "</", `<\/`)
 			}
 			plain[p.Token] = pt
 		}
