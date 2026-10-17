@@ -58,5 +58,5 @@ const encryptHint = `run "antistatic encrypt" in your terminal`
 var (
 	errNotLoggedIn = exitErr(ExitNotLoggedIn, "not logged in: %s", encryptHint)
 	errNotSetUp    = exitErr(ExitNotSetUp, "encryption not set up: %s", encryptHint)
-	errLocked      = exitErr(ExitLocked, "locked: %s", encryptHint)
+	errLocked      = exitErr(ExitLocked, `locked: run "antistatic unlock" in your terminal`)
 )

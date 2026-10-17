@@ -23,7 +23,8 @@ import (
 // phrase typed); call encrypts a tool call's arguments with the saved key
 // and decrypts what comes back.
 
-const pluginInstall = "/plugin install antistatic --marketplace finnhambly/antistatic-plugin"
+// How Claude Code installs the plugin (a marketplace, then the plugin).
+const pluginInstall = "/plugin marketplace add finnhambly/antistatic-plugin, then /plugin install antistatic@antistatic"
 
 func init() {
 	encryptCmd := &cobra.Command{
@@ -345,8 +346,8 @@ func unlock(setup e2e.Setup) error {
 		if err := saveKey(setup, raw); err != nil {
 			return err
 		}
-		fmt.Println("Unlocked.")
-		printNext()
+		// Asked for by the agent that needs it, so no next step.
+		fmt.Println("Unlocked. It stays unlocked on this machine until \"antistatic lock\" or logout.")
 		return nil
 	}
 }
@@ -446,7 +447,7 @@ func runCall(cmd *cobra.Command, args []string) error {
 	}
 	sealed, err := e2e.EncryptCall(keys, tool, parsed)
 	if err != nil {
-		return exitErr(ExitUsage, "%v", err)
+		return exitErr(ExitUsage, "%v\n%s takes %s", err, tool, e2e.Shape(tool))
 	}
 	res, err := client.CallTool(tool, []byte(e2e.EncodeJSON(sealed, 0)))
 	if err != nil {

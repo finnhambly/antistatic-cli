@@ -601,14 +601,14 @@
      }
     ]
    },
-   "error": "antistatic_take_turn.entries[0].character: expected char"
+   "error": "antistatic_take_turn.entries[0].character: \"Mum\" isn't a character id (c2)"
   },
   {
    "tool": "antistatic_take_turn",
    "args": {
     "run_id": "3"
    },
-   "error": "antistatic_take_turn.run_id: expected int"
+   "error": "antistatic_take_turn.run_id: \"3\" isn't a whole number"
   },
   {
    "tool": "antistatic_planner_draw",
@@ -621,7 +621,7 @@
      }
     ]
    },
-   "error": "antistatic_planner_draw.events[0].tool: expected one of curveball, ask_player, set_until, draw, sample, adjust, settle_item, correlate, link, create_question, import_question, extend_question, add_item"
+   "error": "antistatic_planner_draw.events[0].tool: \"nuke\" isn't one of curveball, ask_player, set_until, draw, sample, adjust, settle_item, correlate, link, create_question, import_question, extend_question, add_item"
   }
  ],
  "decrypt_text": [

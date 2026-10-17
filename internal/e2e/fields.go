@@ -213,6 +213,9 @@ func (s *schema) describe(n *node) string {
 		}
 		return "text"
 	case n.format != "":
+		if l, ok := formatLabels[n.format]; ok {
+			return l
+		}
 		return n.format
 	case n.enum != nil:
 		parts := make([]string, len(n.enum))
@@ -239,6 +242,31 @@ func (s *schema) describe(n *node) string {
 	return "an object"
 }
 
+var formatLabels = map[string]string{
+	"int":          "a whole number",
+	"number":       "a number",
+	"bool":         "true or false",
+	"date":         "a date (2026, 2026-10 or 2026-10-31)",
+	"period":       "a period (2026-Q4, Q4 2026 or Oct 2026)",
+	"run_question": "a run question code (p12-3)",
+	"char":         "a character id (c2)",
+}
+
+const notAField = "not a field encrypted runs take"
+
+// shown is a plain value for an error message (text isn't echoed).
+func shown(v any) string {
+	switch t := v.(type) {
+	case json.Number, bool, nil:
+		return EncodeJSON(t, 0) + " "
+	case string:
+		if len([]rune(t)) <= 40 {
+			return EncodeJSON(t, 0) + " "
+		}
+	}
+	return ""
+}
+
 // leafFunc encrypts a text, lines, key, opaque or unit field.
 type leafFunc func(kind, value, path string) (string, error)
 
@@ -257,17 +285,19 @@ func (s *schema) walk(n *node, value any, path string, leaf leafFunc, siblings O
 			if err == nil {
 				return out, nil
 			}
-			if first == nil {
+			// An option of the wrong shape (a field it doesn't have) gives
+			// way to one whose error is about the value.
+			if first == nil || (strings.Contains(first.Error(), notAField) && !strings.Contains(err.Error(), notAField)) {
 				first = err
 			}
 		}
 		if first != nil {
 			return nil, first
 		}
-		return nil, fmt.Errorf("%s: expected %s", path, s.describe(n))
+		return nil, fmt.Errorf("%s: %sisn't %s", path, shown(value), s.describe(n))
 	}
 	if !n.fits(value) {
-		return nil, fmt.Errorf("%s: expected %s", path, s.describe(n))
+		return nil, fmt.Errorf("%s: %sisn't %s", path, shown(value), s.describe(n))
 	}
 	switch {
 	case n.kind != "":
@@ -346,7 +376,7 @@ func (s *schema) walk(n *node, value any, path string, leaf leafFunc, siblings O
 	for _, m := range obj {
 		field, ok := n.object.Get(m.Key)
 		if !ok {
-			return nil, fmt.Errorf("%s.%s: not a field encrypted runs take", path, m.Key)
+			return nil, fmt.Errorf("%s.%s: %s", path, m.Key, notAField)
 		}
 		fn, err := s.resolve(field)
 		if err != nil {
@@ -443,6 +473,97 @@ func encryptUnit(k *Keys, unit string) string {
 	return out
 }
 
+// Shape is the arguments a tool takes, from the schema, two levels deep:
+// {run_id: a whole number, spec: {question: when|how_much, ...}}.
+func Shape(tool string) string {
+	t, ok := fieldSchema.tools[tool]
+	if !ok {
+		return ""
+	}
+	n, err := fieldSchema.resolve(toolRoot(t))
+	if err != nil {
+		return ""
+	}
+	return fieldSchema.shape(n, 0)
+}
+
+func toolRoot(t any) any {
+	if o, ok := t.(Object); ok {
+		_, hasRef := o.Get("ref")
+		_, hasObj := o.Get("object")
+		if !hasRef && !hasObj {
+			return Object{{"object", o}}
+		}
+	}
+	return t
+}
+
+func (s *schema) shape(n *node, depth int) string {
+	short := map[string]string{"int": "int", "number": "number", "bool": "bool", "null": "null"}
+	switch {
+	case n.kind != "":
+		if n.kind == "lines" {
+			return "text"
+		}
+		return n.kind
+	case n.format != "":
+		if v, ok := short[n.format]; ok {
+			return v
+		}
+		return n.format
+	case n.enum != nil:
+		parts := make([]string, len(n.enum))
+		for i, e := range n.enum {
+			if str, ok := e.(string); ok {
+				parts[i] = str
+			} else {
+				parts[i] = EncodeJSON(e, 0)
+			}
+		}
+		return strings.Join(parts, "|")
+	case n.union != nil:
+		parts := []string{}
+		for _, u := range n.union {
+			if r, err := s.resolve(u); err == nil {
+				parts = append(parts, s.shape(r, depth))
+			}
+		}
+		return strings.Join(parts, " or ")
+	case n.array != nil:
+		if depth >= 2 {
+			return "[…]"
+		}
+		r, err := s.resolve(n.array)
+		if err != nil {
+			return "[…]"
+		}
+		return "[" + s.shape(r, depth+1) + "]"
+	case n.sw != "":
+		return "{…by " + n.sw + "}"
+	case n.mapKeys != nil:
+		if depth >= 2 {
+			return "{…}"
+		}
+		r, err := s.resolve(n.mapVals)
+		if err != nil {
+			return "{…}"
+		}
+		return "{<key>: " + s.shape(r, depth+1) + "}"
+	}
+	if depth >= 2 {
+		return "{…}"
+	}
+	parts := []string{}
+	for _, m := range n.object {
+		r, err := s.resolve(m.Value)
+		if err != nil || r.kind == "drop" {
+			continue
+		}
+		parts = append(parts, m.Key+": "+s.shape(r, depth+1))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
 // EncryptCall encrypts a call's arguments by the schema: text and key
 // fields encrypted, opaque ids hashed, dropped fields left out. A tool or
 // field encrypted runs don't take is an error.
@@ -455,15 +576,7 @@ func (s *schema) encryptCall(k *Keys, tool string, args any) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("%s isn't available for encrypted runs", tool)
 	}
-	var root any = t
-	if o, ok := t.(Object); ok {
-		_, hasRef := o.Get("ref")
-		_, hasObj := o.Get("object")
-		if !hasRef && !hasObj {
-			root = Object{{"object", o}}
-		}
-	}
-	n, err := s.resolve(root)
+	n, err := s.resolve(toolRoot(t))
 	if err != nil {
 		return nil, err
 	}

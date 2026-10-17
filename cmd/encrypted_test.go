@@ -247,6 +247,10 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "nope: not a field") {
 		t.Fatalf("unknown field: %v", err)
 	}
+	// The refusal says what the tool takes.
+	if !strings.Contains(err.Error(), "antistatic_start_sandbox takes {") || !strings.Contains(err.Error(), "title: text") {
+		t.Fatalf("no shape: %v", err)
+	}
 	_, err = e.run(`{}`, "call", "antistatic_post_comment")
 	if ExitCode(err) != ExitUsage {
 		t.Fatalf("unknown tool: %v", err)
@@ -278,7 +282,7 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 		t.Fatalf("status: %s", out)
 	}
 	_, err = e.run(`{"title": "x"}`, "call", "antistatic_start_sandbox")
-	if ExitCode(err) != ExitLocked || !strings.Contains(err.Error(), "antistatic encrypt") {
+	if ExitCode(err) != ExitLocked || !strings.Contains(err.Error(), "antistatic unlock") {
 		t.Fatalf("locked call: %v", err)
 	}
 	other, _ := e2e.GeneratePhrase()

@@ -18,7 +18,8 @@
     "colour": {"pattern": "^#[0-9a-fA-F]{6}$"},
     "numeric": {"pattern": "^[+-]?\\d+(\\.\\d+)?%?$"},
     "percentile": {"pattern": "^\\d{1,2}(\\.\\d+)?$"},
-    "url": {"pattern": "^https?://\\S{1,2000}$"}
+    "url": {"pattern": "^https?://\\S{1,2000}$"},
+    "period": {"pattern": "^(\\d{4}\\s*-?\\s*[Qq][1-4]|[Qq][1-4][\\s-]*\\d{4}|[A-Za-z]{3,9}\\.?\\s+\\d{4})$"}
   },
   "types": {
     "character_new": {"object": {
@@ -68,13 +69,13 @@
       }}},
       "weighting": "text", "method": "text", "judgement": "text", "code": "text", "notes": "text"
     }},
-    "when_anchor": {"object": {"by": "date", "in_year": ["int", "date"], "within": "int", "p": "number"}},
-    "how_much_anchor": {"object": {"period": "date", "quantiles": {"map": {"keys": "percentile", "values": "number"}}}},
+    "when_anchor": {"object": {"by": ["date", "period"], "in_year": ["int", "date"], "within": "int", "p": "number"}},
+    "how_much_anchor": {"object": {"period": ["int", "date", "period"], "quantiles": {"map": {"keys": "percentile", "values": "number"}}}},
     "anchors": [
       {"array": ["when_anchor", "how_much_anchor"]},
       {"map": {"keys": "key", "values": {"array": ["when_anchor", "how_much_anchor"]}}}
     ],
-    "item": {"object": {"key": "key", "label": "text", "color": "colour", "anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}}},
+    "item": {"object": {"key": "key", "label": "text", "color": "colour", "player_choice": "bool", "anchors": {"array": ["when_anchor", "how_much_anchor"]}, "basis": {"ref": "basis"}}},
     "spec": {"object": {
       "question": {"enum": ["when", "how_much"]},
       "title": "text",
@@ -82,11 +83,13 @@
       "unit": "unit",
       "measure": {"enum": ["value_at_end", "highest", "lowest", "total_over_period"]},
       "running": "bool",
+      "player_choice": "bool",
+      "persistence": "number",
       "resets": {"enum": ["never", "yearly"]},
       "budget": "number",
-      "horizon": {"object": {"start": "date", "end": "date", "cadence": {"enum": ["day", "week", "month", "quarter", "year"]}, "dates": {"array": "date"}}},
+      "horizon": {"object": {"start": ["date", "period"], "end": ["date", "period"], "cadence": {"enum": ["day", "week", "month", "quarter", "year"]}, "dates": {"array": "date"}}},
       "periods": [
-        {"object": {"cadence": {"enum": ["week", "month", "quarter", "year"]}, "from": "date", "to": "date"}},
+        {"object": {"cadence": {"enum": ["week", "month", "quarter", "year"]}, "from": ["date", "period"], "to": ["date", "period"]}},
         {"array": {"object": {"end": "date", "label": "text"}}}
       ],
       "thresholds": {"object": {
@@ -143,7 +146,7 @@
       "link": {"object": {"kind": {"enum": ["exclusive", "requires"]}, "items": {"array": {"ref": "item_ref"}}, "item": {"ref": "item_ref"}, "after": {"ref": "item_ref"}, "remove": "bool", "basis": "text"}},
       "import_question": {"object": {"from_run_id": "int", "code": "run_question"}},
       "create_question": {"object": {"draw": {"object": {"basis": "text", "p": "number", "visible": "bool"}}, "spec": {"ref": "spec"}}},
-      "extend_question": {"object": {"market": "run_question", "to": "date", "anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}, "thresholds": {"object": {"from": "number", "to": "number"}}}},
+      "extend_question": {"object": {"market": "run_question", "to": ["date", "period"], "anchors": {"ref": "anchors"}, "basis": {"ref": "basis"}, "thresholds": {"object": {"from": "number", "to": "number"}}}},
       "add_item": {"object": {"market": "run_question", "key": "key", "label": "text", "player_choice": "bool", "anchors": {"array": ["when_anchor", "how_much_anchor"]}, "basis": {"ref": "basis"}}}
     }}
   },

@@ -197,11 +197,12 @@ antistatic encrypt
 
 Logs in if needed, then sets up (shows a new 6-word recovery phrase once and
 asks you to retype words 2 and 5) or unlocks (asks for the phrase). The phrase
-and keys stay on your machine. Then ask Claude: "Start an encrypted wargame
-about …".
+and keys stay on your machine, unlocked until `antistatic lock` or logout. Then
+ask Claude: "Start an encrypted wargame about …".
 
 ```sh
 antistatic status        # not logged in / not set up / locked / unlocked
+antistatic unlock        # when locked: asks for the phrase
 antistatic lock
 antistatic call antistatic_start_sandbox <<'EOF'
 {"title": "Bakery gamble", "premise": "I quit my job to open a bakery.", "private": true}
@@ -210,8 +211,9 @@ EOF
 
 `antistatic call <tool>` takes the tool's JSON arguments on stdin (or
 `@file.json`), encrypts its text with your key, and prints the result
-decrypted (`--json`: its structured data). Exit codes: 2 bad arguments,
-3 not logged in, 4 not set up, 5 locked, 6 the tool refused the call.
+decrypted (`--json`: its structured data). Exit codes: 2 bad arguments (it
+prints the shape the tool takes), 3 not logged in, 4 not set up, 5 locked,
+6 the tool refused the call.
 
 ## Curricula (past sandboxes)
 

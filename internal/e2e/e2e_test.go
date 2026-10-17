@@ -344,3 +344,56 @@ func TestGoVectors(t *testing.T) {
 		}
 	}
 }
+
+func TestDecryptResultAlignsTheRunGrid(t *testing.T) {
+	keys, err := ImportKeys(Raw{Enc: make([]byte, 32), IV: make([]byte, 32)}, "42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := keys.Encrypt("Offers"), keys.Encrypt("A much longer label for the CUF offer that runs on")
+	text := "Turn 1.\n\nRun grid (x):\n```\n" + a + "\n  " + b + "\t·▒\n" + a + "\t█·\n\t'27\nclock 2026-11-01\n```"
+	got := keys.DecryptResult(text)
+	want := "Turn 1.\n\nRun grid (x):\n```\nOffers\n  A much longer label for the… ·▒\nOffers                         █·\n                               '27\nclock 2026-11-01\n```"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestShapeAndValueErrors(t *testing.T) {
+	if s := Shape("antistatic_create_market"); !strings.HasPrefix(s, "{run_id: int, spec: {question: when|how_much, title: text") || strings.Contains(s, "code:") {
+		t.Fatal(s)
+	}
+	keys, _ := ImportKeys(Raw{Enc: make([]byte, 32), IV: make([]byte, 32)}, "42")
+	args, _ := ParseJSON([]byte(`{"run_id": 3, "spec": {"question": "how_much", "anchors": [{"period": "someday", "quantiles": {"50": 3}}]}}`))
+	_, err := EncryptCall(keys, "antistatic_preview_market", args)
+	if err == nil || !strings.Contains(err.Error(), `anchors[0].period: "someday" isn't`) || strings.Contains(err.Error(), "not a field") {
+		t.Fatal(err)
+	}
+	for _, p := range []string{`2026`, `"2026"`, `"2026-Q4"`, `"Q4 2026"`, `"Oct 2026"`} {
+		args, _ := ParseJSON([]byte(`{"run_id": 3, "spec": {"question": "how_much", "player_choice": false, "persistence": 0.9, "periods": {"cadence": "quarter", "from": "2026-Q4", "to": "2027-Q2"}, "anchors": [{"period": ` + p + `, "quantiles": {"50": 3}}]}}`))
+		if _, err := EncryptCall(keys, "antistatic_create_market", args); err != nil {
+			t.Fatal(p, err)
+		}
+	}
+	for _, args := range []string{`{"run_id": 3, "code": "p3-1"}`, `{"run_id": 3, "market_code": "p3-1"}`} {
+		a, _ := ParseJSON([]byte(args))
+		out, err := EncryptCall(keys, "antistatic_set_sandbox_goal", a)
+		if err != nil || !strings.Contains(EncodeJSON(out, 0), `"code":"p3-1"`) {
+			t.Fatal(args, err)
+		}
+	}
+	item, _ := ParseJSON([]byte(`{"job_id": "pj_abcdefghijklmnop", "events": [{"tool": "add_item", "input": {"market": "p3-1", "key": "cuf", "label": "CUF", "player_choice": true, "anchors": [{"by": "2027-Q2", "p": 0.4}]}}]}`))
+	if _, err := EncryptCall(keys, "antistatic_planner_draw", item); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDecryptTextEscapesTheWidgetData(t *testing.T) {
+	keys, _ := ImportKeys(Raw{Enc: make([]byte, 32), IV: make([]byte, 32)}, "42")
+	a := keys.Encrypt(`Say "hi" </script>`)
+	got := keys.DecryptText("Card " + a + ".\n```html\n<script>const D={\"l\":\"" + a + "\"};</script>```\nAfter " + a)
+	want := "Card Say \"hi\" </script>.\n```html\n<script>const D={\"l\":\"Say \\\"hi\\\" <\\/script>\"};</script>```\nAfter Say \"hi\" </script>"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}
