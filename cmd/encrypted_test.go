@@ -378,3 +378,74 @@ func TestEncryptNeedsATerminal(t *testing.T) {
 	}
 	_ = io.Discard
 }
+
+func TestTokenLoginEncryptsAndCalls(t *testing.T) {
+	e := newCLIEnv(t)
+	e.site.access = "axk_testtoken123456"
+
+	out, err := e.run("", "login", "--token", "axk_testtoken123456")
+	if err != nil || strings.TrimSpace(out) != "Token saved." {
+		t.Fatalf("login --token: %q %v", out, err)
+	}
+	data, _ := os.ReadFile(filepath.Join(e.dir, "config.json"))
+	if !strings.Contains(string(data), `"auth_server": "`+e.site.server.URL+`"`) {
+		t.Fatalf("token not bound: %s", data)
+	}
+
+	out, _ = e.run("", "status")
+	for _, want := range []string{"axk_testtoke...", "config file", "API token", "not set up"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("status lacks %q:\n%s", want, out)
+		}
+	}
+
+	// encrypt sets up with the token: no browser login.
+	var phrase string
+	readLine = func(prompt string) (string, error) {
+		words := strings.Split(phrase, " ")
+		if strings.Contains(prompt, "2") {
+			return words[1], nil
+		}
+		return words[4], nil
+	}
+	prevShow := showPhrase
+	defer func() { showPhrase = prevShow }()
+	showPhrase = func(p string) { phrase = p; prevShow(p) }
+	if out, err = e.run("", "encrypt"); err != nil || !strings.Contains(out, "Set up and unlocked.") {
+		t.Fatalf("encrypt: %q %v", out, err)
+	}
+	if e.site.authorized != 0 {
+		t.Fatal("browser login with a token")
+	}
+	out, err = e.run(`{"title": "Bakery gamble"}`, "call", "antistatic_start_sandbox")
+	if err != nil || strings.TrimSpace(out) != "Started Bakery gamble. Run 7." {
+		t.Fatalf("call: %q %v", out, err)
+	}
+
+	// The saved token goes to no other server.
+	site2 := newFakeSite(t)
+	t.Setenv("ANTISTATIC_URL", site2.server.URL)
+	if _, err = e.run(`{"title": "x"}`, "call", "antistatic_start_sandbox"); ExitCode(err) != ExitNotLoggedIn || len(site2.calls) != 0 {
+		t.Fatalf("other server: %v, %d calls", err, len(site2.calls))
+	}
+
+	// ANTISTATIC_TOKEN works without a saved login.
+	site2.access = "axk_envtoken"
+	t.Setenv("ANTISTATIC_TOKEN", "axk_envtoken")
+	readSecret = answers(phrase)
+	if out, err = e.run("", "unlock"); err == nil {
+		t.Fatalf("unlock on a server with no setup: %q", out)
+	}
+	if out, _ = e.run("", "status"); !strings.Contains(out, "ANTISTATIC_TOKEN env var") {
+		t.Fatalf("status: %s", out)
+	}
+	t.Setenv("ANTISTATIC_TOKEN", "")
+	t.Setenv("ANTISTATIC_URL", e.site.server.URL)
+
+	if out, err = e.run("", "logout"); err != nil || strings.TrimSpace(out) != "Token removed from config." {
+		t.Fatalf("logout: %q %v", out, err)
+	}
+	if _, err := os.Stat(filepath.Join(e.dir, "keys.json")); !os.IsNotExist(err) {
+		t.Fatal("keys left after logout")
+	}
+}

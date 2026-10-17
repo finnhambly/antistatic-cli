@@ -35,3 +35,27 @@ func TestIsolatedConfig(t *testing.T) {
 		t.Fatalf("personal changed: %#v %v", c, err)
 	}
 }
+
+func TestBoundTo(t *testing.T) {
+	prod, local := DefaultBaseURL, "http://localhost:4000"
+	cases := []struct {
+		name string
+		c    Config
+		base string
+		want bool
+	}{
+		{"bound", Config{Token: "a", AuthServer: local + "/"}, local, true},
+		{"bound elsewhere", Config{Token: "a", AuthServer: local}, prod, false},
+		{"legacy OAuth", Config{Token: "a", OAuthClientID: local + "/oauth/clients/cli.json"}, local, true},
+		{"legacy OAuth elsewhere", Config{Token: "a", OAuthClientID: local + "/oauth/clients/cli.json"}, prod, false},
+		{"legacy OAuth, odd client id", Config{Token: "a", OAuthClientID: "x"}, prod, false},
+		{"legacy API token", Config{Token: "axk_a"}, prod, true},
+		{"legacy API token elsewhere", Config{Token: "axk_a"}, local, false},
+		{"legacy API token, saved server", Config{Token: "axk_a", ServerURL: local}, local, true},
+	}
+	for _, tc := range cases {
+		if got := tc.c.BoundTo(tc.base); got != tc.want {
+			t.Errorf("%s: got %v", tc.name, got)
+		}
+	}
+}

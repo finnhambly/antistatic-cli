@@ -17,33 +17,46 @@ Alternative install methods:
 - `go install github.com/finnhambly/antistatic-cli@latest`
 - Download a prebuilt binary from [Releases](https://github.com/finnhambly/antistatic-cli/releases)
 
-### 2) Log in
+### 2) Authenticate
+
+Browser OAuth (recommended):
 
 ```sh
 antistatic login
 ```
 
-It opens your browser (`--no-browser` prints the link). The CLI identifies
-itself with a client metadata document
+The CLI identifies itself with a client metadata document
 (`https://antistatic.exchange/oauth/clients/cli.json`) rather than registering
-a new client each time.
+a new client each time. Versions before 0.2.0 can no longer start a fresh
+login; upgrade if `antistatic login` fails.
+
+Headless/CI token auth:
+
+```sh
+export ANTISTATIC_TOKEN=axk_YOUR_TOKEN_HERE
+```
+
+Check auth status:
 
 ```sh
 antistatic status
-antistatic logout
 ```
 
 For separate accounts, set `ANTISTATIC_CONFIG_DIR` to a dedicated directory.
-Your bot doesn't need its own login: use `--as-bot` with your normal one.
+OAuth login and refresh use that directory; the default login is unchanged.
+`ANTISTATIC_TOKEN` still overrides the selected saved login. Your bot doesn't
+need its own login: use `--as-bot` with your normal one.
 
 ```sh
 ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic login
+ANTISTATIC_CONFIG_DIR=~/.config/antistatic-other antistatic status
 ```
 
 Environment variables:
 
 | Variable | Effect |
 |---|---|
+| `ANTISTATIC_TOKEN` | API token; overrides the saved login |
 | `ANTISTATIC_CONFIG_DIR` | Where the login is saved (one directory per account) |
 | `ANTISTATIC_AS_BOT=1` | Act as your bot, like `--as-bot` |
 | `ANTISTATIC_URL` | Server URL (default https://antistatic.exchange) |

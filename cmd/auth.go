@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/finnhambly/antistatic-cli/internal/config"
 	"github.com/finnhambly/antistatic-cli/internal/output"
@@ -16,9 +17,13 @@ var authCmd = &cobra.Command{
 
 var authLoginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Log in with your browser",
-	Args:  cobra.NoArgs,
-	RunE:  runAuthLogin,
+	Short: "Log in with browser OAuth",
+	Long: `Log in to Antistatic Exchange.
+
+By default, this opens a browser and completes OAuth (recommended).
+For non-interactive environments, pass --token or set ANTISTATIC_TOKEN.`,
+	Args: cobra.NoArgs,
+	RunE: runAuthLogin,
 }
 
 var authStatusCmd = &cobra.Command{
@@ -45,7 +50,7 @@ func init() {
 	// Top-level aliases for convenience.
 	loginCmd := &cobra.Command{
 		Use:   "login",
-		Short: "Log in with your browser",
+		Short: "Alias for \"auth login\"",
 		Args:  cobra.NoArgs,
 		RunE:  runAuthLogin,
 	}
@@ -70,7 +75,31 @@ func init() {
 }
 
 func runAuthLogin(cmd *cobra.Command, args []string) error {
-	return runOAuthBrowserLogin(cmd)
+	token, _ := cmd.Flags().GetString("token")
+
+	if token == "" {
+		return runOAuthBrowserLogin(cmd)
+	}
+
+	if !strings.HasPrefix(token, "axk_") {
+		output.Warn("Token doesn't start with 'axk_' — are you sure this is correct?")
+	}
+
+	// Under the lock, so a refresh in another process can't overwrite it.
+	unlock, err := config.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	cfg.Token = token
+	cfg.ClearOAuthState()
+	cfg.AuthServer = config.NormalizeURL(cfg.ResolveBaseURL())
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	fmt.Println("Token saved.")
+	return nil
 }
 
 func runAuthLogout(cmd *cobra.Command, args []string) error {
@@ -88,7 +117,7 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
-	fmt.Println("Logged out.")
+	fmt.Println("Token removed from config.")
 	if os.Getenv("ANTISTATIC_TOKEN") != "" {
 		output.Warn("ANTISTATIC_TOKEN environment variable is still set.")
 	}
@@ -96,5 +125,6 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 }
 
 func addLoginFlags(loginCmd *cobra.Command) {
-	loginCmd.Flags().Bool("no-browser", false, "Print the login URL instead of opening a browser")
+	loginCmd.Flags().StringP("token", "t", "", "API token for non-interactive login")
+	loginCmd.Flags().Bool("no-browser", false, "Print login URL instead of opening a browser automatically")
 }

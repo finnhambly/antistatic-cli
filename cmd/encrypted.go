@@ -491,7 +491,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		state = "unknown"
 	}
-	if jsonOutput || !output.IsTTY() {
+	if jsonOutput || !stdoutIsTerminal() {
 		out := e2e.Object{{Key: "server", Value: client.BaseURL()}, {Key: "state", Value: state}}
 		if err != nil {
 			out = append(out, e2e.Member{Key: "error", Value: err.Error()})
@@ -499,7 +499,30 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println(e2e.EncodeJSON(out, 2))
 		return nil
 	}
-	pairs := [][2]string{{"Server", client.BaseURL()}, {"State", strings.ReplaceAll(state, "_", " ")}}
+	pairs := [][2]string{{"Server", client.BaseURL()}}
+	if token := cfg.ResolveToken(); token != "" {
+		source := "config file"
+		if os.Getenv("ANTISTATIC_TOKEN") != "" {
+			source = "ANTISTATIC_TOKEN env var"
+		}
+		// Mask the token: show prefix + first 8 chars + ...
+		masked := token
+		if len(token) > 12 {
+			masked = token[:12] + "..."
+		}
+		pairs = append(pairs, [2]string{"Token", masked}, [2]string{"Source", source})
+		if source == "config file" {
+			mode := "API token"
+			if cfg.OAuthClientID != "" && cfg.OAuthRefreshToken != "" {
+				mode = "OAuth session"
+			}
+			pairs = append(pairs, [2]string{"Mode", mode})
+			if cfg.OAuthTokenExpiry != "" {
+				pairs = append(pairs, [2]string{"Access token expiry", cfg.OAuthTokenExpiry})
+			}
+		}
+	}
+	pairs = append(pairs, [2]string{"State", strings.ReplaceAll(state, "_", " ")})
 	if err != nil {
 		pairs = append(pairs, [2]string{"Error", err.Error()})
 	}
