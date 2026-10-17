@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ type fakeSite struct {
 	server     *httptest.Server
 	setup      map[string]any // the stored key setup
 	family     string         // the encrypted run's family
+	title      string         // its title, as sent
 	challenge  string
 	access     string
 	refresh    string
@@ -106,7 +108,7 @@ func (f *fakeSite) handle(w http.ResponseWriter, r *http.Request) {
 				s[k] = v
 			}
 			// The family of an encrypted run the call names (run 7 only).
-			if args["run_id"] != nil {
+			if args["run_id"] != nil || args["job_id"] != nil || args["code"] != nil {
 				s["family"] = nil
 				if args["run_id"] == float64(7) && f.family != "" {
 					s["family"] = f.family
@@ -119,6 +121,9 @@ func (f *fakeSite) handle(w http.ResponseWriter, r *http.Request) {
 			if fam, ok := args["family"].(string); ok {
 				f.family = fam
 			}
+			if title != "" {
+				f.title = title
+			}
 			if title == "" {
 				result = map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": "A title is needed."}}}
 				break
@@ -127,6 +132,10 @@ func (f *fakeSite) handle(w http.ResponseWriter, r *http.Request) {
 				"content":           []any{map[string]any{"type": "text", "text": "Started " + title + ". Run 7."}},
 				"structuredContent": map[string]any{"run_id": 7, "title": title},
 			}
+		case "antistatic_get_sandbox":
+			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": fmt.Sprintf("Run %v.", args["run_id"])}}}
+		case "antistatic_list_sandboxes":
+			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": "Runs: " + f.title}}}
 		case "antistatic_take_turn":
 			result = map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": "No such character: " + args["entries"].([]any)[0].(map[string]any)["text"].(string) + "."}}}
 		}
@@ -184,6 +193,18 @@ func (e *cliEnv) run(stdin string, args ...string) (string, error) {
 		err = rootCmd.Execute()
 	})
 	return out, err
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, _ := os.Pipe()
+	prev := os.Stderr
+	os.Stderr = w
+	fn()
+	os.Stderr = prev
+	w.Close()
+	data, _ := io.ReadAll(r)
+	return string(data)
 }
 
 func answers(list ...string) func(string) (string, error) {
@@ -279,10 +300,16 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 		t.Fatalf("tool error decrypted: %v", err)
 	}
 
-	// A run that isn't an encrypted run of the user's: no family, refused.
+	// A run that isn't an encrypted run of the user's: sent as it is.
 	_, err = e.run(`{"run_id": 8, "entries": [{"type": "action", "text": "x"}]}`, "call", "antistatic_take_turn")
-	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "no encrypted run of yours") {
-		t.Fatalf("unknown run: %v", err)
+	if ExitCode(err) != ExitToolError || err.Error() != "No such character: x." {
+		t.Fatalf("plain run: %v", err)
+	}
+	// Text naming no run isn't known to be plain: refused, nothing sent.
+	sentBefore := len(e.site.calls)
+	_, err = e.run(`{"entries": [{"type": "action", "text": "x"}]}`, "call", "antistatic_take_turn")
+	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "name the run") || e.site.calls[len(e.site.calls)-1]["tool"] != "antistatic_private_setup" || len(e.site.calls) != sentBefore+1 {
+		t.Fatalf("no run named: %v", err)
 	}
 
 	// encrypt again: already unlocked.
@@ -301,6 +328,21 @@ func TestEncryptLogsInSetsUpAndCalls(t *testing.T) {
 	_, err = e.run(`{"title": "x"}`, "call", "antistatic_start_sandbox")
 	if ExitCode(err) != ExitLocked || !strings.Contains(err.Error(), "antistatic unlock") {
 		t.Fatalf("locked call: %v", err)
+	}
+	// Locked, a write into the encrypted run sends nothing past the setup.
+	_, err = e.run(`{"run_id": 7, "entries": [{"type": "action", "text": "secret"}]}`, "call", "antistatic_take_turn")
+	if ExitCode(err) != ExitLocked || e.site.calls[len(e.site.calls)-1]["tool"] != "antistatic_private_setup" {
+		t.Fatalf("locked write: %v", err)
+	}
+	// Locked, a plain run's call goes as it is.
+	if out, err = e.run(`{"run_id": 8}`, "call", "antistatic_get_sandbox"); err != nil || strings.TrimSpace(out) != "Run 8." {
+		t.Fatalf("locked plain call: %q %v", out, err)
+	}
+	// Locked, encrypted text read back stays as it is, with a note.
+	var stderr string
+	stderr = captureStderr(t, func() { out, err = e.run(`{}`, "call", "antistatic_list_sandboxes") })
+	if err != nil || !strings.Contains(out, "Runs: enc3:") || !strings.Contains(stderr, "antistatic unlock") {
+		t.Fatalf("locked read: %q %q %v", out, stderr, err)
 	}
 	other, _ := e2e.GeneratePhrase()
 	readSecret = answers(other, strings.ReplaceAll(phrase, " ", "-"))
@@ -471,5 +513,12 @@ func TestTokenLoginEncryptsAndCalls(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(e.dir, "keys.json")); !os.IsNotExist(err) {
 		t.Fatal("keys left after logout")
+	}
+}
+
+func TestRunRefsReadAForecastsRef(t *testing.T) {
+	args, _ := e2e.ParseJSON([]byte(`{"ref": {"run_id": 7, "code": "p1-2"}}`))
+	if got := e2e.EncodeJSON(runRefs(args.(e2e.Object)), 0); got != `{"run_id":7,"code":"p1-2"}` {
+		t.Fatalf("got %s", got)
 	}
 }

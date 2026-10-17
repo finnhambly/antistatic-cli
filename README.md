@@ -210,8 +210,10 @@ EOF
 ```
 
 `antistatic call <tool>` takes the tool's JSON arguments on stdin (or
-`@file.json`), encrypts its text with your key, and prints the result
-decrypted (`--json`: its structured data). Exit codes: 2 bad arguments (it
+`@file.json`), never the command line. In an encrypted run it encrypts the
+text with your key and prints the result decrypted (`--json`: its structured
+data), which needs it unlocked; other calls go as they are, locked or not,
+with any encrypted text in the result left as it is while locked. Exit codes: 2 bad arguments (it
 prints the shape the tool takes), 3 not logged in, 4 not set up, 5 locked,
 6 the tool refused the call.
 

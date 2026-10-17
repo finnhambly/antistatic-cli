@@ -63,11 +63,17 @@ the phrase.`,
 
 	callCmd := &cobra.Command{
 		Use:   "call <tool> [@args.json]",
-		Short: "Call a tool in an encrypted wargame (JSON arguments on stdin)",
-		Long: `Call an Antistatic tool for an encrypted wargame. The JSON arguments come
-on stdin (or from @file), never the command line. Text fields are encrypted
-with this machine's key; the result is printed decrypted (--json: its
-structured data).
+		Short: "Call a sandbox tool (JSON arguments on stdin or @file)",
+		Long: `Call an Antistatic sandbox tool. Pass the JSON arguments on stdin or as
+@file, never on the command line:
+
+  echo '{"run_id": 58}' | antistatic call antistatic_get_sandbox
+  antistatic call antistatic_take_turn @turn.json
+
+In an encrypted run, text fields are encrypted with this machine's key and
+the result is printed decrypted (--json: its structured data); that needs
+"antistatic unlock". Other calls go as they are, locked or not; encrypted
+text in their results stays as it is while locked.
 
 Exit codes: 2 bad arguments, 3 not logged in, 4 not set up, 5 locked,
 6 the tool refused the call.`,
@@ -221,12 +227,12 @@ func fetchSetupFor(refs e2e.Object) (setup e2e.Setup, family string, ok bool, er
 		return setup, "", false, errors.New(res.Text())
 	}
 	var s struct {
-		UserID  json.Number `json:"user_id"`
-		Version *int        `json:"version"`
-		Salt    *string     `json:"salt"`
-		Wrapped *string     `json:"wrapped"`
-		Check   *string     `json:"check"`
-		Family  *string     `json:"family"`
+		UserID  json.Number     `json:"user_id"`
+		Version *int            `json:"version"`
+		Salt    *string         `json:"salt"`
+		Wrapped *string         `json:"wrapped"`
+		Check   *string         `json:"check"`
+		Family  json.RawMessage `json:"family"`
 	}
 	data := res.StructuredContent
 	if len(data) == 0 {
@@ -236,6 +242,11 @@ func fetchSetupFor(refs e2e.Object) (setup e2e.Setup, family string, ok bool, er
 		return setup, "", false, fmt.Errorf("unexpected setup response")
 	}
 	setup.UserID = s.UserID.String()
+	// Asked about a run, the server always says its family (null: none);
+	// without that, nothing is known to be plain.
+	if len(refs) > 0 && len(s.Family) == 0 {
+		return setup, "", false, fmt.Errorf("unexpected setup response")
+	}
 	if s.Salt == nil || s.Wrapped == nil || s.Check == nil {
 		return setup, "", false, nil
 	}
@@ -243,18 +254,22 @@ func fetchSetupFor(refs e2e.Object) (setup e2e.Setup, family string, ok bool, er
 		return setup, "", false, fmt.Errorf("this account uses an encryption format this CLI doesn't know: brew upgrade finnhambly/tap/antistatic")
 	}
 	setup.Version, setup.Salt, setup.Wrapped, setup.Check = *s.Version, *s.Salt, *s.Wrapped, *s.Check
-	if s.Family != nil {
-		if !e2e.FamilyRe.MatchString(*s.Family) {
+	if len(s.Family) > 0 && string(s.Family) != "null" {
+		if err := json.Unmarshal(s.Family, &family); err != nil || !e2e.FamilyRe.MatchString(family) {
 			return setup, "", false, fmt.Errorf("unexpected setup response")
 		}
-		family = *s.Family
 	}
 	return setup, family, true, nil
 }
 
-// runRefs are the plain ids in a call's arguments that name its run, for
-// the server to say which encrypted run (family) it is.
+// runRefs are the plain ids in a call's arguments (or its forecast's ref)
+// that name its run, for the server to say which encrypted run (family) it is.
 func runRefs(args e2e.Object) e2e.Object {
+	if ref, ok := args.Get("ref"); ok {
+		if inner, ok := ref.(e2e.Object); ok {
+			args = append(append(e2e.Object{}, args...), inner...)
+		}
+	}
 	refs := e2e.Object{}
 	for _, k := range []string{"run_id", "job_id", "code", "market_code"} {
 		if v, ok := args.Get(k); ok && v != nil {
@@ -478,7 +493,8 @@ func runCall(cmd *cobra.Command, args []string) error {
 	callArgs := parsed.(e2e.Object)
 
 	// The run family the call's text is encrypted in and its results read
-	// in: a new one for a new run (its forks share it), else the named run's.
+	// in: a new one for a new run (its forks share it), else the named run's
+	// ("" when the call names no encrypted run of the user's).
 	starting := tool == "antistatic_start_sandbox"
 	var refs e2e.Object
 	if !starting {
@@ -488,12 +504,20 @@ func runCall(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	var keys *e2e.Keys
+	if ok {
+		if keys, err = loadKeys(setup); err != nil && !errors.Is(err, errLocked) {
+			return err
+		}
+	}
+	if !starting && family == "" {
+		return plainCall(tool, callArgs, refs, keys)
+	}
 	if !ok {
 		return errNotSetUp
 	}
-	keys, err := loadKeys(setup)
-	if err != nil {
-		return err
+	if keys == nil {
+		return errLocked
 	}
 	if starting {
 		if family, err = e2e.NewFamily(); err != nil {
@@ -508,19 +532,42 @@ func runCall(cmd *cobra.Command, args []string) error {
 		callArgs = append(rest, e2e.Member{Key: "family", Value: family})
 	}
 	sealed, err := e2e.EncryptCall(keys, family, tool, callArgs)
-	if errors.Is(err, e2e.ErrNoFamily) {
-		return exitErr(ExitUsage, "%s: no encrypted run of yours has these ids (run_id, job_id or code)", tool)
-	}
 	if err != nil {
 		return exitErr(ExitUsage, "%v\n%s takes %s", err, tool, e2e.Shape(tool))
 	}
-	keys = keys.InFamily(family)
-	res, err := client.CallTool(tool, []byte(e2e.EncodeJSON(sealed, 0)))
+	return sendCall(tool, sealed, keys.InFamily(family))
+}
+
+// plainCall sends a call that names no encrypted run as it is, locked or
+// not. Text with no run named to say it isn't encrypted is refused, never
+// sent in plaintext.
+func plainCall(tool string, args, refs e2e.Object, keys *e2e.Keys) error {
+	private, err := e2e.HasPrivate(tool, args)
+	if err != nil {
+		return exitErr(ExitUsage, "%v\n%s takes %s", err, tool, e2e.Shape(tool))
+	}
+	if private && len(refs) == 0 {
+		return exitErr(ExitUsage, "%s: name the run (run_id, job_id or code)", tool)
+	}
+	return sendCall(tool, args, keys)
+}
+
+// sendCall calls the tool and prints the result decrypted; keys nil (locked)
+// prints any encrypted text as it is, with a note on stderr.
+func sendCall(tool string, args any, keys *e2e.Keys) error {
+	res, err := client.CallTool(tool, []byte(e2e.EncodeJSON(args, 0)))
 	if err != nil {
 		return toolErr(err)
 	}
+	if keys == nil && (strings.Contains(res.Text(), e2e.TokenPrefix) || strings.Contains(string(res.StructuredContent), e2e.TokenPrefix)) {
+		fmt.Fprintln(os.Stderr, `Locked: encrypted text left as is. Run "antistatic unlock" to read it.`)
+	}
+	decrypt := func(text string) string { return text }
+	if keys != nil {
+		decrypt = keys.DecryptText
+	}
 	if res.IsError {
-		return exitErr(ExitToolError, "%s", keys.DecryptText(res.Text()))
+		return exitErr(ExitToolError, "%s", decrypt(res.Text()))
 	}
 	if jsonOutput {
 		var v any = nil
@@ -529,7 +576,14 @@ func runCall(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		}
-		fmt.Println(e2e.EncodeJSON(keys.DecryptDeep(v), 2))
+		if keys != nil {
+			v = keys.DecryptDeep(v)
+		}
+		fmt.Println(e2e.EncodeJSON(v, 2))
+		return nil
+	}
+	if keys == nil {
+		fmt.Println(res.Text())
 		return nil
 	}
 	fmt.Println(keys.DecryptResult(res.Text()))

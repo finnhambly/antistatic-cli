@@ -589,16 +589,35 @@ func EncryptCall(k *Keys, family, tool string, args any) (any, error) {
 	return fieldSchema.encryptCall(k, family, tool, args)
 }
 
-func (s *schema) encryptCall(k *Keys, family, tool string, args any) (any, error) {
+// HasPrivate checks a call's arguments by the schema and reports whether
+// any field is one an encrypted run would encrypt or hash (non-empty text,
+// lines, key, unit or opaque).
+func HasPrivate(tool string, args any) (bool, error) {
+	n, args, err := fieldSchema.toolArgs(tool, args)
+	if err != nil {
+		return false, err
+	}
+	private := false
+	_, err = fieldSchema.walk(n, args, tool, func(kind, v, path string) (string, error) {
+		if v != "" {
+			private = true
+		}
+		return v, nil
+	}, nil)
+	return private, err
+}
+
+// toolArgs is a tool's schema node and its arguments, market_code read as
+// code, as the server does.
+func (s *schema) toolArgs(tool string, args any) (*node, any, error) {
 	t, ok := s.tools[tool]
 	if !ok {
-		return nil, fmt.Errorf("%s isn't available for encrypted runs", tool)
+		return nil, nil, fmt.Errorf("%s isn't available for encrypted runs", tool)
 	}
 	n, err := s.resolve(toolRoot(t))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// market_code is read as code, as the server does.
 	if obj, ok := args.(Object); ok && n.object != nil {
 		if _, hasCode := n.object.Get("code"); hasCode {
 			mc, hasMC := obj.Get("market_code")
@@ -613,6 +632,14 @@ func (s *schema) encryptCall(k *Keys, family, tool string, args any) (any, error
 				args = append(rest, Member{"code", mc})
 			}
 		}
+	}
+	return n, args, nil
+}
+
+func (s *schema) encryptCall(k *Keys, family, tool string, args any) (any, error) {
+	n, args, err := s.toolArgs(tool, args)
+	if err != nil {
+		return nil, err
 	}
 	return s.walk(n, args, tool, func(kind, v, path string) (string, error) {
 		seal := func(text string) (string, error) {
