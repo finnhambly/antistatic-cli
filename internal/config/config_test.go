@@ -49,9 +49,9 @@ func TestBoundTo(t *testing.T) {
 		{"legacy OAuth", Config{Token: "a", OAuthClientID: local + "/oauth/clients/cli.json"}, local, true},
 		{"legacy OAuth elsewhere", Config{Token: "a", OAuthClientID: local + "/oauth/clients/cli.json"}, prod, false},
 		{"legacy OAuth, odd client id", Config{Token: "a", OAuthClientID: "x"}, prod, false},
-		{"legacy API token", Config{Token: "axk_a"}, prod, true},
+		{"legacy API token", Config{Token: "axk_a"}, prod, false},
 		{"legacy API token elsewhere", Config{Token: "axk_a"}, local, false},
-		{"legacy API token, saved server", Config{Token: "axk_a", ServerURL: local}, local, true},
+		{"legacy API token, saved server", Config{Token: "axk_a", ServerURL: local}, local, false},
 	}
 	for _, tc := range cases {
 		if got := tc.c.BoundTo(tc.base); got != tc.want {

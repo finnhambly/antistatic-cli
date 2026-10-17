@@ -505,12 +505,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		if os.Getenv("ANTISTATIC_TOKEN") != "" {
 			source = "ANTISTATIC_TOKEN env var"
 		}
-		// Mask the token: show prefix + first 8 chars + ...
-		masked := token
-		if len(token) > 12 {
-			masked = token[:12] + "..."
-		}
-		pairs = append(pairs, [2]string{"Token", masked}, [2]string{"Source", source})
+		pairs = append(pairs, [2]string{"Source", source})
 		if source == "config file" {
 			mode := "API token"
 			if cfg.OAuthClientID != "" && cfg.OAuthRefreshToken != "" {

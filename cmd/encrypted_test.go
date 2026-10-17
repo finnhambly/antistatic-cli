@@ -393,10 +393,13 @@ func TestTokenLoginEncryptsAndCalls(t *testing.T) {
 	}
 
 	out, _ = e.run("", "status")
-	for _, want := range []string{"axk_testtoke...", "config file", "API token", "not set up"} {
+	for _, want := range []string{"config file", "API token", "not set up"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "axk_") {
+		t.Fatalf("status shows the token:\n%s", out)
 	}
 
 	// encrypt sets up with the token: no browser login.
