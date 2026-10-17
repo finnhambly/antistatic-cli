@@ -21,6 +21,8 @@ var authLoginCmd = &cobra.Command{
 	Long: `Log in to Antistatic Exchange.
 
 By default, this opens a browser and completes OAuth (recommended).
+With --no-browser, it prints a URL to open in any browser, on any device;
+after you approve, the page shows a code to paste back here.
 For non-interactive environments, pass --token or set ANTISTATIC_TOKEN.`,
 	Args: cobra.NoArgs,
 	RunE: runAuthLogin,
@@ -126,5 +128,5 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 
 func addLoginFlags(loginCmd *cobra.Command) {
 	loginCmd.Flags().StringP("token", "t", "", "API token for non-interactive login")
-	loginCmd.Flags().Bool("no-browser", false, "Print login URL instead of opening a browser automatically")
+	loginCmd.Flags().Bool("no-browser", false, "Print the login URL to open anywhere, then paste back the code it shows")
 }

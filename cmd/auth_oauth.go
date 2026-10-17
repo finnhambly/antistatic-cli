@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -27,6 +28,7 @@ import (
 const (
 	oauthDefaultScope    = "read write comment offline_access"
 	oauthCallbackPath    = "/callback"
+	oauthCodePath        = "/oauth/code"
 	oauthLoginTimeout    = 5 * time.Minute
 	oauthHTTPTimeout     = 20 * time.Second
 	oauthTokenSafetySkew = 30 * time.Second
@@ -67,98 +69,19 @@ type oauthCallbackResult struct {
 
 func runOAuthBrowserLogin(cmd *cobra.Command) error {
 	baseURL := strings.TrimRight(cfg.ResolveBaseURL(), "/")
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("starting OAuth callback listener: %w", err)
-	}
-
-	addr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok {
-		listener.Close()
-		return fmt.Errorf("unexpected callback listener address type: %T", listener.Addr())
-	}
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d%s", addr.Port, oauthCallbackPath)
-
 	clientID := oauthClientID(baseURL)
-
-	state, err := randomURLSafe(24)
-	if err != nil {
-		listener.Close()
-		return fmt.Errorf("creating OAuth state: %w", err)
-	}
 
 	codeVerifier, err := randomURLSafe(64)
 	if err != nil {
-		listener.Close()
 		return fmt.Errorf("creating PKCE verifier: %w", err)
 	}
 
-	codeChallenge := pkceChallenge(codeVerifier)
-	authURL := buildAuthorizeURL(baseURL, clientID, redirectURI, state, codeChallenge)
-
-	resultCh := make(chan oauthCallbackResult, 1)
-	httpServer := &http.Server{
-		Handler:           callbackHandler(resultCh, state, baseURL),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
-	serverDone := make(chan error, 1)
-	go func() {
-		serverDone <- httpServer.Serve(listener)
-	}()
-
-	noBrowser, _ := cmd.Flags().GetBool("no-browser")
-	if noBrowser {
-		fmt.Println("Open this URL to continue login:")
-		fmt.Println(authURL)
+	var tokenPayload *oauthTokenResponse
+	if noBrowser, _ := cmd.Flags().GetBool("no-browser"); noBrowser {
+		tokenPayload, err = pasteCodeLogin(os.Stdout, baseURL, clientID, codeVerifier)
 	} else {
-		if err := openBrowser(authURL); err != nil {
-			output.Warn(fmt.Sprintf("Could not open browser automatically: %v", err))
-			fmt.Println("Open this URL to continue login:")
-			fmt.Println(authURL)
-		} else {
-			fmt.Println("Opened browser for OAuth login.")
-			fmt.Println("If your browser did not open, use this URL:")
-			fmt.Println(authURL)
-		}
+		tokenPayload, err = loopbackLogin(baseURL, clientID, codeVerifier)
 	}
-
-	fmt.Println("Waiting for OAuth callback...")
-
-	var callback oauthCallbackResult
-	select {
-	case callback = <-resultCh:
-	case <-time.After(oauthLoginTimeout):
-		_ = shutdownHTTPServer(httpServer)
-		<-serverDone
-		return fmt.Errorf("timed out waiting for OAuth callback")
-	}
-
-	_ = shutdownHTTPServer(httpServer)
-	serveErr := <-serverDone
-	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-		return fmt.Errorf("OAuth callback server failed: %w", serveErr)
-	}
-
-	if callback.Error != "" {
-		if callback.ErrorDescription != "" {
-			return fmt.Errorf("authorization failed: %s (%s)", callback.ErrorDescription, callback.Error)
-		}
-		return fmt.Errorf("authorization failed: %s", callback.Error)
-	}
-
-	if callback.Code == "" {
-		return fmt.Errorf("authorization failed: missing code")
-	}
-
-	tokenPayload, err := exchangeOAuthCode(
-		baseURL,
-		clientID,
-		redirectURI,
-		callback.Code,
-		codeVerifier,
-	)
 	if err != nil {
 		return err
 	}
@@ -187,6 +110,111 @@ func runOAuthBrowserLogin(cmd *cobra.Command) error {
 
 	fmt.Println("Logged in with OAuth.")
 	return nil
+}
+
+// oauthCodeRedirectURI is the CLI's redirect for --no-browser: a page on the
+// server that shows the code to paste back. The code is single use,
+// short-lived and useless without this login's PKCE verifier.
+func oauthCodeRedirectURI(baseURL string) string {
+	return strings.TrimRight(baseURL, "/") + oauthCodePath
+}
+
+// pasteCodeLogin prints the authorize URL, to open in any browser on any
+// device, then reads the code the server shows after approval.
+func pasteCodeLogin(out io.Writer, baseURL, clientID, codeVerifier string) (*oauthTokenResponse, error) {
+	state, err := randomURLSafe(24)
+	if err != nil {
+		return nil, fmt.Errorf("creating OAuth state: %w", err)
+	}
+	redirectURI := oauthCodeRedirectURI(baseURL)
+	authURL := buildAuthorizeURL(baseURL, clientID, redirectURI, state, pkceChallenge(codeVerifier))
+
+	fmt.Fprintln(out, "Open this URL in any browser, approve, then paste the code it shows:")
+	fmt.Fprintln(out, authURL)
+
+	code, err := readLine("Code: ")
+	if err != nil {
+		return nil, fmt.Errorf("reading code: %w", err)
+	}
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, fmt.Errorf("no code entered")
+	}
+	return exchangeOAuthCode(baseURL, clientID, redirectURI, code, codeVerifier)
+}
+
+// loopbackLogin opens the browser and takes the code on a 127.0.0.1 callback.
+func loopbackLogin(baseURL, clientID, codeVerifier string) (*oauthTokenResponse, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("starting OAuth callback listener: %w", err)
+	}
+
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		listener.Close()
+		return nil, fmt.Errorf("unexpected callback listener address type: %T", listener.Addr())
+	}
+	redirectURI := fmt.Sprintf("http://127.0.0.1:%d%s", addr.Port, oauthCallbackPath)
+
+	state, err := randomURLSafe(24)
+	if err != nil {
+		listener.Close()
+		return nil, fmt.Errorf("creating OAuth state: %w", err)
+	}
+
+	authURL := buildAuthorizeURL(baseURL, clientID, redirectURI, state, pkceChallenge(codeVerifier))
+
+	resultCh := make(chan oauthCallbackResult, 1)
+	httpServer := &http.Server{
+		Handler:           callbackHandler(resultCh, state, baseURL),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	serverDone := make(chan error, 1)
+	go func() {
+		serverDone <- httpServer.Serve(listener)
+	}()
+
+	if err := openBrowser(authURL); err != nil {
+		output.Warn(fmt.Sprintf("Could not open browser automatically: %v", err))
+		fmt.Println("Open this URL to continue login (or rerun with --no-browser to paste a code instead):")
+		fmt.Println(authURL)
+	} else {
+		fmt.Println("Opened browser for OAuth login.")
+		fmt.Println("If your browser did not open, use this URL:")
+		fmt.Println(authURL)
+	}
+
+	fmt.Println("Waiting for OAuth callback...")
+
+	var callback oauthCallbackResult
+	select {
+	case callback = <-resultCh:
+	case <-time.After(oauthLoginTimeout):
+		_ = shutdownHTTPServer(httpServer)
+		<-serverDone
+		return nil, fmt.Errorf("timed out waiting for OAuth callback")
+	}
+
+	_ = shutdownHTTPServer(httpServer)
+	serveErr := <-serverDone
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		return nil, fmt.Errorf("OAuth callback server failed: %w", serveErr)
+	}
+
+	if callback.Error != "" {
+		if callback.ErrorDescription != "" {
+			return nil, fmt.Errorf("authorization failed: %s (%s)", callback.ErrorDescription, callback.Error)
+		}
+		return nil, fmt.Errorf("authorization failed: %s", callback.Error)
+	}
+
+	if callback.Code == "" {
+		return nil, fmt.Errorf("authorization failed: missing code")
+	}
+
+	return exchangeOAuthCode(baseURL, clientID, redirectURI, callback.Code, codeVerifier)
 }
 
 // checkOAuthIssuer guards against authorization-server mix-up (RFC 9207):

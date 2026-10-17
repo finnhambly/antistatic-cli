@@ -30,6 +30,9 @@ The CLI identifies itself with a client metadata document
 a new client each time. Versions before 0.2.0 can no longer start a fresh
 login; upgrade if `antistatic login` fails.
 
+No browser here (SSH, a server)? `antistatic login --no-browser` prints the
+URL to open on any device; after you approve, paste back the code it shows.
+
 Headless/CI token auth:
 
 ```sh

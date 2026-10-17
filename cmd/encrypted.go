@@ -38,7 +38,7 @@ the phrase.`,
 		Args: usageArgs(cobra.NoArgs),
 		RunE: runEncrypt,
 	}
-	encryptCmd.Flags().Bool("no-browser", false, "Print the login URL instead of opening a browser")
+	encryptCmd.Flags().Bool("no-browser", false, "Print the login URL to open anywhere, then paste back the code it shows")
 
 	unlockCmd := &cobra.Command{
 		Use:   "unlock",
@@ -46,7 +46,7 @@ the phrase.`,
 		Args:  usageArgs(cobra.NoArgs),
 		RunE:  runUnlock,
 	}
-	unlockCmd.Flags().Bool("no-browser", false, "Print the login URL instead of opening a browser")
+	unlockCmd.Flags().Bool("no-browser", false, "Print the login URL to open anywhere, then paste back the code it shows")
 
 	lockCmd := &cobra.Command{
 		Use:   "lock",
