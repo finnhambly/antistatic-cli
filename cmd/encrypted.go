@@ -151,6 +151,11 @@ func forgetKeys() error {
 		return err
 	}
 	defer unlock()
+	return forgetKeysLocked()
+}
+
+// forgetKeysLocked is forgetKeys for a caller holding the config lock.
+func forgetKeysLocked() error {
 	keys, err := readKeys()
 	if err != nil {
 		return err

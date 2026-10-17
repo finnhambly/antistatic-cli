@@ -57,11 +57,16 @@ func Lock() (func(), error) {
 func NormalizeURL(u string) string { return strings.TrimRight(u, "/") }
 
 // BoundTo reports whether the saved login belongs to the server base. A
-// login saved before logins were bound is the default server's.
+// browser login saved before logins were bound is its client id's server
+// (the client id is <server>/oauth/clients/cli.json); any other unbound
+// login belongs to no server and needs a new login.
 func (c *Config) BoundTo(base string) bool {
 	server := c.AuthServer
 	if server == "" {
-		server = DefaultBaseURL
+		server = strings.TrimSuffix(c.OAuthClientID, "/oauth/clients/cli.json")
+		if server == c.OAuthClientID {
+			return false
+		}
 	}
 	return NormalizeURL(server) == NormalizeURL(base)
 }

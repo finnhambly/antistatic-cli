@@ -326,16 +326,18 @@ func (c *Client) ensureToken() error {
 		return fmt.Errorf("locking config: %w", err)
 	}
 	defer unlock()
-	if fresh, err := config.Load(); err == nil {
-		if !fresh.BoundTo(c.baseURL) || fresh.OAuthRefreshToken == "" {
-			return ErrLoginRequired
-		}
-		c.cfg.Token, c.cfg.OAuthRefreshToken, c.cfg.OAuthTokenExpiry = fresh.Token, fresh.OAuthRefreshToken, fresh.OAuthTokenExpiry
-		c.cfg.OAuthClientID, c.cfg.AuthServer = fresh.OAuthClientID, fresh.AuthServer
-		c.token = fresh.Token
-		if !c.shouldRefreshOAuthToken() {
-			return nil
-		}
+	fresh, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("reading config before refresh: %w", err)
+	}
+	if !fresh.BoundTo(c.baseURL) || fresh.OAuthRefreshToken == "" {
+		return ErrLoginRequired
+	}
+	c.cfg.Token, c.cfg.OAuthRefreshToken, c.cfg.OAuthTokenExpiry = fresh.Token, fresh.OAuthRefreshToken, fresh.OAuthTokenExpiry
+	c.cfg.OAuthClientID, c.cfg.AuthServer = fresh.OAuthClientID, fresh.AuthServer
+	c.token = fresh.Token
+	if !c.shouldRefreshOAuthToken() {
+		return nil
 	}
 
 	return c.refreshOAuthToken()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/finnhambly/antistatic-cli/internal/config"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -73,7 +74,13 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthLogout(cmd *cobra.Command, args []string) error {
-	if err := forgetKeys(); err != nil {
+	// Under the lock, so a refresh in another process can't save the login back.
+	unlock, err := config.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := forgetKeysLocked(); err != nil {
 		return err
 	}
 	cfg.Token = ""

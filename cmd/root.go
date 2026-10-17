@@ -50,7 +50,18 @@ Set ANTISTATIC_URL to override the default server (https://antistatic.exchange).
 }
 
 func Execute() error {
+	wrapArgs(rootCmd)
 	return rootCmd.Execute()
+}
+
+// wrapArgs makes every command's argument errors usage errors (exit 2).
+func wrapArgs(c *cobra.Command) {
+	if c.Args != nil {
+		c.Args = usageArgs(c.Args)
+	}
+	for _, sub := range c.Commands() {
+		wrapArgs(sub)
+	}
 }
 
 func init() {
