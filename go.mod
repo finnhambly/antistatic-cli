@@ -1,6 +1,6 @@
 module github.com/finnhambly/antistatic-cli
 
-go 1.25.0
+go 1.27.3
 
 require (
 	github.com/spf13/cobra v1.9.1
