@@ -126,6 +126,7 @@ antistatic market extend my-market --to-threshold 70 --anchors anchors.json --pr
 antistatic bot create
 antistatic --as-bot comment us-troops-iran --body "..."   # or ANTISTATIC_AS_BOT=1
 antistatic bot pause
+antistatic bot register --save   # a key that acts only as your bot, for an agent on this machine
 
 # Tell the Antistatic team what was tricky or what would help
 antistatic feedback "antistatic quote fails on date markets with one bar"

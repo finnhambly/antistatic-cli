@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/finnhambly/antistatic-cli/internal/api"
+	"github.com/finnhambly/antistatic-cli/internal/config"
 	"github.com/finnhambly/antistatic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -13,6 +14,10 @@ import (
 // and commenting. Created with POST /me/bot; renamed and paused through the
 // "bot" key of /me/settings. These commands always act as you, so they never
 // send the bot header.
+//
+// "bot register" gives an agent a key that acts only as your bot (POST
+// /me/bot/key, made with your login; the bot is created if you have none).
+// Bots can't sign up without a person's account.
 
 type botInfo struct {
 	Username   string `json:"username"`
@@ -29,6 +34,7 @@ forecasting commands to act as it.
 
   antistatic bot
   antistatic bot create [--username NAME]
+  antistatic bot register [--username NAME] [--save]
   antistatic bot rename NAME
   antistatic bot pause | resume`,
 		Args: cobra.NoArgs,
@@ -75,8 +81,82 @@ forecasting commands to act as it.
 			return patchBot(map[string]interface{}{"paused": false})
 		},
 	}
-	command.AddCommand(create, rename, pause, resume)
+	register := &cobra.Command{
+		Use:   "register",
+		Short: "Make a key that acts only as your bot",
+		Long: `Make an API key that acts only as your bot: it forecasts and comments as
+the bot and can't do anything else as you. Creates the bot first if you have
+none. Signs you in through the browser if you aren't already.
+
+--save keeps the key as this machine's login (replacing yours), so an agent
+here acts only as the bot. Revoke it under API tokens in your settings.`,
+		Args: cobra.NoArgs,
+		RunE: runBotRegister,
+	}
+	register.Flags().String("username", "", "Bot username, if it's being created (default <you>-bot)")
+	register.Flags().Bool("save", false, "Save the key as this machine's login, replacing yours")
+	register.Flags().Bool("no-browser", false, "When signing in, print the login URL instead of opening a browser")
+
+	command.AddCommand(create, rename, pause, resume, register)
 	return command
+}
+
+// botKey is POST /me/bot/key.
+type botKey struct {
+	APIKey string  `json:"api_key"`
+	Bot    botInfo `json:"bot"`
+}
+
+func runBotRegister(cmd *cobra.Command, args []string) error {
+	if !client.HasAuth() {
+		if err := runOAuthBrowserLogin(cmd); err != nil {
+			return err
+		}
+		client = api.NewClient(cfg)
+	}
+	body := map[string]interface{}{}
+	if name, _ := cmd.Flags().GetString("username"); name != "" {
+		body["username"] = name
+	}
+	previous := client.AsBot
+	client.AsBot = false
+	resp, err := client.Post("/me/bot/key", body)
+	client.AsBot = previous
+	if err != nil {
+		return err
+	}
+	var key botKey
+	if err := resp.RawInto(&key); err != nil {
+		return fmt.Errorf("parsing bot key: %w", err)
+	}
+
+	save, _ := cmd.Flags().GetBool("save")
+	if save {
+		unlock, err := config.Lock()
+		if err != nil {
+			return err
+		}
+		cfg.Token = key.APIKey
+		cfg.ClearOAuthState()
+		cfg.AuthServer = config.NormalizeURL(cfg.ResolveBaseURL())
+		err = cfg.Save()
+		unlock()
+		if err != nil {
+			return fmt.Errorf("saving config: %w", err)
+		}
+	}
+
+	if jsonOutput || !output.IsTTY() {
+		output.JSON(json.RawMessage(resp.Body))
+		return nil
+	}
+	output.KeyValue([][2]string{{"bot", key.Bot.Username}, {"api key", key.APIKey}})
+	if save {
+		fmt.Println("\nSaved: commands here now act as the bot.")
+	} else {
+		fmt.Println("\nGive the key to your agent as ANTISTATIC_TOKEN. It is shown once.")
+	}
+	return nil
 }
 
 func patchBot(changes map[string]interface{}) error {

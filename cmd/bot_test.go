@@ -129,3 +129,26 @@ func TestResolveDryRunScopesToSubmarkets(t *testing.T) {
 		t.Errorf("reopen dry run = %s", out)
 	}
 }
+
+func TestBotRegister(t *testing.T) {
+	var requests []recordedRequest
+	var err error
+	out := captureStdout(t, func() {
+		requests, err = runAgainstServer(t, newBotCmd(), []string{"register", "--username", "oracle-7"}, func(w http.ResponseWriter, r *http.Request, body map[string]interface{}) {
+			w.WriteHeader(http.StatusCreated)
+			io.WriteString(w, `{"api_key":"axk_new","bot":{"username":"oracle-7","paused":false,"profile_url":"https://x/u/oracle-7"}}`)
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 1 || requests[0].method != http.MethodPost || requests[0].path != "/api/v1/me/bot/key" || requests[0].asBot != "" {
+		t.Fatalf("requests = %#v", requests)
+	}
+	if got, _ := json.Marshal(requests[0].body); string(got) != `{"username":"oracle-7"}` {
+		t.Fatalf("body = %s", got)
+	}
+	if !strings.Contains(out, `"api_key": "axk_new"`) || !strings.Contains(out, `"username": "oracle-7"`) {
+		t.Fatalf("output = %q", out)
+	}
+}

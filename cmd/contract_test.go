@@ -155,6 +155,7 @@ var contractDecodes = []struct {
 	{"GET /api/v1/profile/liquidity-decay", "data", func() interface{} { return &profileLiquidityPayload{} }},
 	{"GET /api/v1/markets/{code}/comments", "data", func() interface{} { return &commentsPayload{} }},
 	{"GET /api/v1/me/bot", "bot", func() interface{} { return &botInfo{} }},
+	{"POST /api/v1/me/bot/key", "", func() interface{} { return &botKey{} }},
 	{"GET /api/v1/positions", "data", func() interface{} { return &[]positionRow{} }},
 	{"GET /api/v1/markets/{code}/positions", "data", func() interface{} { return &[]positionRow{} }},
 	{"GET /api/v1/sandbox/runs", "data", func() interface{} { return &[]sandboxRun{} }},

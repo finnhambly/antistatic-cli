@@ -12203,6 +12203,73 @@
       }
     },
     {
+      "id": "bot.key",
+      "method": "POST",
+      "path": "/api/v1/me/bot/key",
+      "summary": "Make a key that acts only as your bot, for an agent; creates the bot first if you have none. The key is shown once.",
+      "group": "account",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "type": "object",
+          "properties": {
+            "api_key": {
+              "type": "string"
+            },
+            "bot": {
+              "type": "object",
+              "properties": {
+                "paused": {
+                  "type": "boolean"
+                },
+                "profile_url": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "paused",
+                "profile_url",
+                "username"
+              ]
+            }
+          },
+          "required": [
+            "api_key",
+            "bot"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 201,
+          "body": {
+            "api_key": "axk_…",
+            "bot": {
+              "paused": false,
+              "profile_url": "http://localhost:4002/u/finn-bot",
+              "username": "finn-bot"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "sandbox_curriculum.append_items",
       "method": "POST",
       "path": "/api/v1/sandbox/curricula/{slug}/versions/{version}/items",
