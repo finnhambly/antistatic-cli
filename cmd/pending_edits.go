@@ -87,7 +87,7 @@ not community_probability.
 
 Use --submit-pending to submit existing pending edits as a trade
 without running the draft planner. This avoids needing --threshold
-and --probability when you've already staged edits.
+and --probability when you've already uploaded a draft.
 
 Use --interpolate-to to ramp smoothly between group endpoints
 instead of setting each group manually.

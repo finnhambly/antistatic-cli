@@ -49,7 +49,7 @@ var quoteCmd = &cobra.Command{
 
 Most agent workflows can skip quote and either:
 1) submit probability updates directly with "trade", or
-2) stage a human-reviewable draft with "draft" / "pending-edits".
+2) upload a draft for the user to review and submit with "draft" / "pending-edits".
 
 For quote, pass one update with --submarket/--probability, or provide
 JSON via --updates (object, array, or {"updates":[...]}), or via stdin.`,

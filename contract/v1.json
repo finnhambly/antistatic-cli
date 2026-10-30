@@ -10,14 +10,13 @@
       "optional": "Public; with a token the response adds your own data (and a token needs the read scope).",
       "read": "A token with the read scope.",
       "write": "A token with the write scope.",
-      "comment": "A token with the comment scope.",
-      "admin": "A token with the admin scope, held by an admin."
+      "comment": "A token with the comment scope."
     },
     "refused_token": "A token that is sent but not accepted gets 401 with code `invalid_token`, a message (also `error_description`) saying whether it expired (refresh it), was revoked or replaced by a refresh, or is unknown, and `WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"...\"` (RFC 6750). Without a token, a route that needs one gets 401 `unauthorized`."
   },
   "headers": {
     "x-antistatic-as": "`bot`: forecast or comment as your bot account (routes that list this header).",
-    "x-antistatic-run": "A sandbox run id: read the market inside your run, as of its clock (routes that list this header; also `?run_id=`). On a future sandbox's questions, quote and forecast too (POST routes that list it); a past sandbox is read-only (403 `not_allowed_in_run`).",
+    "x-antistatic-run": "A sandbox run id: read the market inside your run, as of its clock (routes that list this header; also `?run_id=`). On a wargame's questions, quote and forecast too (POST routes that list it); a past sandbox is read-only (403 `not_allowed_in_run`).",
     "user-agent": "Clients identify themselves, e.g. `antistatic-cli/1.2.3`."
   },
   "rate_limits": "Per account with a token, per IP without; read and write allowances are separate. Responses carry x-ratelimit-limit, x-ratelimit-remaining and x-ratelimit-scope; a 429 carries retry-after.",
@@ -244,7 +243,7 @@
     },
     "timeline_turn": {
       "type": "object",
-      "description": "A future-sandbox turn's result: the observations its clock reached (each dated at or before `clock`, with an id; struck ones left out), an outcome for each of the player's actions, and the run's bars it resolved. Nothing sealed. A turn that stopped for the player's answers has only `status` (\"questions\"), `run_id`, `turn_id`, `questions_for_player` and `replayed`: nothing happened and the clock hasn't moved. For a client-planned run, the first answer is `status: \"planner_job\"` with `job_id`: the player's planner agent plans it through the planner-job routes, and the same turn_id sent again then returns the stored turn. Before the first turn, a run tracking fewer questions than its opening answers once with `status: \"questions_needed\"`, `tracked`, `opening` ([low, high], to make now), `aim` ([low, high], over the run) and `next` (for a client-planned run also `job_id`, a questions job for its planner): nothing happened; make the questions, then send the same turn_id again.",
+      "description": "A wargame turn's result: the observations its clock reached (each dated at or before `clock`, with an id; struck ones left out), an outcome for each of the player's actions, and the run's bars it resolved. Nothing sealed. A turn that stopped for the player's answers has only `status` (\"questions\"), `run_id`, `turn_id`, `questions_for_player` and `replayed`: nothing happened and the clock hasn't moved. For a client-planned run, the first answer is `status: \"planner_job\"` with `job_id`: the player's planner agent plans it through the planner-job routes, and the same turn_id sent again then returns the stored turn. Before the first turn, a run tracking fewer questions than its opening answers once with `status: \"questions_needed\"`, `tracked`, `opening` ([low, high], to make now), `aim` ([low, high], over the run) and `next` (for a client-planned run also `job_id`, a questions job for its planner): nothing happened; make the questions, then send the same turn_id again.",
       "properties": {
         "run_id": {
           "type": "number"
@@ -597,7 +596,7 @@
     },
     "timeline_future": {
       "type": "object",
-      "description": "A future sandbox as its player sees it.",
+      "description": "A wargame as its player sees it.",
       "properties": {
         "run_id": {
           "type": "number"
@@ -664,6 +663,18 @@
             },
             "complete": {
               "type": "boolean"
+            },
+            "starts_on": {
+              "type": "string",
+              "description": "The run's first date (YYYY-MM-DD)."
+            },
+            "start_auto": {
+              "type": "boolean",
+              "description": "The start date is still to be inferred from the premise (with the opening questions); until then it reads as today."
+            },
+            "start_open": {
+              "type": "boolean",
+              "description": "The start date can still change (`starts_on` in the setup); fixed once the first turn starts."
             },
             "duty_rates": {
               "type": "object",
@@ -925,7 +936,7 @@
         },
         "score": {
           "type": "object",
-          "description": "The run's goals and their points: Antistatic's regular market points on the player's run positions, counted from when each goal was priced. scored is false in a god run, where nothing accrues; frozen is the score frozen at the latest switch to god, included in the totals.",
+          "description": "The run's outcome score: how its goals turned out against baselines, their questions' opening house lines over all their items and periods (in a run that has been in god mode, the line when set over those still open). outcome is over terminal goals: each outcome pays 1 in n, n = 1 / its chance under the baseline of doing at least as well, and the score is the rarity of the liquidity-weighted payoff, 100 log(N) / log(1000): 0 the worst, 10 as expected, 100 one in 1,000, no ceiling. means is over instrumental goals, the instrumental score: their outcomes' percentile under the baseline, 0 to 100 (50 as expected, 100 the best possible). Open outcomes count at their expected final score under the house line now, provisionally. headline says which leads (means when there is no terminal goal). scored is false in a god run, which shows the same index, unscored. segments are the mortal stretches ended by turning god.",
           "properties": {
             "mode": {
               "type": "string",
@@ -936,6 +947,66 @@
             },
             "scored": {
               "type": "boolean"
+            },
+            "segment": {
+              "type": "number"
+            },
+            "outcome": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "The terminal goals' score: the rarity of their liquidity-weighted payoff under the baselines, 100 log(n) / log(1000) (0 up, no ceiling); n is the 1 in n it stands for; settled is the weighted share settled (0 to 1). Null with no scored terminal goal.",
+              "properties": {
+                "score": {
+                  "type": "number"
+                },
+                "n": {
+                  "type": "number"
+                },
+                "settled": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "score",
+                "n",
+                "settled"
+              ]
+            },
+            "means": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "The instrumental score: the liquidity-weighted mean of the instrumental goals' mid-ranks r (P(worse) - P(better) under the baseline) as 50 (r + 1), 0 to 100, 50 as expected; settled is the weighted share settled (0 to 1); low and high its bounds while provisional. Null with no scored instrumental goal.",
+              "properties": {
+                "score": {
+                  "type": "number"
+                },
+                "settled": {
+                  "type": "number"
+                },
+                "low": {
+                  "type": "number"
+                },
+                "high": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "score",
+                "settled",
+                "low",
+                "high"
+              ]
+            },
+            "headline": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "outcome, means (no terminal goal), or null with nothing scored."
             },
             "goals": {
               "type": "array",
@@ -951,153 +1022,250 @@
                   "liquidity": {
                     "type": "number"
                   },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "terminal",
+                      "instrumental"
+                    ]
+                  },
+                  "valence": {
+                    "description": "Per item key (\"\" for a question without items): higher, lower, sooner, later, neutral, or {target: [low, high]}.",
+                    "type": "object"
+                  },
                   "turn": {
+                    "type": "number"
+                  },
+                  "baseline_at": {
+                    "type": "string",
+                    "description": "When the baseline was frozen (the run's clock)."
+                  },
+                  "restatements": {
+                    "type": "array",
+                    "description": "Corrections of tier or valence made once an outcome was known: field, item, from, to, turn, at.",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "scored": {
+                    "type": "boolean",
+                    "description": "false when every item is neutral."
+                  },
+                  "score": {
                     "type": "number",
-                    "description": "The turn count when it was set."
+                    "description": "Terminal: 100 log(n) / log(1000), its payoff's rarity under its baseline, 0 up; instrumental: 0 to 100, 50 (r + 1) for r the mean of its cells' ranks, 50 as expected. Settled and provisional. Absent when every item is neutral."
                   },
-                  "priced_at": {
-                    "type": "string"
+                  "settled": {
+                    "type": "number",
+                    "description": "The share of its cells settled (0 to 1)."
                   },
-                  "bars": {
+                  "low": {
+                    "type": "number",
+                    "description": "Instrumental: the lower bound while provisional."
+                  },
+                  "high": {
+                    "type": "number",
+                    "description": "Instrumental: the upper bound while provisional."
+                  },
+                  "cells": {
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
-                        "bar": {
+                        "item": {
                           "type": "string"
                         },
-                        "label": {
+                        "item_label": {
                           "type": [
                             "string",
                             "null"
                           ]
                         },
-                        "item": {
+                        "period": {
                           "type": [
                             "string",
                             "null"
+                          ],
+                          "description": "A how-much cell's period end; null for a when item."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "how_much",
+                            "when"
                           ]
                         },
-                        "end_date": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
+                        "direction": {
+                          "description": "The item's valence."
                         },
-                        "p0": {
-                          "type": [
-                            "number",
-                            "null"
-                          ],
-                          "description": "The house p when the goal was priced (a bar added since: its first house p)."
+                        "baseline": {
+                          "type": "string",
+                          "description": "The frozen baseline in a phrase: a how-much cell's median band, a when cell's chance by its horizon."
                         },
-                        "p": {
-                          "type": [
-                            "number",
-                            "null"
-                          ],
-                          "description": "The house p now."
+                        "scored": {
+                          "type": "boolean",
+                          "description": "false for a neutral item."
                         },
-                        "forecast": {
-                          "type": [
-                            "number",
-                            "null"
-                          ],
-                          "description": "The player's forecast on the bar."
+                        "r": {
+                          "type": "number",
+                          "description": "Instrumental: the cell's rank (or its expectation while open), -1 to 1."
                         },
-                        "resolved": {
+                        "settled": {
                           "type": "boolean"
                         },
-                        "resolved_yes": {
-                          "type": [
-                            "boolean",
-                            "null"
-                          ]
-                        },
-                        "realised": {
+                        "low": {
                           "type": "number"
                         },
-                        "unrealised": {
-                          "type": "number",
-                          "description": "The position's expected points at the house p now (open bars)."
+                        "high": {
+                          "type": "number"
+                        },
+                        "outcome": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The category it settled in, else \"~\" and the likeliest now."
+                        },
+                        "weight": {
+                          "type": "number"
+                        },
+                        "h": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "description": "Terminal: the cell's payoff, 1 / its favourable mid-tail under the baseline, once settled."
                         }
                       },
                       "required": [
-                        "bar",
-                        "p0",
-                        "p",
-                        "resolved",
-                        "realised",
-                        "unrealised"
+                        "item",
+                        "kind",
+                        "direction",
+                        "baseline",
+                        "scored",
+                        "weight"
                       ]
                     }
                   },
-                  "realised": {
-                    "type": "number"
+                  "n": {
+                    "type": "number",
+                    "description": "Terminal: the 1 in n its score stands for: its payoff's own rarity under its baseline (the expected final one while open)."
                   },
-                  "unrealised": {
-                    "type": "number"
+                  "share": {
+                    "type": "number",
+                    "description": "Terminal: its part of the run's payoff (0 to 1)."
                   },
-                  "total": {
-                    "type": "number"
+                  "value": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Its outcome in a phrase: the last settled cell's band or date, else \"~\" and the first open cell's likeliest now."
+                  },
+                  "payoff": {
+                    "type": "number",
+                    "description": "Terminal: the mean of its cells' payoffs (expected while open); its share of the run's payoff is weighted by this."
                   }
                 },
                 "required": [
                   "market",
+                  "title",
                   "liquidity",
-                  "bars",
-                  "realised",
-                  "unrealised",
-                  "total"
+                  "tier",
+                  "valence",
+                  "turn",
+                  "baseline_at",
+                  "restatements",
+                  "scored",
+                  "settled",
+                  "cells"
                 ]
               }
             },
-            "total": {
-              "type": "object",
-              "properties": {
-                "realised": {
-                  "type": "number"
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "segment": {
+                    "type": "number"
+                  },
+                  "to_turn": {
+                    "type": "number"
+                  },
+                  "outcome": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "The terminal goals' score: the rarity of their liquidity-weighted payoff under the baselines, 100 log(n) / log(1000) (0 up, no ceiling); n is the 1 in n it stands for; settled is the weighted share settled (0 to 1). Null with no scored terminal goal.",
+                    "properties": {
+                      "score": {
+                        "type": "number"
+                      },
+                      "n": {
+                        "type": "number"
+                      },
+                      "settled": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "n",
+                      "settled"
+                    ]
+                  },
+                  "means": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "The instrumental score: the liquidity-weighted mean of the instrumental goals' mid-ranks r (P(worse) - P(better) under the baseline) as 50 (r + 1), 0 to 100, 50 as expected; settled is the weighted share settled (0 to 1); low and high its bounds while provisional. Null with no scored instrumental goal.",
+                    "properties": {
+                      "score": {
+                        "type": "number"
+                      },
+                      "settled": {
+                        "type": "number"
+                      },
+                      "low": {
+                        "type": "number"
+                      },
+                      "high": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "settled",
+                      "low",
+                      "high"
+                    ]
+                  },
+                  "headline": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
                 },
-                "unrealised": {
-                  "type": "number"
-                },
-                "total": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "realised",
-                "unrealised",
-                "total"
-              ]
-            },
-            "frozen": {
-              "type": [
-                "object",
-                "null"
-              ],
-              "description": "The score frozen at the run's latest switch from mortal to god (turn: turns taken then), included in the totals; null if it never turned god from mortal.",
-              "properties": {
-                "turn": {
-                  "type": "number"
-                },
-                "realised": {
-                  "type": "number"
-                },
-                "unrealised": {
-                  "type": "number"
-                },
-                "total": {
-                  "type": "number"
-                }
+                "required": [
+                  "segment",
+                  "to_turn"
+                ]
               }
             }
           },
           "required": [
             "mode",
             "scored",
+            "segment",
+            "outcome",
+            "means",
+            "headline",
             "goals",
-            "total"
+            "segments"
           ]
         },
         "past_end": {
@@ -1143,7 +1311,7 @@
     },
     "sandbox_wrapup": {
       "type": "object",
-      "description": "A future run's wrap-up: `period` (from, to, ends_on, past_end, turns), `arc` (prose by the run's planner model, or the player's own planner in client mode), `resolutions` (what resolved, with dates), `turning_points` (the planner's adjustments to rolls, largest first: turn, market, item, factor, action, basis, result), `score` (goals and total; null in a god run), `forecasts` (resolved bars the player forecast: counts, mean Brier against the house's opening line, best and worst), `written_by` (server or client), `model` and `generated_at`.",
+      "description": "A wargame's wrap-up: `period` (from, to, ends_on, past_end, turns), `arc` (prose by the run's planner model, or the player's own planner in client mode), `resolutions` (what resolved, with dates), `turning_points` (the planner's adjustments to rolls, largest first: turn, market, item, factor, action, basis, result), `score` (outcome and means, segments and each goal's score; null in a god run), `forecasts` (the points the player's forecasts made or lost against the house on resolved bars: `resolved_bars`, `points` (settled), and `best` and `worst`, each a call with market, title, bar, item, forecast, house_p (the house line when first forecast), outcome and points; then the open bars marked to market, what the player's positions would make settled at the house line now: `open_bars`, `open_points`, `open` (the largest, each a call with house_now instead of outcome) and `total`, settled plus open; wrap-ups made before 18 Oct 2026 have no open fields), `written_by` (server or client), `model` and `generated_at`.",
       "properties": {
         "period": {
           "type": "object",
@@ -1197,7 +1365,42 @@
           ]
         },
         "forecasts": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "resolved_bars": {
+              "type": "number"
+            },
+            "points": {
+              "type": "number"
+            },
+            "best": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "worst": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "open_bars": {
+              "type": "number"
+            },
+            "open_points": {
+              "type": "number"
+            },
+            "open": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "total": {
+              "type": "number"
+            }
+          }
         },
         "written_by": {
           "type": "string",
@@ -1269,6 +1472,38 @@
             "client"
           ],
           "description": "Who plans the turns: server (Antistatic's model) or client (the user's agent, through planner jobs; the website can't take its turns)."
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "since": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "turn",
+                    "questions",
+                    "info",
+                    "wrapup"
+                  ]
+                }
+              },
+              "required": [
+                "text",
+                "since"
+              ]
+            }
+          ],
+          "description": "While the user's planner agent has a job open (planner client): its kind (turn, questions: the opening questions, info, wrapup), where it stands (text, a coarse step with nothing sealed in it) and since when the job has been open. Null otherwise."
         },
         "length": {
           "type": "object",
@@ -1352,17 +1587,24 @@
                 "type": "string",
                 "enum": [
                   "host",
-                  "guest"
-                ]
+                  "guest",
+                  "invitee",
+                  "open",
+                  "ai"
+                ],
+                "description": "Who controls the character: the host, a guest (a player), or nobody yet (invitee: kept for one person; open) or the planner (ai)."
               },
               "status": {
                 "type": "string",
                 "enum": [
                   "host",
                   "drafting",
-                  "submitted"
+                  "submitted",
+                  "invitee",
+                  "open",
+                  "ai"
                 ],
-                "description": "host: the host's orders go with the turn; a guest is drafting until they submit."
+                "description": "host: the host's orders go with the turn; a guest is drafting until they submit; invitee and open characters hold; ai ones are the planner's."
               },
               "orders": {
                 "type": [
@@ -1394,6 +1636,10 @@
               },
               "you": {
                 "type": "boolean"
+              },
+              "yours": {
+                "type": "boolean",
+                "description": "A character the caller controls."
               }
             },
             "required": [
@@ -1508,7 +1754,7 @@
       "path": "/api/v1/markets",
       "summary": "Markets you can see, with search.",
       "group": "markets",
-      "description": "Markets you can see: public ones, plus with a token your private markets and those shared with you. `q` searches open markets (`include_closed=true` widens it); `open=true` lists open markets; `unforecasted=true` (signed in, not with `q`) lists open markets you haven't forecast on. Pages with `limit`/`offset`; `paging` says whether there are more.",
+      "description": "Markets you can see: public ones, plus with a token your private markets and those shared with you. `q` searches open markets (`include_closed=true` widens it); `open=true` lists open markets; `unforecasted=true` (signed in, not with `q`) lists open markets you haven't forecast on; `sort=time` lists open then resolved markets in the homepage's time-sensitive order (most points at stake in the next day first). Pages with `limit`/`offset`; `paging` says whether there are more.",
       "auth": "optional",
       "headers": [],
       "rate_limit": "read",
@@ -1526,6 +1772,9 @@
             "type": "string"
           },
           "unforecasted": {
+            "type": "string"
+          },
+          "sort": {
             "type": "string"
           },
           "limit": {
@@ -4169,6 +4418,9 @@
                 "display_unit": {
                   "type": "string"
                 },
+                "display_scale": {
+                  "type": "number"
+                },
                 "multicount": {
                   "type": "object",
                   "properties": {
@@ -5594,7 +5846,7 @@
       "id": "pending_edit.show",
       "method": "GET",
       "path": "/api/v1/markets/{code}/pending-edits",
-      "summary": "Your staged (unsubmitted) forecast for a market.",
+      "summary": "Your forecast draft (not submitted) for a market.",
       "group": "forecasting",
       "auth": "read",
       "headers": [
@@ -5943,7 +6195,7 @@
       "id": "sandbox.index",
       "method": "GET",
       "path": "/api/v1/sandbox",
-      "summary": "Sandboxes you can start (curricula and future-sandbox templates), and your runs.",
+      "summary": "Sandboxes you can start (curricula and wargame templates), and your runs.",
       "group": "sandboxes",
       "auth": "read",
       "headers": [],
@@ -6193,7 +6445,7 @@
       "id": "sandbox.show",
       "method": "GET",
       "path": "/api/v1/sandbox/runs/{id}",
-      "summary": "Where one of your sandbox runs stands: a past run's clock, checkpoint and questions, or a future run's setup and history.",
+      "summary": "Where one of your sandbox runs stands: a past run's clock, checkpoint and questions, or a wargame's setup and history.",
       "group": "sandboxes",
       "auth": "read",
       "headers": [],
@@ -6204,7 +6456,7 @@
         "properties": {
           "include_audit": {
             "type": "string",
-            "description": "true adds `audit` to a future run: how each completed turn was decided (see sandbox.audit)."
+            "description": "true adds `audit` to a wargame: how each completed turn was decided (see sandbox.audit)."
           },
           "character": {
             "type": "string",
@@ -6524,15 +6776,15 @@
           }
         }
       },
-      "description": "A past sandbox's position (`kind: past`), or a future sandbox's (`kind: future`): its clock, setup, the results of its last 50 turns and the questions written in it. Nothing past the clock. In a wargame you play but don't host, or with `character` (one of yours), the run as that character sees it: the shared story with its own results and info answers, `role: guest` and its `character`."
+      "description": "A past sandbox's position (`kind: past`), or a wargame's (`kind: future`): its clock, setup, the results of its last 50 turns and the questions written in it. Nothing past the clock. In a wargame you play but don't host, or with `character` (one of yours), the run as that character sees it: the shared story with its own results and info answers, `role: guest` and its `character`."
     },
     {
       "id": "sandbox.audit",
       "method": "GET",
       "path": "/api/v1/sandbox/runs/{id}/audit",
-      "summary": "How a future run's completed turns were decided: the server's seeded rolls.",
+      "summary": "How a wargame's completed turns were decided: the server's seeded rolls.",
       "group": "sandboxes",
-      "description": "For the run's owner, per completed turn (oldest first; `turn` picks one by number): `seed_hex` (random per turn), `planner` (server or client), `model` (the model the turn was planned with, fixed when it started; null for client turns), `cost_usd` (its exact model cost at list prices; null for client turns), the optional `duties` rolled (duty, rate, p, u, fired), every visible `draws` entry (kind draw, sample or curveball; label, p or distribution, basis, u, result, action), `sealed_draws` (how many draws the planner sealed: counted, not shown), `question_rolls` (each run-question item rolled: market, title, item, item_label, period, `source` (house; or, in a run with sample_from user, user, fallback when the user had no forecast, or mixed with user_bars of bars), line_p (the p from the line rolled), house_p (when the source is house), the planner's adjustment {factor, basis}, p, u, result and date; for a how_much period: source, line [{threshold, p, source}] (and house, the same, when the source is house), median, u and result {at_least, below}), the run's `mode` (mortal or god), `goals` after the turn (null for a run without goals; else mode, scored, total {realised, unrealised, total} and goals [{market, liquidity, turn, priced_at, realised, unrealised, total, bars [{bar, p0, p, forecast, resolved_yes, realised, unrealised}]}]) and `branches` (labels, weights, chosen index, u). A result is yes when u < p. Nothing about turns not yet completed, and no planner evidence, notes or unseen observations. Errors: 404 (not your future run), 422 (turn is not a number).",
+      "description": "For the run's owner, per completed turn (oldest first; `turn` picks one by number): `seed_hex` (random per turn), `planner` (server or client), `model` (the model the turn was planned with, fixed when it started; null for client turns), `cost_usd` (its exact model cost at list prices; null for client turns), the optional `duties` rolled (duty, rate, p, u, fired), every visible `draws` entry (kind draw, sample or curveball; label, p or distribution, basis, u, result, action), `sealed_draws` (how many draws the planner sealed: counted, not shown), `question_rolls` (each run-question item rolled: market, title, item, item_label, period, `source` (house; or, in a run with sample_from user, user, fallback when the user had no forecast, or mixed with user_bars of bars), line_p (the p from the line rolled), house_p (when the source is house), the planner's adjustment {factor, basis}, p, u, result and date; for a how_much period: source, line [{threshold, p, source}] (and house, the same, when the source is house), median, u and result {at_least, below}), the run's `mode` (mortal or god), `goals` after the turn (null for a run without goals; else mode, segment, outcome and means {score, settled, low, high}, and goals [{market, tier, liquidity, score, settled, low, high}]) and `branches` (labels, weights, chosen index, u). A result is yes when u < p. Nothing about turns not yet completed, and no planner evidence, notes or unseen observations. Errors: 404 (not your wargame), 422 (turn is not a number).",
       "auth": "read",
       "headers": [],
       "rate_limit": "read",
@@ -6597,6 +6849,154 @@
                     "chosen": 0,
                     "u": 0.31
                   }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sandbox.turn",
+      "method": "GET",
+      "path": "/api/v1/sandbox/runs/{id}/turns/{turn}",
+      "summary": "A completed wargame turn's result.",
+      "group": "sandboxes",
+      "description": "A completed turn's stored result, as take_turn returned it (its script verbatim, struck observations left out): `turn` is its number or `latest`. 404 when there is no such completed turn.",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "read",
+      "schema_status": "strict",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_turn"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "run_id": 712,
+              "turn": {
+                "index": 1,
+                "from": "2026-10-10T09:00:00Z",
+                "to": "2026-11-10T09:00:00Z"
+              },
+              "clock": "2026-11-10T09:00:00Z",
+              "observations": [
+                {
+                  "at": "2026-10-24T09:00:00Z",
+                  "text": "Your manager agrees to a pay review in January.",
+                  "id": "o3f9a1c2b7d4e"
+                }
+              ],
+              "resolved": [],
+              "replayed": false,
+              "action_outcomes": [
+                {
+                  "action": "Ask my manager for a pay review.",
+                  "status": "done",
+                  "note": "Your manager agreed to review your pay in January."
+                }
+              ],
+              "entries": [
+                {
+                  "type": "action",
+                  "text": "Ask my manager for a pay review."
+                },
+                {
+                  "type": "info",
+                  "text": "When is my contract up for renewal?"
+                }
+              ],
+              "answers": "**When is my contract up for renewal?**\nYour contract renews on 31 March; the HR portal shows it.",
+              "script": "**10 October to 10 November 2026 · T+31 days**\n\nOn 24 October your manager agrees to a pay review in January.\n\n**Results**\n- Ask my manager for a pay review: done; the review is booked for January.\n\n**Elsewhere**\nNothing in the wider world touched your month.\n\n**Markets**\nNothing resolved.\n\nWhat do you do?"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sandbox.grid",
+      "method": "GET",
+      "path": "/api/v1/sandbox/runs/{id}/grid",
+      "summary": "A wargame's questions on one time axis, as the site's chat cards draw them.",
+      "group": "sandboxes",
+      "description": "For the run's owner: `axis` (null with no dated questions; else `n` columns, each a period of 1, 3, 6 or 12 months, with `cols` labels, year `ticks` [{i, t}], `now` (the clock's column) and `clock` (a date label)), `rows` (a row per question, or a `heading` row and a `sub` row per item, with `item` its full label: `label`, `title`, `kind` date or count, and `cells`, one per column or null: `s` y (happened), n (not by then) or o (ahead, `h` the chance it has happened by then; for a count row `h` is the bar's height), `t` the cell's text), `clock` (ISO) and `turns`. Presentation only; its fields may grow. Errors: 404 (not your wargame).",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "read",
+      "schema_status": "envelope",
+      "query": null,
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "run_id": 54,
+              "clock": "2027-12-31T00:00:00Z",
+              "turns": 7,
+              "axis": {
+                "n": 20,
+                "cols": [
+                  "Q1 2027"
+                ],
+                "ticks": [
+                  {
+                    "i": 0,
+                    "t": "2027"
+                  }
+                ],
+                "now": 4,
+                "clock": "31 Dec 2027"
+              },
+              "rows": [
+                {
+                  "kind": "date",
+                  "label": "US puts UK…",
+                  "title": "US puts UK on its AI chip tier list",
+                  "cells": [
+                    {
+                      "s": "n",
+                      "t": "Q1 2027 · not yet"
+                    },
+                    {
+                      "s": "y",
+                      "t": "Q2 2027 · happened"
+                    },
+                    {
+                      "s": "o",
+                      "h": 0.4,
+                      "t": "Q1 2028 · 40% by then"
+                    }
+                  ]
                 }
               ]
             }
@@ -6913,7 +7313,7 @@
       "path": "/api/v1/sandbox/runs/{id}/turn_status",
       "summary": "Where a wargame's next turn stands for you: players, the turn's length, what you do next; can long-poll.",
       "group": "sandboxes",
-      "description": "For the run's host or a guest who joined it. `wait_seconds` (0-60) long-polls: the answer comes as soon as the status differs from `since` (a `version` from an earlier answer; absent, the status now), or after `wait_seconds` with the status as it is. 404 for a run you don't play.",
+      "description": "For the run's host or a guest who joined it. `wait_seconds` (0-45) long-polls: the answer comes as soon as the status differs from `since` (a `version` from an earlier answer; absent, the status now), or after `wait_seconds` with the status as it is. 404 for a run you don't play.",
       "auth": "read",
       "headers": [],
       "rate_limit": "read",
@@ -7142,7 +7542,7 @@
       "path": "/api/v1/sandbox/runs",
       "summary": "Start a sandbox: a future one from a template or the player's own scenario, or a past one from a curriculum.",
       "group": "sandboxes",
-      "description": "`template` starts a future sandbox at today's date (where the plan allows; at most 5 active), with an optional `model` (`opus`, the default, `sonnet` or `haiku`: the model that simulates the run). `title` and `premise` without `template` start a future sandbox of the player's own scenario (the premise is free text: one line or a long brief; world rules, pacing and curveball guidance are the shared defaults); with `template` they replace its own. `bio` sets the player's bio from the outset. A run started with a premise or a bio is set up: its first turn can be taken. The response is the run with a `setup` object (the scenario's title and premise, the bio prompt and choices, how turn lengths are chosen, the curveball guidance) whose answers go to `PATCH /sandbox/runs/{id}/setup`. `curriculum` (a slug) starts or resumes a past sandbox and returns its position (`kind: past`). `planner`: `client` (the default here: the caller's own agent plans through planner jobs, with no Antistatic model calls) or `server` (Antistatic's model, on the monthly AI budget in `GET /sandbox`); runs started on the website are server-planned. Errors: 429 `sandbox_quota`, 422 for a missing title or premise. `characters` makes a cast for the caller as the run starts (they host and umpire, with no character of their own).",
+      "description": "`template` starts a wargame on `starts_on` (default today; any past or future date; where the plan allows; at most 5 active), with an optional `model` (`opus`, the default, `sonnet` or `haiku`: the model that simulates the run). `title` and `premise` without `template` start a wargame of the player's own scenario (the premise is free text: one line or a long brief; world rules, pacing and curveball guidance are the shared defaults); with `template` they replace its own. `bio` sets the player's bio from the outset. A run started with a premise or a bio is set up: its first turn can be taken. The response is the run with a `setup` object (the scenario's title and premise, the bio prompt and choices, how turn lengths are chosen, the curveball guidance) whose answers go to `PATCH /sandbox/runs/{id}/setup`. `curriculum` (a slug) starts or resumes a past sandbox and returns its position (`kind: past`). `planner`: `client` (the default here: the caller's own agent plans through planner jobs, with no Antistatic model calls) or `server` (Antistatic's model, on the monthly AI budget in `GET /sandbox`); runs started on the website are server-planned. Errors: 429 `sandbox_quota`, 422 for a missing title or premise. `characters` makes a cast for the caller as the run starts (they host and umpire, with no character of their own). `private: true` starts an end-to-end encrypted wargame (client-planned; see docs/encrypted-wargames.md).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -7170,7 +7570,7 @@
               "house",
               "user"
             ],
-            "description": "Where the run's question rolls take their odds: house (the house line) or user (the user's own forecast where they have one, else the house line); user needs mode god. Future sandboxes."
+            "description": "Where the run's question rolls take their odds: house (the house line) or user (the user's own forecast where they have one, else the house line); user needs mode god. Wargames."
           },
           "mode": {
             "type": "string",
@@ -7178,23 +7578,27 @@
               "mortal",
               "god"
             ],
-            "description": "mortal (the default for new runs): the world is drawn from the house line (sample_from is house) and the run's goals are scored with market points. god: sample_from may be user (the default in god mode); nothing is scored. sample_from user alone starts a god run. The mode can change at any time: turning god freezes the score; turning mortal prices the goals again, and new points add to the frozen score. Future sandboxes."
+            "description": "mortal (the default for new runs): the world is drawn from the house line (sample_from is house) and the run's goals are scored by how they turn out against their baselines. god: sample_from may be user (the default in god mode); the same score is shown, unscored. sample_from user alone starts a god run. The mode can change at any time: turning god ends the scoring segment; turning mortal starts a new one, with every goal re-baselined. Wargames."
           },
           "title": {
             "type": "string",
-            "description": "The scenario's title (at most 120 characters). Future sandboxes."
+            "description": "The scenario's title (at most 120 characters). Wargames."
           },
           "premise": {
             "type": "string",
-            "description": "The scenario's premise: one line or a long brief. Without template, starts a scenario of the player's own. Future sandboxes."
+            "description": "The scenario's premise: one line or a long brief. Without template, starts a scenario of the player's own. Wargames."
           },
           "bio": {
             "type": "string",
-            "description": "The player's bio from the outset (at most 6,000 characters). Future sandboxes."
+            "description": "The player's bio from the outset (at most 6,000 characters). Wargames."
+          },
+          "starts_on": {
+            "type": "string",
+            "description": "The run's first date (YYYY-MM-DD, past or future), or `auto`: inferred from the premise by Antistatic's planner (server-planned runs; today otherwise). Default today. Changeable in the setup until the first turn starts. Wargames."
           },
           "characters": {
             "type": "array",
-            "description": "Characters for the caller, one per actor (`name`, `tagline`, private `bio`), at most 12; the host gets none of their own. Future sandboxes.",
+            "description": "Characters for the caller, one per actor (`name`, `tagline`, private `bio`), at most 12; the host gets none of their own. Wargames.",
             "items": {
               "type": "object",
               "properties": {
@@ -7206,12 +7610,30 @@
                 },
                 "bio": {
                   "type": "string"
+                },
+                "controller": {
+                  "type": "string",
+                  "enum": [
+                    "me",
+                    "invitee",
+                    "open",
+                    "ai"
+                  ],
+                  "description": "Who plays it: me (the caller; the default), invitee (kept for the person whose email is `invitee`, who claims it from the invite link), open (any invited player may claim it; until then it holds) or ai (the planner plays it). Only the host gives a character to others."
+                },
+                "invitee": {
+                  "type": "string",
+                  "description": "The invitee's email, with controller invitee."
                 }
               },
               "required": [
                 "name"
               ]
             }
+          },
+          "private": {
+            "type": "boolean",
+            "description": "End-to-end encrypted (needs encryption set up; client planner only; text arrives as vault handles). Wargames."
           }
         }
       },
@@ -7302,7 +7724,7 @@
                         },
                         "next": {
                           "type": "string",
-                          "description": "What to do next with a future run: its setup round with the user and, with characters, how to play them."
+                          "description": "What to do next with a wargame: its setup round with the user and, with characters, how to play them."
                         }
                       }
                     }
@@ -7398,7 +7820,7 @@
       "id": "sandbox.update_setup",
       "method": "PATCH",
       "path": "/api/v1/sandbox/runs/{id}/setup",
-      "summary": "Set a future sandbox's premise, bio and other settings.",
+      "summary": "Set a wargame's premise, bio and other settings.",
       "group": "sandboxes",
       "description": "Any of `title` (at most 120 characters), `premise`, `bio` (6,000), `modifications` (2,000), `pace` (`auto`, the default: each turn's length is chosen when it is taken; or a fixed length: `days`, `week`, `month`, `quarter`) and `model` (`opus`, `sonnet` or `haiku`: the model that simulates the run's next turns, info answers and briefings); omitted fields stay, empty text clears (a cleared premise or title falls back to the template's). Each change of the premise or the bio is logged with the run's date and turn (`settings.setup_log`) and sent to the planner. Any setup completes it, which turns need; a complete setup before the first turn gets an opening briefing (again when the premise, bio or modifications change, up to a daily limit). Returns the run.",
       "auth": "write",
@@ -7469,7 +7891,7 @@
               "house",
               "user"
             ],
-            "description": "Where the run's question rolls take their odds: house (the house line) or user (the user's own forecast where they have one, else the house line). A mortal run is always house: user there is refused (422). Future sandboxes."
+            "description": "Where the run's question rolls take their odds: house (the house line) or user (the user's own forecast where they have one, else the house line). A mortal run is always house: user there is refused (422). Wargames."
           },
           "mode": {
             "type": "string",
@@ -7477,7 +7899,7 @@
               "mortal",
               "god"
             ],
-            "description": "mortal (the default for new runs): the world is drawn from the house line (sample_from is house) and the run's goals are scored with market points. god: sample_from may be user (the default in god mode); nothing is scored. sample_from user alone starts a god run. The mode can change at any time: turning god freezes the score; turning mortal prices the goals again, and new points add to the frozen score. Future sandboxes."
+            "description": "mortal (the default for new runs): the world is drawn from the house line (sample_from is house) and the run's goals are scored by how they turn out against their baselines. god: sample_from may be user (the default in god mode); the same score is shown, unscored. sample_from user alone starts a god run. The mode can change at any time: turning god ends the scoring segment; turning mortal starts a new one, with every goal re-baselined. Wargames."
           },
           "ends_on": {
             "type": [
@@ -7486,9 +7908,13 @@
             ],
             "description": "The date the game is planned to end (YYYY-MM-DD, after the clock), or null for open-ended. Play carries on past it; reaching it makes the wrap-up."
           },
+          "starts_on": {
+            "type": "string",
+            "description": "Moves the run's start (YYYY-MM-DD, past or future) before its first turn; fixed once a turn starts (422). Questions already made for the old start are made again (422 once any has a forecast); a planned end not after the new start is dropped."
+          },
           "characters": {
             "type": "array",
-            "description": "Characters to add for the host (see sandbox.start).",
+            "description": "Characters to add (see sandbox.start), or, with key, existing ones to change. A player (not the host) may send only characters.",
             "items": {
               "type": "object",
               "properties": {
@@ -7500,12 +7926,31 @@
                 },
                 "bio": {
                   "type": "string"
+                },
+                "controller": {
+                  "type": "string",
+                  "enum": [
+                    "me",
+                    "invitee",
+                    "open",
+                    "ai"
+                  ],
+                  "description": "Who plays it: me (the caller; the default), invitee (kept for the person whose email is `invitee`, who claims it from the invite link), open (any invited player may claim it; until then it holds) or ai (the planner plays it). Only the host gives a character to others."
+                },
+                "invitee": {
+                  "type": "string",
+                  "description": "The invitee's email, with controller invitee."
+                },
+                "key": {
+                  "type": "string",
+                  "description": "An existing character's key: changes its controller (between turns) and bio. A player may take an open, AI or kept-for-them character (controller me) or cede their own (ai or open)."
                 }
-              },
-              "required": [
-                "name"
-              ]
+              }
             }
+          },
+          "character": {
+            "type": "string",
+            "description": "A player with several characters: the one whose view comes back."
           }
         }
       },
@@ -7514,7 +7959,113 @@
           "type": "object",
           "properties": {
             "data": {
-              "$ref": "#/$defs/timeline_future"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/timeline_future"
+                },
+                {
+                  "type": "object",
+                  "description": "A wargame as one of the caller's characters sees it (role guest).",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "guest"
+                      ]
+                    },
+                    "character": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "tagline": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "bio": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "tagline",
+                        "bio"
+                      ]
+                    },
+                    "clock": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object"
+                    },
+                    "turns": {
+                      "type": "number"
+                    },
+                    "history": {
+                      "type": "array"
+                    },
+                    "questions": {
+                      "type": "array"
+                    },
+                    "info_log": {
+                      "type": "array"
+                    },
+                    "cast": {
+                      "type": "array"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "turn_status": {
+                      "$ref": "#/$defs/turn_status"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "kind",
+                    "role",
+                    "character",
+                    "clock",
+                    "settings",
+                    "turns",
+                    "history",
+                    "questions",
+                    "url"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "description": "A player who no longer plays any character in the game.",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "left": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "left"
+                  ]
+                }
+              ]
             }
           },
           "required": [
@@ -7561,9 +8112,9 @@
       "id": "sandbox.take_turn",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/turns",
-      "summary": "Take a future sandbox's turn.",
+      "summary": "Take a wargame's turn.",
       "group": "sandboxes",
-      "description": "The player's typed `entries` (each `{type, text}`, type `action`, `decree`, `feed` or `info`; at least one action or decree; at most 20 entries and 4,000 characters per character, `character` naming one, untagged the host's) and optionally `until` (an ISO date after the clock, at most a year ahead; a date-time counts as its date; default the clock plus the pace; `\"auto\"`: the planner chooses the date, keeping to the run's cadence (recent turn lengths, else the pace) or a sensible step, and the result's `until` gives it with a one-line reason, also stated under the script's header). An action is an attempt the planner forecasts; a decree happens exactly as stated; a feed is a binding correction recorded before planning (with `strike`, an observation id, it also strikes that observation); an info entry is answered from what the player already knew, as of the turn's start (`answers_as_of`), so it can't shape the turn's actions (ask those first with POST /sandbox/runs/{id}/info). `actions` (text) is deprecated: one action. The server plans the period, draws one outcome in code, moves the clock to midnight UTC of that date and narrates the drawn outcome; the response holds `script` (the narration), the observations the clock has reached, an outcome per action and decree, `answers` to info entries, the run's bars that resolved, and any run questions the planner created (`questions_created`). Idempotent by `turn_id` (the client's key, per run): a completed turn sent again with the same entries and `until` returns its stored result with `replayed: true`; the same `turn_id` with other entries or another `until` is 409 `turn_id_conflict`. A daily turn quota. Errors: 409 `setup_incomplete`, 409 `turn_in_progress`, 409 `turn_id_conflict`, 429 `turn_quota` (turns per user per day) or `info_quota` (with info entries), 503 `at_capacity` (the service's daily cap), 403 `model_requires_pro` (a free account's server turns run on Haiku only), 402 `ai_budget_exhausted` (the month's AI budget is used up; client mode still works; admins exempt), all checked on every call, retries included, 502 `planner_invalid` / `planner_refused` and 503 `planner_unavailable` (the clock has not moved; retry with the same `turn_id`). When the planner needs the player's answers before the period can be simulated, the response is `status: \"questions\"` with `questions_for_player` and nothing else happens (no turn counted, the clock stays): ask the player and retry the same `turn_id` with the answers as feed entries (`answers`: id).",
+      "description": "The player's typed `entries` (each `{type, text}`, type `action`, `decree`, `feed` or `info`; at least one action or decree; at most 20 entries and 200,000 characters per character, `character` naming one, untagged the host's) and optionally `until` (an ISO date after the clock, at most a year ahead; a date-time counts as its date; default the clock plus the pace; `\"auto\"`: the planner chooses the date, keeping to the run's cadence (recent turn lengths, else the pace) or a sensible step, and the result's `until` gives it with a one-line reason, also stated under the script's header). An action is an attempt the planner forecasts; a decree happens exactly as stated; a feed is a binding correction recorded before planning (with `strike`, an observation id, it also strikes that observation); an info entry is answered from what the player already knew, as of the turn's start (`answers_as_of`), so it can't shape the turn's actions (ask those first with POST /sandbox/runs/{id}/info). `actions` (text) is deprecated: one action. The server plans the period, draws one outcome in code, moves the clock to midnight UTC of that date and narrates the drawn outcome; the response holds `script` (the narration), the observations the clock has reached, an outcome per action and decree, `answers` to info entries, the run's bars that resolved, and any run questions the planner created (`questions_created`). Idempotent by `turn_id` (the client's key, per run): a completed turn sent again with the same entries and `until` returns its stored result with `replayed: true`; the same `turn_id` with other entries or another `until` is 409 `turn_id_conflict`. A daily turn quota. Errors: 409 `setup_incomplete`, 409 `turn_in_progress`, 409 `turn_id_conflict`, 429 `turn_quota` (turns per user per day) or `info_quota` (with info entries), 503 `at_capacity` (the service's daily cap), 403 `model_requires_pro` (a free account's server turns run on Haiku only), 402 `ai_budget_exhausted` (the month's AI budget is used up; client mode still works; admins exempt), all checked on every call, retries included, 502 `planner_invalid` / `planner_refused` and 503 `planner_unavailable` (the clock has not moved; retry with the same `turn_id`). When the planner needs the player's answers before the period can be simulated, the response is `status: \"questions\"` with `questions_for_player` and nothing else happens (no turn counted, the clock stays): ask the player and retry the same `turn_id` with the answers as feed entries (`answers`: id).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -7723,9 +8274,9 @@
       "id": "sandbox.ask",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/info",
-      "summary": "Info and feed entries in a future sandbox, with no time passing.",
+      "summary": "Info and feed entries in a wargame, with no time passing.",
       "group": "sandboxes",
-      "description": "`entries`: `{type, text}` with type `info` or `feed` (at most 20, each up to 1,000 characters). Feeds are recorded first as binding corrections (with `strike`, an observation id, also striking it); info entries are questions about what the player would already know, answered consistently with the run's hidden state and logged. The clock does not move. Pro (or admin), checked on every call. Errors: 403 `pro_required`, 429 `info_quota` (info answers per user per day), 503 `at_capacity`, 502 `planner_invalid` / `planner_refused`, 503 `planner_unavailable` (the feeds stay recorded).",
+      "description": "`entries`: `{type, text}` with type `info` or `feed` (at most 20, each up to 1,000 characters). Feeds are recorded first as binding corrections (with `strike`, an observation id, also striking it); info entries are questions about what the player would already know, answered consistently with the run's hidden state and logged. The clock does not move. In a run with `planner: client` the info entries go to the run's planner instead (free on any plan): `status` is `info_job` with `job_id`, `expires_at` and `next`; its planner answers through the planner job and `submit_script`, and `answer` is null here. Pro (or admin), checked on every call. Errors: 403 `pro_required`, 429 `info_quota` (info answers per user per day), 503 `at_capacity`, 502 `planner_invalid` / `planner_refused`, 503 `planner_unavailable` (the feeds stay recorded).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -7813,6 +8364,25 @@
                 },
                 "feeds_recorded": {
                   "type": "number"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "info_job"
+                  ],
+                  "description": "Only for a client-planned run's info entries."
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "job_id": {
+                  "type": "string"
+                },
+                "expires_at": {
+                  "type": "string"
+                },
+                "next": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -7856,7 +8426,7 @@
       "path": "/api/v1/sandbox/runs/{id}/orders",
       "summary": "Replace a wargame character's orders and submit them for the host's turn.",
       "group": "sandboxes",
-      "description": "`entries` (`{type, text}`: `action` or `decree`, at most 20 and 4,000 characters) replace the character's draft. A player's character's orders are submitted for the host's next turn unless `submit` is false; the host's own go with the turn they take. `character` as for sandbox.orders.",
+      "description": "`entries` (`{type, text}`: `action` or `decree`, at most 20 and 200,000 characters) replace the character's draft. A player's character's orders are submitted for the host's next turn unless `submit` is false; the host's own go with the turn they take. `character` as for sandbox.orders.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8008,7 +8578,7 @@
       "id": "sandbox.add_correction",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/corrections",
-      "summary": "Record a fact about the player's real situation in a future sandbox.",
+      "summary": "Record a fact about the player's real situation in a wargame.",
       "group": "sandboxes",
       "description": "Adds `fact` (text, at most 1,000 characters; at most 50 per run) to the run's corrections. The planner takes the run's corrections as established facts of its world from the next turn on. Returns the run.",
       "auth": "write",
@@ -8103,9 +8673,9 @@
       "id": "sandbox.set_goal",
       "method": "PUT",
       "path": "/api/v1/sandbox/runs/{id}/goals/{code}",
-      "summary": "Mark a future sandbox's run question as a goal, with its liquidity.",
+      "summary": "Mark a wargame's run question as a goal: its tier, valence and weight.",
       "group": "sandboxes",
-      "description": "Marks the run question `code` (one of the run's own questions) as a goal with `liquidity` (a whole number of points from 100 to 1,000: the market's budget, as on the live site), changes its liquidity, or with `remove: true` removes it. At most 10 goals; a goal's liquidity is fixed once a turn has passed since it was set. In a mortal run the player is scored on goals with the regular market points of their run positions: the budget is spread over the bars with the live engine's constant daily decay on the run's clock, and points come as bars resolve. A goal is priced when set (each open bar's house p and the player's position); only points made after count. Decrees and feeds can't settle or move a goal of a mortal run. Returns the run, with `score`. Errors: 404 (not your future run), 422 (not a run question, liquidity out of range, a goal fixed by a turn, too many goals).",
+      "description": "Marks the run question `code` (one of the run's own questions) as a goal, changes it, or with `remove: true` removes it (before the next turn). `tier`: terminal (what the player ultimately wants; the outcome score) or instrumental (a means; the instrumental score). `valence`: per item, the direction that is good for the player: higher, lower, sooner, later, neutral (shown, not scored) or {target: [low, high]} (enough is good, too much is bad); one value for every item, or by item key; defaults from the question's spec, else higher or sooner. `liquidity` (100 to 1,000, default 300): its weight in its tier's score, fixed once a turn has passed. A goal's baseline is the question's opening house line over all its items and periods, settled ones too (in a run that has been in god mode, the line when set over those still open), over its bars then; never re-based; later bars don't count. Valence and tier can be corrected any time; after a turn, or once one of the question's outcomes is known, a correction is kept as a restatement. No forecasts are needed. Decrees and feeds can't settle or move a goal of a mortal run. At most 10 goals. Returns the run, with `score`. Errors: 404 (not your wargame), 422 (not a run question, liquidity, tier or valence invalid, a goal fixed by a turn, nothing left open, too many goals).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8118,6 +8688,16 @@
             "type": "integer",
             "minimum": 100,
             "maximum": 1000
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "terminal",
+              "instrumental"
+            ]
+          },
+          "valence": {
+            "description": "A direction for every item, or {item_key: direction}; a direction is higher, lower, sooner, later, neutral or {target: [low, high]}."
           },
           "remove": {
             "type": "boolean"
@@ -8140,7 +8720,9 @@
       "example": {
         "request": {
           "body": {
-            "liquidity": 600
+            "liquidity": 600,
+            "tier": "terminal",
+            "valence": "sooner"
           }
         },
         "response": {
@@ -8195,38 +8777,51 @@
               "score": {
                 "mode": "mortal",
                 "scored": true,
+                "segment": 1,
+                "outcome": {
+                  "score": 14.1,
+                  "n": 2.6,
+                  "settled": 0.0
+                },
+                "means": null,
+                "headline": "outcome",
                 "goals": [
                   {
                     "market": "p712-1",
                     "title": "Date the player changes job",
                     "liquidity": 600,
-                    "turn": 0,
-                    "priced_at": "2026-11-10T00:00:00Z",
-                    "bars": [
+                    "tier": "terminal",
+                    "valence": {
+                      "": "sooner"
+                    },
+                    "turn": 1,
+                    "baseline_at": "2026-11-10T09:00:00Z",
+                    "restatements": [],
+                    "scored": true,
+                    "score": 14.1,
+                    "n": 2.6,
+                    "payoff": 4.3,
+                    "share": 1.0,
+                    "settled": 0.0,
+                    "value": "~not by 31 Dec 2026",
+                    "cells": [
                       {
-                        "bar": "b1",
-                        "label": "Dec 2026",
-                        "item": null,
-                        "end_date": "2026-12-31T00:00:00Z",
-                        "p0": 0.12,
-                        "p": 0.12,
-                        "forecast": null,
-                        "resolved": false,
-                        "resolved_yes": null,
-                        "realised": 0.0,
-                        "unrealised": 0.0
+                        "item": "",
+                        "item_label": null,
+                        "period": null,
+                        "kind": "when",
+                        "direction": "sooner",
+                        "baseline": "12% by 31 Dec 2026",
+                        "scored": true,
+                        "settled": false,
+                        "outcome": "~not by 31 Dec 2026",
+                        "weight": 1.0,
+                        "h": null
                       }
-                    ],
-                    "realised": 0.0,
-                    "unrealised": 0.0,
-                    "total": 0.0
+                    ]
                   }
                 ],
-                "total": {
-                  "realised": 0.0,
-                  "unrealised": 0.0,
-                  "total": 0.0
-                }
+                "segments": []
               }
             }
           }
@@ -8237,7 +8832,7 @@
       "id": "sandbox.strike",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/observations/{observation_id}/strike",
-      "summary": "Strike an observation from a future sandbox's history.",
+      "summary": "Strike an observation from a wargame's history.",
       "group": "sandboxes",
       "description": "Strikes an observation the run has reached (its `id` from the history or a turn's result), with `reason` (text, at most 500 characters). It stays stored for audit but is left out of the history, turn results and the planner's input. Returns the run.",
       "auth": "write",
@@ -8329,12 +8924,111 @@
       }
     },
     {
+      "id": "sandbox.reopen",
+      "method": "POST",
+      "path": "/api/v1/sandbox/runs/{id}/questions/{code}/reopen",
+      "summary": "Reopen a wrongly settled item of a wargame's when-question.",
+      "group": "sandboxes",
+      "description": "Reopens an item of a run when-question that was settled wrongly: `item` (its key, for a question with items) and `reason` (text, at most 500 characters). Its bars dated from the clock on open again at their house lines; earlier ones resolve no. The reason is recorded as a fact for the planner. Not a mortal run's goal. Returns the run.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/timeline_future"
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "item": "acme",
+            "reason": "The offer was never made; the rejection was misread."
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "run_id": 712,
+              "kind": "future",
+              "template": {
+                "key": "wargame-your-life",
+                "title": "Wargame your life"
+              },
+              "status": "active",
+              "clock": "2026-11-10T09:00:00Z",
+              "forked_from_run_id": null,
+              "settings": {
+                "bio": "A nurse in Leeds.",
+                "modifications": null,
+                "pace": "month",
+                "complete": true
+              },
+              "turns": 1,
+              "history": [
+                {
+                  "run_id": 712,
+                  "turn": {
+                    "index": 1,
+                    "from": "2026-10-10T09:00:00Z",
+                    "to": "2026-11-10T09:00:00Z"
+                  },
+                  "clock": "2026-11-10T09:00:00Z",
+                  "observations": [],
+                  "resolved": []
+                }
+              ],
+              "questions": [],
+              "url": "https://antistatic.exchange/sandbox/future-1a2b3c4d5e6f",
+              "corrections": [
+                {
+                  "text": "The app has not launched; it has no paying users.",
+                  "at": "2026-11-10T18:02:11Z"
+                }
+              ],
+              "struck_observations": [
+                {
+                  "id": "o3f9a1c2b7d4e",
+                  "reason": "No pay review is possible before April.",
+                  "at": "2026-11-10T18:03:40Z"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "sandbox.fork",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/forks",
       "summary": "Fork a sandbox run.",
       "group": "sandboxes",
-      "description": "A future run forks after `turn` (default its last; 0 is the start) into a new run with its history, clock and planner state up to then (`model` sets its planner model; default the original's), and a copy of every question as it stood after that turn: specs, links, goals, forecasts, positions, house line, liquidity and the resolutions reached by then, under the fork's own codes (p<fork id>-<n>, same n). Later changes in either run stay in that run. A past run forks at a reached `checkpoint` (key; default the current one) into a new run marked `practice`. The original is unchanged.",
+      "description": "A wargame forks after `turn` (default its last; 0 is the start) into a new run with its history, clock and planner state up to then (`model` sets its planner model; default the original's), and a copy of every question as it stood after that turn: specs, links, goals, forecasts, positions, house line, liquidity and the resolutions reached by then, under the fork's own codes (p<fork id>-<n>, same n). Later changes in either run stay in that run. A past run forks at a reached `checkpoint` (key; default the current one) into a new run marked `practice`. The original is unchanged.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8357,7 +9051,8 @@
             "enum": [
               "opus",
               "sonnet",
-              "haiku"
+              "haiku",
+              "argon"
             ]
           }
         }
@@ -8457,9 +9152,9 @@
       "id": "sandbox.importable_questions",
       "method": "GET",
       "path": "/api/v1/sandbox/runs/{id}/importable-questions",
-      "summary": "List questions importable from your other future runs.",
+      "summary": "List questions importable from your other wargames.",
       "group": "sandboxes",
-      "description": "The questions in the caller's other future sandboxes (not abandoned or deleted; archived ones included), newest runs first: `run_id`, `template`, `code`, `title`, `definition_sha256` (a hash of the question's spec without its code; identical definitions share it) and `already_here` (this run has a question with the same hash). 404 unless `id` is the caller's future run.",
+      "description": "The questions in the caller's other wargames (not abandoned or deleted; archived ones included), newest runs first: `run_id`, `template`, `code`, `title`, `definition_sha256` (a hash of the question's spec without its code; identical definitions share it) and `already_here` (this run has a question with the same hash). 404 unless `id` is the caller's wargame.",
       "auth": "read",
       "headers": [],
       "rate_limit": "read",
@@ -8496,9 +9191,9 @@
       "id": "sandbox.import_questions",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/questions/import",
-      "summary": "Import questions from another of your future runs.",
+      "summary": "Import questions from another of your wargames.",
       "group": "sandboxes",
-      "description": "Copies questions `codes` from the caller's future run `from_run_id` into run `id`: each a new question with the same definition, checked at this run's clock, and fresh state (no forecasts, positions, resolutions or goal). All or nothing. 201 with `data.imported` [{from, code}]; 422 `invalid_spec` when a definition doesn't fit this run's clock; 404 when either run isn't the caller's future run.",
+      "description": "Copies questions `codes` from the caller's wargame `from_run_id` into run `id`: each a new question with the same definition, checked at this run's clock, and fresh state (no forecasts, positions, resolutions or goal). All or nothing. 201 with `data.imported` [{from, code}]; 422 `invalid_spec` when a definition doesn't fit this run's clock; 404 when either run isn't the caller's wargame.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8555,7 +9250,7 @@
       "id": "sandbox.wrapup",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/wrapup",
-      "summary": "Wrap up a future run.",
+      "summary": "Wrap up a wargame.",
       "group": "sandboxes",
       "description": "Makes the run's wrap-up now (also made automatically when a server-planned run's clock reaches `ends_on`). A server-planned run: 201 with `status: done` and the `wrapup`, written by the run's planner model and gated and charged like a turn (`model_requires_pro`, `ai_budget_exhausted`). A client-planned run: 202 with `status: wrapup_job` and a `job_id` for the run's own planner, which reads the facts with GET /api/v1/sandbox/planner_jobs/{job_id} and submits the arc with POST .../script. Made again, the earlier wrap-up is kept (`earlier_wrapups` in the run). 422 before the first turn.",
       "auth": "write",
@@ -8600,11 +9295,35 @@
                 "score": null,
                 "forecasts": {
                   "resolved_bars": 1,
-                  "right": 1,
-                  "brier": 0.04,
-                  "house_brier": 0.16,
-                  "best": [],
-                  "worst": []
+                  "points": 12.4,
+                  "best": [
+                    {
+                      "market": "p30-1",
+                      "title": "When will I change job?",
+                      "bar": "Dec 2026",
+                      "item": null,
+                      "forecast": 0.8,
+                      "house_p": 0.6,
+                      "outcome": "yes",
+                      "points": 12.4
+                    }
+                  ],
+                  "worst": [],
+                  "open_bars": 1,
+                  "open_points": 2.1,
+                  "open": [
+                    {
+                      "market": "p30-2",
+                      "title": "Will I move city?",
+                      "bar": "Jun 2027",
+                      "item": null,
+                      "forecast": 0.3,
+                      "house_p": 0.5,
+                      "house_now": 0.4,
+                      "points": 2.1
+                    }
+                  ],
+                  "total": 14.5
                 },
                 "written_by": "server",
                 "model": "claude-opus-4-5",
@@ -8621,7 +9340,7 @@
       "path": "/api/v1/sandbox/runs/{id}",
       "summary": "Delete one of your sandbox runs.",
       "group": "sandboxes",
-      "description": "Needs `confirm: true`. The run (a past sandbox's run, or a future sandbox) disappears for you everywhere: lists, `GET` and every write answer 404 for it, and its page is gone. It is a soft delete: the run and everything in it are kept, so the site's operators can restore it on request. Its forks stay, and show it as a deleted parent. A curriculum stays available: opening it again starts a new run. 404 for a run that isn't yours.",
+      "description": "Needs `confirm: true`. The run (a past sandbox's run, or a wargame) disappears for you everywhere: lists, `GET` and every write answer 404 for it, and its page is gone. It is a soft delete: the run and everything in it are kept, so the site's operators can restore it on request. Its forks stay, and show it as a deleted parent. A curriculum stays available: opening it again starts a new run. 404 for a run that isn't yours.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8689,7 +9408,7 @@
       "path": "/api/v1/sandbox/runs/{id}",
       "summary": "Rename, archive or unarchive one of your sandbox runs.",
       "group": "sandboxes",
-      "description": "`name` (up to 80 characters; empty or null clears it) renames a future sandbox (a wargame) wherever it is listed; a past sandbox keeps its curriculum's title (422). `archived: true` takes the run off your sandbox lists (the site's list shows it under Archived) without changing it: it still opens, plays and answers here; `archived: false` puts it back. Send either or both. 404 for a run that isn't yours.",
+      "description": "`name` (up to 80 characters; empty or null clears it) renames a wargame wherever it is listed; a past sandbox keeps its curriculum's title (422). `archived: true` takes the run off your sandbox lists (the site's list shows it under Archived) without changing it: it still opens, plays and answers here; `archived: false` puts it back. Send either or both. 404 for a run that isn't yours.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -8772,7 +9491,7 @@
       "id": "sandbox.promote",
       "method": "POST",
       "path": "/api/v1/sandbox/runs/{id}/questions/{code}/promote",
-      "summary": "Copy a future sandbox's question into the real exchange today.",
+      "summary": "Copy a wargame's question into the real exchange today.",
       "group": "sandboxes",
       "description": "The question's definition is its spec in the run without the simulated `anchors` and `basis`; `spec` replaces any of its settings. Without `create` (or `create: false`) the answer is that spec and its preview as of today (as `POST /market-specs/preview`). Opening probabilities come from evidence available today, never from the sandbox's history: send `anchors` (and `basis`) in `spec`. With `create: true` it is created as `POST /market-specs` does, a normal private market owned by the caller (201); 422 `invalid_spec` while the spec has errors. The run is unchanged. `POST /markets/{code}/publication-request` can then ask for a public listing. 404 for a past sandbox's run or a code that isn't the run's question.",
       "auth": "write",
@@ -11175,6 +11894,9 @@
                     },
                     "replies": {
                       "type": "boolean"
+                    },
+                    "monthly_roundup": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -11183,6 +11905,7 @@
                     "forecast_resolution",
                     "market_resolution",
                     "mentions",
+                    "monthly_roundup",
                     "new_comments",
                     "replies"
                   ]
@@ -11235,13 +11958,306 @@
                 "market_resolution": true,
                 "mentions": true,
                 "new_comments": true,
-                "replies": true
+                "replies": true,
+                "monthly_roundup": true
               },
               "follow_own_markets": true,
               "sensitive_settings_url": "http://localhost:4002/users/settings",
               "subscribe_to_own_market_comments": true,
               "show_other_players_comments": false,
               "share_sandbox_comments": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "roundup.show",
+      "method": "GET",
+      "path": "/api/v1/me/roundup",
+      "summary": "Your monthly roundup: what needs you, points won and lost, resolutions, your open forecasts against the crowd's view, positions not updated for a while and activity on markets you follow. Last month's unless `month` (YYYY-MM) is given.",
+      "group": "account",
+      "auth": "read",
+      "headers": [],
+      "rate_limit": "read",
+      "schema_status": "strict",
+      "query": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string"
+          }
+        }
+      },
+      "body": null,
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "roundup": {
+              "type": "object",
+              "properties": {
+                "period": {
+                  "type": "string"
+                },
+                "month": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "needs_you": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "path",
+                      "detail"
+                    ]
+                  }
+                },
+                "points": {
+                  "type": "object",
+                  "properties": {
+                    "won_lost": {
+                      "type": "number"
+                    },
+                    "you_expect": {
+                      "type": "number"
+                    },
+                    "crowd_expects": {
+                      "type": "number"
+                    },
+                    "you_expect_change": {
+                      "type": "number"
+                    },
+                    "crowd_expects_change": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "won_lost",
+                    "you_expect",
+                    "crowd_expects",
+                    "you_expect_change",
+                    "crowd_expects_change"
+                  ]
+                },
+                "resolved": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "points": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "path",
+                      "points"
+                    ]
+                  }
+                },
+                "book": {
+                  "type": "object",
+                  "properties": {
+                    "disagreements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "you_expect": {
+                            "type": "number"
+                          },
+                          "crowd_expects": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "path",
+                          "you_expect",
+                          "crowd_expects"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "disagreements"
+                  ]
+                },
+                "stale": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "you_expect": {
+                        "type": "number"
+                      },
+                      "crowd_expects": {
+                        "type": "number"
+                      },
+                      "last_updated": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "path",
+                      "you_expect",
+                      "crowd_expects",
+                      "last_updated"
+                    ]
+                  }
+                },
+                "activity": {
+                  "type": "object",
+                  "properties": {
+                    "markets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "comments": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "path",
+                          "comments"
+                        ]
+                      }
+                    },
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "excerpt": {
+                            "type": "string"
+                          },
+                          "score": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "path",
+                          "by",
+                          "excerpt",
+                          "score"
+                        ]
+                      }
+                    },
+                    "tips": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "markets",
+                    "threads",
+                    "tips"
+                  ]
+                }
+              },
+              "required": [
+                "period",
+                "month",
+                "url",
+                "needs_you",
+                "points",
+                "resolved",
+                "book",
+                "stale",
+                "activity"
+              ]
+            }
+          },
+          "required": [
+            "roundup"
+          ]
+        }
+      },
+      "example": {
+        "request": {},
+        "response": {
+          "status": 200,
+          "body": {
+            "roundup": {
+              "period": "2026-10",
+              "month": "October 2026",
+              "url": "http://localhost:4002/roundup/2026-10",
+              "needs_you": [],
+              "points": {
+                "won_lost": 12.5,
+                "you_expect": 30.0,
+                "crowd_expects": 18.2,
+                "you_expect_change": 4.0,
+                "crowd_expects_change": -1.5
+              },
+              "resolved": [
+                {
+                  "title": "UK inflation above 3% in 2026",
+                  "path": "/m/uk-cpi",
+                  "points": 12.5
+                }
+              ],
+              "book": {
+                "disagreements": []
+              },
+              "stale": [],
+              "activity": {
+                "markets": [],
+                "threads": [],
+                "tips": 0
+              }
             }
           }
         }
@@ -11524,7 +12540,7 @@
       "path": "/api/v1/markets/{code}/positions",
       "summary": "Submit a forecast: bar probabilities, targets or a shift. Changes your forecast and points.",
       "group": "forecasting",
-      "description": "Send `updates` (`[{\"submarket\": \"sm_42\", \"probability\": 0.65}]`), `targets` and/or a `shift`. Each update moves your forecast on that bar; the cost follows the LMSR. Returns 201.\n\nBars on a curve stay in order: date curves don't fall from earlier to later dates, count curves don't rise with the threshold. A forecast that breaks the order is refused (422 `out_of_order`, naming the bars, with `keep_in_order_preview`) unless `rest_of_curve` is `keep_in_order` (other bars move only as far as order needs) or `interpolate` (bars between yours sit on a straight line). Your bars are kept as sent.\n\nA target (`{\"curve\": ..., \"threshold\" or \"label\": ..., \"probability\": ...}`) sets one point exactly and the rest of its curve follows by the same log-odds change; several targets interpolate between them. A `shift` (`{\"curve\": ..., \"quantile\": 0.5, \"by\": \"+10%\"}` or `\"to\"`) moves a quantile. `curve` can be left out when the market has one open curve. With targets or a shift, `rest_of_curve` defaults to `keep_in_order`.\n\nWith `X-Antistatic-Run`, the forecast is on a question of your future sandbox run (a goal is scored this way), as of its clock.",
+      "description": "Send `updates` (`[{\"submarket\": \"sm_42\", \"probability\": 0.65}]`), `targets` and/or a `shift`. Each update moves your forecast on that bar; the cost follows the LMSR. Returns 201.\n\nBars on a curve stay in order: date curves don't fall from earlier to later dates, count curves don't rise with the threshold. A forecast that breaks the order is refused (422 `out_of_order`, naming the bars, with `keep_in_order_preview`) unless `rest_of_curve` is `keep_in_order` (other bars move only as far as order needs) or `interpolate` (bars between yours sit on a straight line). Your bars are kept as sent.\n\nA target (`{\"curve\": ..., \"threshold\" or \"label\": ..., \"probability\": ...}`) sets one point exactly and the rest of its curve follows by the same log-odds change; several targets interpolate between them. A `shift` (`{\"curve\": ..., \"quantile\": 0.5, \"by\": \"+10%\"}` or `\"to\"`) moves a quantile. `curve` can be left out when the market has one open curve. With targets or a shift, `rest_of_curve` defaults to `keep_in_order`.\n\nWith `X-Antistatic-Run`, the forecast is on a question of your wargame run (a goal is scored this way), as of its clock.",
       "auth": "write",
       "headers": [
         "x-antistatic-run",
@@ -11981,9 +12997,9 @@
       "id": "pending_edit.update",
       "method": "PUT",
       "path": "/api/v1/markets/{code}/pending-edits",
-      "summary": "Stage a forecast for review on the site, without submitting it.",
+      "summary": "Upload a forecast draft to review and submit on the site, without submitting it.",
       "group": "forecasting",
-      "description": "Takes the same `updates`, `targets`, `shift` and `rest_of_curve` as submitting a forecast, and leaves the change staged for you to review and submit on the market page. `mode: \"replace\"` replaces the staged forecast instead of merging into it.",
+      "description": "Takes the same `updates`, `targets`, `shift` and `rest_of_curve` as submitting a forecast, and leaves the change as a draft for you to review and submit on the market page. `mode: \"replace\"` replaces the draft instead of merging into it.",
       "auth": "write",
       "headers": [
         "x-antistatic-as"
@@ -12097,7 +13113,7 @@
       "id": "pending_edit.delete",
       "method": "DELETE",
       "path": "/api/v1/markets/{code}/pending-edits",
-      "summary": "Discard your staged forecast.",
+      "summary": "Discard your forecast draft.",
       "group": "forecasting",
       "auth": "write",
       "headers": [
@@ -12547,6 +13563,203 @@
             "data": {
               "resolved": 1,
               "slug": "widget-open-86242"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sandbox_curriculum.extend_item",
+      "method": "POST",
+      "path": "/api/v1/sandbox/curricula/{slug}/versions/{version}/items/{code}/extend",
+      "summary": "Widen a published curriculum question's thresholds.",
+      "group": "sandbox authoring",
+      "description": "For curriculum owners and editors: widens a published how-much question's thresholds in place (`code`: its code or item key), as adding questions to a published release does. `thresholds` `{to, from}`: a new top and/or bottom, the ladder continued at its scale and spacing; `anchors`: as a market spec's (`[{period, quantiles: {10, 50, 90}}]`, periods by end date) to price the new bars, joined onto each period's end bar; each house reprice of the question prices them too. New bars settle from the question's count observations (at the end bar's resolves_at, or the observation's if later), else from the end bar's outcome (NO past a miss, YES below a reach), else from `values` (`{period: value}`, the period's recorded value); never drawn. In a release with `resolved_through` an undecided bar stays open (listed in `needs_value`, resolved through `resolutions`); otherwise the period needs a value. Every published minor of the major that has the question gets the same bars (`releases`). Runs see them from their next read; positions, forecasts and scores don't change. Each period keeps its liquidity. The release's structure now includes them, so a later minor of the same major must carry `bars` (manifest form). Later periods and when-questions change in a new major release. `preview: true` checks without changing anything.",
+      "auth": "write",
+      "headers": [],
+      "rate_limit": "write",
+      "schema_status": "strict",
+      "query": null,
+      "body": {
+        "type": "object",
+        "properties": {
+          "thresholds": {
+            "type": "object",
+            "properties": {
+              "to": {
+                "type": "number"
+              },
+              "from": {
+                "type": "number"
+              }
+            }
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "values": {
+            "type": "object"
+          },
+          "preview": {
+            "type": "boolean"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": "boolean"
+                },
+                "releases": {
+                  "type": "number"
+                },
+                "added": {
+                  "type": "number"
+                },
+                "settled": {
+                  "type": "number"
+                },
+                "needs_value": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bars": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "threshold": {
+                        "type": "number"
+                      },
+                      "group": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "end_date": {
+                        "type": "string"
+                      },
+                      "p0": {
+                        "type": "number"
+                      },
+                      "closes_at": {
+                        "type": "string"
+                      },
+                      "resolves_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resolved_yes": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "resolution": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "threshold",
+                      "group",
+                      "end_date",
+                      "p0",
+                      "closes_at",
+                      "resolves_at",
+                      "resolved_yes",
+                      "resolution"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "slug",
+                "version",
+                "code",
+                "preview",
+                "releases",
+                "added",
+                "settled",
+                "needs_value",
+                "bars"
+              ]
+            }
+          },
+          "required": [
+            "data"
+          ]
+        }
+      },
+      "example": {
+        "request": {
+          "body": {
+            "thresholds": {
+              "to": 50
+            },
+            "anchors": [
+              {
+                "period": "2002-12-31",
+                "quantiles": {
+                  "10": 10,
+                  "50": 22,
+                  "90": 42
+                }
+              }
+            ],
+            "preview": true
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "slug": "widget-counts",
+              "version": "1.0",
+              "code": "widgets",
+              "preview": true,
+              "releases": 1,
+              "added": 1,
+              "settled": 1,
+              "needs_value": [],
+              "bars": [
+                {
+                  "key": "y2002-40",
+                  "threshold": 40.0,
+                  "group": "y2002",
+                  "end_date": "2002-12-31T00:00:00Z",
+                  "p0": 0.12,
+                  "closes_at": "d2002",
+                  "resolves_at": "d2002",
+                  "resolved_yes": true,
+                  "resolution": "prepared"
+                }
+              ]
             }
           }
         }
@@ -13350,7 +14563,7 @@
       "path": "/api/v1/sandbox/runs/{id}/questions/{code}/items",
       "summary": "Add an item to a question in a run.",
       "group": "sandboxes",
-      "description": "Adds an item (a new event or party, as its own curve) to one of the run's own when-questions with items: `key` (new; lowercase letters, digits, - or _), `label`, `anchors` ([{by, p}]) and `basis` (reference classes with sources or k/n counts, checked as for a new question). The question's whole spec, with the item, is checked as a new question would be; only the new item's bars are added, dated from the run's clock (201). An existing item's `key` with only a `label` renames that item instead (200): its key, bars, anchors and basis stay. 422 `invalid_spec` lists the issues. `also_runs` (ids of the caller's other future runs) makes the same edit on each one's identical question (same `definition_sha256`), never otherwise; `data.also` gives each run's `status`: `edited`, `no_identical_question` or `failed`. A run that isn't the caller's future run is refused (422).",
+      "description": "Adds an item (a new event or party, as its own curve) to one of the run's own when-questions with items: `key` (new; lowercase letters, digits, - or _), `label`, `anchors` ([{by, p}]) and `basis` (reference classes with sources or k/n counts, checked as for a new question). The question's whole spec, with the item, is checked as a new question would be; only the new item's bars are added, dated from the run's clock (201). An existing item's `key` with only a `label` renames that item instead (200): its key, bars, anchors and basis stay. 422 `invalid_spec` lists the issues. `also_runs` (ids of the caller's other wargames) makes the same edit on each one's identical question (same `definition_sha256`), never otherwise; `data.also` gives each run's `status`: `edited`, `no_identical_question` or `failed`. A run that isn't the caller's wargame is refused (422).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -13806,7 +15019,7 @@
       "id": "timelines.index",
       "method": "GET",
       "path": "/api/v1/timelines",
-      "summary": "Sandboxes you can start (curricula and future-sandbox templates), and your runs.",
+      "summary": "Sandboxes you can start (curricula and wargame templates), and your runs.",
       "group": "sandboxes",
       "auth": "read",
       "headers": [],
@@ -14062,7 +15275,7 @@
       "id": "timelines.show",
       "method": "GET",
       "path": "/api/v1/timelines/runs/{id}",
-      "summary": "Where one of your sandbox runs stands: a past run's clock, checkpoint and questions, or a future run's setup and history.",
+      "summary": "Where one of your sandbox runs stands: a past run's clock, checkpoint and questions, or a wargame's setup and history.",
       "group": "sandboxes",
       "auth": "read",
       "headers": [],
@@ -14295,7 +15508,7 @@
           }
         }
       },
-      "description": "A past sandbox's position (`kind: past`), or a future sandbox's (`kind: future`): its clock, setup, the results of its last 50 turns and the questions written in it. Nothing past the clock.",
+      "description": "A past sandbox's position (`kind: past`), or a wargame's (`kind: future`): its clock, setup, the results of its last 50 turns and the questions written in it. Nothing past the clock.",
       "deprecated": {
         "since": "2026-10-11",
         "sunset": "2027-04-11",
@@ -14624,7 +15837,7 @@
       "path": "/api/v1/timelines/runs/{id}/turn_status",
       "summary": "Where a wargame's next turn stands for you: players, the turn's length, what you do next; can long-poll.",
       "group": "sandboxes",
-      "description": "For the run's host or a guest who joined it. `wait_seconds` (0-60) long-polls: the answer comes as soon as the status differs from `since` (a `version` from an earlier answer; absent, the status now), or after `wait_seconds` with the status as it is. 404 for a run you don't play.",
+      "description": "For the run's host or a guest who joined it. `wait_seconds` (0-45) long-polls: the answer comes as soon as the status differs from `since` (a `version` from an earlier answer; absent, the status now), or after `wait_seconds` with the status as it is. 404 for a run you don't play.",
       "auth": "read",
       "headers": [],
       "rate_limit": "read",
@@ -14737,7 +15950,7 @@
       "path": "/api/v1/timelines/runs",
       "summary": "Start a sandbox: a future one from a template, or a past one from a curriculum.",
       "group": "sandboxes",
-      "description": "`template` starts a future sandbox at today's date (Pro, or admin; at most 5 active), with an optional `model` (`opus`, the default, `sonnet` or `haiku`: the model that simulates the run): the response is the run with a `setup` object (template premise, bio prompt and choices, modification suggestions, pace options) whose answers go to `PATCH /sandbox/runs/{id}/setup`. `curriculum` (a slug) starts or resumes a past sandbox and returns its position (`kind: past`). `planner`: `client` (the default here: the caller's own agent plans through planner jobs, with no Antistatic model calls) or `server` (Antistatic's model, on the monthly AI budget in `GET /sandbox`); runs started on the website are server-planned. Errors: 429 `sandbox_quota`.",
+      "description": "`template` starts a wargame at today's date (Pro, or admin; at most 5 active), with an optional `model` (`opus`, the default, `sonnet` or `haiku`: the model that simulates the run): the response is the run with a `setup` object (template premise, bio prompt and choices, modification suggestions, pace options) whose answers go to `PATCH /sandbox/runs/{id}/setup`. `curriculum` (a slug) starts or resumes a past sandbox and returns its position (`kind: past`). `planner`: `client` (the default here: the caller's own agent plans through planner jobs, with no Antistatic model calls) or `server` (Antistatic's model, on the monthly AI budget in `GET /sandbox`); runs started on the website are server-planned. Errors: 429 `sandbox_quota`.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -14981,7 +16194,7 @@
       "id": "timelines.update_setup",
       "method": "PATCH",
       "path": "/api/v1/timelines/runs/{id}/setup",
-      "summary": "Set a future sandbox's bio, modifications and pace.",
+      "summary": "Set a wargame's bio, modifications and pace.",
       "group": "sandboxes",
       "description": "Any of `bio` (at most 6,000 characters), `modifications` (2,000), `pace` (a pace option key) and `model` (`opus`, `sonnet` or `haiku`: the model that simulates the run's next turns, info answers and briefings); omitted fields stay, empty text clears. Choosing a pace completes the setup, which turns need. Returns the run.",
       "auth": "write",
@@ -15040,6 +16253,10 @@
               "null"
             ],
             "description": "The date the game is planned to end (YYYY-MM-DD, after the clock), or null for open-ended. Play carries on past it; reaching it makes the wrap-up."
+          },
+          "character": {
+            "type": "string",
+            "description": "A player with several characters: the one whose view comes back."
           }
         }
       },
@@ -15048,7 +16265,113 @@
           "type": "object",
           "properties": {
             "data": {
-              "$ref": "#/$defs/timeline_future"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/timeline_future"
+                },
+                {
+                  "type": "object",
+                  "description": "A wargame as one of the caller's characters sees it (role guest).",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "guest"
+                      ]
+                    },
+                    "character": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "tagline": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "bio": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "tagline",
+                        "bio"
+                      ]
+                    },
+                    "clock": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object"
+                    },
+                    "turns": {
+                      "type": "number"
+                    },
+                    "history": {
+                      "type": "array"
+                    },
+                    "questions": {
+                      "type": "array"
+                    },
+                    "info_log": {
+                      "type": "array"
+                    },
+                    "cast": {
+                      "type": "array"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "turn_status": {
+                      "$ref": "#/$defs/turn_status"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "kind",
+                    "role",
+                    "character",
+                    "clock",
+                    "settings",
+                    "turns",
+                    "history",
+                    "questions",
+                    "url"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "description": "A player who no longer plays any character in the game.",
+                  "properties": {
+                    "run_id": {
+                      "type": "number"
+                    },
+                    "left": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "left"
+                  ]
+                }
+              ]
             }
           },
           "required": [
@@ -15101,9 +16424,9 @@
       "id": "timelines.take_turn",
       "method": "POST",
       "path": "/api/v1/timelines/runs/{id}/turns",
-      "summary": "Take a future sandbox's turn.",
+      "summary": "Take a wargame's turn.",
       "group": "sandboxes",
-      "description": "The player's `actions` (at most 4,000 characters) and optionally `until` (an ISO date after the clock, at most a year ahead; a date-time counts as its date; default the clock plus the pace; `\"auto\"`: the planner chooses the date, keeping to the run's cadence (recent turn lengths, else the pace) or a sensible step, and the result's `until` gives it with a one-line reason, also stated under the script's header). The server plans the period, draws one outcome in code and moves the clock to midnight UTC of that date; the response holds the observations the clock has reached and the run's bars that resolved. Idempotent by `turn_id` (the client's key, per run): a completed turn sent again with the same `actions` and `until` returns its stored result with `replayed: true`; the same `turn_id` with other `actions` or another `until` is 409 `turn_id_conflict`. A daily turn quota. Errors: 409 `setup_incomplete`, 409 `turn_in_progress`, 409 `turn_id_conflict`, 429 `turn_quota`, 403 `model_requires_pro`, 402 `ai_budget_exhausted`, 502 `planner_invalid` / `planner_refused` and 503 `planner_unavailable` (the clock has not moved; retry with the same `turn_id`).",
+      "description": "The player's `actions` (at most 200,000 characters) and optionally `until` (an ISO date after the clock, at most a year ahead; a date-time counts as its date; default the clock plus the pace; `\"auto\"`: the planner chooses the date, keeping to the run's cadence (recent turn lengths, else the pace) or a sensible step, and the result's `until` gives it with a one-line reason, also stated under the script's header). The server plans the period, draws one outcome in code and moves the clock to midnight UTC of that date; the response holds the observations the clock has reached and the run's bars that resolved. Idempotent by `turn_id` (the client's key, per run): a completed turn sent again with the same `actions` and `until` returns its stored result with `replayed: true`; the same `turn_id` with other `actions` or another `until` is 409 `turn_id_conflict`. A daily turn quota. Errors: 409 `setup_incomplete`, 409 `turn_in_progress`, 409 `turn_id_conflict`, 429 `turn_quota`, 403 `model_requires_pro`, 402 `ai_budget_exhausted`, 502 `planner_invalid` / `planner_refused` and 503 `planner_unavailable` (the clock has not moved; retry with the same `turn_id`).",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -15184,7 +16507,7 @@
       "path": "/api/v1/timelines/runs/{id}/forks",
       "summary": "Fork a sandbox run.",
       "group": "sandboxes",
-      "description": "A future run forks after `turn` (default its last; 0 is the start) into a new run with its history, clock and planner state up to then (`model` sets its planner model; default the original's), and a copy of every question as it stood after that turn: specs, links, goals, forecasts, positions, house line, liquidity and the resolutions reached by then, under the fork's own codes (p<fork id>-<n>, same n). Later changes in either run stay in that run. A past run forks at a reached `checkpoint` (key; default the current one) into a new run marked `practice`. The original is unchanged.",
+      "description": "A wargame forks after `turn` (default its last; 0 is the start) into a new run with its history, clock and planner state up to then (`model` sets its planner model; default the original's), and a copy of every question as it stood after that turn: specs, links, goals, forecasts, positions, house line, liquidity and the resolutions reached by then, under the fork's own codes (p<fork id>-<n>, same n). Later changes in either run stay in that run. A past run forks at a reached `checkpoint` (key; default the current one) into a new run marked `practice`. The original is unchanged.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -15207,7 +16530,8 @@
             "enum": [
               "opus",
               "sonnet",
-              "haiku"
+              "haiku",
+              "argon"
             ]
           }
         }
@@ -15315,7 +16639,7 @@
       "path": "/api/v1/timelines/runs/{id}",
       "summary": "Delete one of your sandbox runs.",
       "group": "sandboxes",
-      "description": "Needs `confirm: true`. The run (a past sandbox's run, or a future sandbox) disappears for you everywhere: lists, `GET` and every write answer 404 for it, and its page is gone. It is a soft delete: the run and everything in it are kept, so the site's operators can restore it on request. Its forks stay, and show it as a deleted parent. A curriculum stays available: opening it again starts a new run. 404 for a run that isn't yours.",
+      "description": "Needs `confirm: true`. The run (a past sandbox's run, or a wargame) disappears for you everywhere: lists, `GET` and every write answer 404 for it, and its page is gone. It is a soft delete: the run and everything in it are kept, so the site's operators can restore it on request. Its forks stay, and show it as a deleted parent. A curriculum stays available: opening it again starts a new run. 404 for a run that isn't yours.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -15387,7 +16711,7 @@
       "id": "timelines.promote",
       "method": "POST",
       "path": "/api/v1/timelines/runs/{id}/questions/{code}/promote",
-      "summary": "Copy a future sandbox's question into the real exchange today.",
+      "summary": "Copy a wargame's question into the real exchange today.",
       "group": "sandboxes",
       "description": "The question's definition is its spec in the run without the simulated `anchors` and `basis`; `spec` replaces any of its settings. Without `create` (or `create: false`) the answer is that spec and its preview as of today (as `POST /market-specs/preview`). Opening probabilities come from evidence available today, never from the sandbox's history: send `anchors` (and `basis`) in `spec`. With `create: true` it is created as `POST /market-specs` does, a normal private market owned by the caller (201); 422 `invalid_spec` while the spec has errors. The run is unchanged. `POST /markets/{code}/publication-request` can then ask for a public listing. 404 for a past sandbox's run or a code that isn't the run's question.",
       "auth": "write",
@@ -21142,6 +22466,9 @@
               },
               "bot_comments": {
                 "type": "boolean"
+              },
+              "monthly_roundup": {
+                "type": "boolean"
               }
             }
           },
@@ -21218,6 +22545,9 @@
                     },
                     "replies": {
                       "type": "boolean"
+                    },
+                    "monthly_roundup": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -21226,6 +22556,7 @@
                     "forecast_resolution",
                     "market_resolution",
                     "mentions",
+                    "monthly_roundup",
                     "new_comments",
                     "replies"
                   ]
@@ -21284,7 +22615,8 @@
                 "market_resolution": true,
                 "mentions": true,
                 "new_comments": true,
-                "replies": true
+                "replies": true,
+                "monthly_roundup": true
               },
               "follow_own_markets": true,
               "sensitive_settings_url": "http://localhost:4002/users/settings",
@@ -21468,9 +22800,9 @@
       "id": "market.extend",
       "method": "POST",
       "path": "/api/v1/markets/{code}/extend",
-      "summary": "Widen a how-much market's thresholds and/or add later periods.",
+      "summary": "Widen a how-much market's thresholds, add later periods, or move a when-market's horizon later.",
       "group": "your markets",
-      "description": "For a how-much market you own (one curve). Widen its thresholds when values near its top or bottom bar; add later periods when its last period is ending. `thresholds` `{to, from}`: a new top and/or bottom, the ladder continued at its scale and spacing; `to`: the last new period (\"YYYY-MM\" or a date), at the market's cadence; `anchors`: as a market spec's (`[{period, quantiles: {10, 50, 90}}]` or `[{period, points}]`), naming open or new periods. New bars are priced from the anchors' fitted line, joined onto each period's current end bar. Existing bars, positions, forecasts and resolutions stay. Each period keeps its total liquidity (a widened period's bars share it); new periods bring their own at the market's rate, and the budget grows by that. A settled period's new bars settle from its recorded value (or the bars it settled); past its old end bar with no recorded value they stay open and are listed in `needs_value` (period ends) to resolve. `preview: true` checks it and returns the bars without changing anything. Errors: 422 `invalid_params`, or `invalid_spec` with `issues`.",
+      "description": "For a market you own. How-much: widen its thresholds when values near its top or bottom bar; add later periods when its last period is ending. `thresholds` `{to, from}`: a new top and/or bottom, the ladder continued at its scale and spacing; `to`: the last new period (\"YYYY-MM\" or a date), at the market's cadence; `anchors`: as a market spec's (`[{period, quantiles: {10, 50, 90}}]` or `[{period, points}]`), naming open or new periods. When: `to` is the new last date, at the market's cadence, and `anchors` (`[{by, p}]`) name dates after the curve's last bar, at or above its chance. A market with items takes anchors by item key (`{\"anthropic\": [...]}`); `items` (keys) picks the items to extend, all of them by default (a when-market's open ones); each item's curve extends on its own ladder and periods. New bars are priced from the anchors' fitted line, joined onto each curve's current end bar. Existing bars, positions, forecasts and resolutions stay. Each period keeps its total liquidity (a widened period's bars share it); new periods bring their own at the market's rate, and the budget grows by that. A settled period's new bars settle from its recorded value (or the bars it settled); past its old end bar with no recorded value they stay open and are listed in `needs_value` (period ends, prefixed by the item key on a market with items) to resolve. `preview: true` checks it and returns the bars without changing anything. Errors: 422 `invalid_params`, or `invalid_spec` with `issues`.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
@@ -21494,13 +22826,19 @@
             "type": "string"
           },
           "anchors": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
+            "type": [
+              "array",
+              "object"
+            ]
           },
           "preview": {
             "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -21605,7 +22943,10 @@
                     "type": "object",
                     "properties": {
                       "threshold": {
-                        "type": "number"
+                        "type": [
+                          "number",
+                          "null"
+                        ]
                       },
                       "end_date": {
                         "type": "string"
@@ -21616,6 +22957,12 @@
                       "resolved_yes": {
                         "type": [
                           "boolean",
+                          "null"
+                        ]
+                      },
+                      "item": {
+                        "type": [
+                          "string",
                           "null"
                         ]
                       }
@@ -21673,13 +23020,15 @@
                   "threshold": 60.0,
                   "end_date": "2026-11-30T23:59:59Z",
                   "probability": 0.042,
-                  "resolved_yes": null
+                  "resolved_yes": null,
+                  "item": null
                 },
                 {
                   "threshold": 70.0,
                   "end_date": "2026-11-30T23:59:59Z",
                   "probability": 0.009,
-                  "resolved_yes": null
+                  "resolved_yes": null,
+                  "item": null
                 }
               ]
             }
@@ -22388,1320 +23737,6 @@
       }
     },
     {
-      "id": "upload.create",
-      "method": "POST",
-      "path": "/api/v1/uploads",
-      "summary": "Upload an analysis asset (image, script or zip) for a market. Multipart.",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "file": {
-            "type": "string"
-          },
-          "market_code": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "file": "(upload)"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "content_type": "text/plain",
-              "filename": "fixture.txt",
-              "id": "4f57f553-dd01-4ea7-ae44-857f5a7e180a",
-              "state": "pending",
-              "url": "http://localhost:4002/attachments/4f57f553-dd01-4ea7-ae44-857f5a7e180a"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "sandbox_comment_review.index",
-      "method": "GET",
-      "path": "/api/v1/admin/sandbox/comment-reviews",
-      "summary": "Pending shared sandbox comments (contamination review queue), oldest first, with automatic flags: later_date:<text>, link_unverified:<url> (not returned by the library before the comment's sandbox day, which applies the archive's date gate and exclusion lists), library_unavailable.",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": {
-        "type": "object",
-        "properties": {
-          "limit": {
-            "type": "integer",
-            "description": "At most 200 (default 50)."
-          },
-          "sandbox": {
-            "type": "string",
-            "description": "Only this sandbox (slug)."
-          }
-        }
-      },
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "query": {
-            "limit": 10
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "pending": [
-                {
-                  "id": 101,
-                  "sandbox": "biology-2020",
-                  "market_code": "rt123",
-                  "market_title": "Paper A primary endpoint",
-                  "author": "sam",
-                  "sandbox_date": "2020-01-01",
-                  "posted_at": "2026-10-12T15:00:00Z",
-                  "text": "Effect looks real.",
-                  "flags": []
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "sandbox_comment_review.approve",
-      "method": "POST",
-      "path": "/api/v1/admin/sandbox/comment-reviews/approve",
-      "summary": "Approve pending shared sandbox comments: other players whose clock is at or past each comment's sandbox date (and who show other players' comments) then see it.",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "ids": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            },
-            "description": "Comment ids."
-          }
-        },
-        "required": [
-          "ids"
-        ]
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "ids": [
-              101
-            ]
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "approved": 1
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "sandbox_comment_review.reject",
-      "method": "POST",
-      "path": "/api/v1/admin/sandbox/comment-reviews/reject",
-      "summary": "Reject pending shared sandbox comments with a reason the author sees.",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "ids": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            },
-            "description": "Comment ids."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Required, at most 500 characters."
-          }
-        },
-        "required": [
-          "ids",
-          "reason"
-        ]
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "ids": [
-              101
-            ],
-            "reason": "Names a result from 2021."
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "rejected": 1
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "sandbox_ante.post",
-      "method": "POST",
-      "path": "/api/v1/admin/sandbox/{slug}/ante-comments",
-      "summary": "Post a library item as Ante's (bot) comment on a market of a past sandbox, approved and stamped at the end of the item's day; posted once per sandbox, market and doc_id.",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "market_code": {
-            "type": "string"
-          },
-          "doc_id": {
-            "type": "string"
-          },
-          "date": {
-            "type": "string",
-            "description": "YYYY, YYYY-MM or YYYY-MM-DD."
-          },
-          "title": {
-            "type": "string"
-          },
-          "why": {
-            "type": "string",
-            "description": "One line on why it matters."
-          },
-          "url": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "market_code",
-          "doc_id",
-          "date",
-          "title",
-          "why"
-        ]
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "market_code": "rt123",
-            "doc_id": "newsrooms:7",
-            "date": "2020-03-15",
-            "title": "Trial enrols its last patient",
-            "why": "Enrolment closing sets when the endpoint can read out."
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "posted": true,
-              "comment_id": 102
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "sandbox_ante.curate",
-      "method": "POST",
-      "path": "/api/v1/admin/sandbox/{slug}/ante-curate",
-      "summary": "Run the first (placeholder) curator over a past sandbox: for each checkpoint, the library feed since the previous one, each item posted as Ante's comment on the open question sharing the most title words (at least min_overlap).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "dry_run": {
-            "type": "boolean"
-          },
-          "per_checkpoint": {
-            "type": "integer"
-          },
-          "min_overlap": {
-            "type": "integer"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "dry_run": true
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "posted": 0,
-              "existing": 0,
-              "windows": 3,
-              "picks": [
-                {
-                  "market_code": "rt123",
-                  "doc_id": "n:1",
-                  "date": "2020-02-01",
-                  "why": "May bear on \"Paper A primary endpoint\": it mentions endpoint, paper, primary."
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.create_market",
-      "method": "POST",
-      "path": "/api/v1/markets",
-      "summary": "Create a market from CSV-style rows (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "budget": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "resolution_criteria": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "visibility": {
-            "type": "string"
-          },
-          "x_unit": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "201": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "budget": "100",
-            "code": "ct-made5539",
-            "resolution_criteria": "Criteria",
-            "status": "draft",
-            "title": "Made over the API",
-            "type": "date",
-            "visibility": "private",
-            "x_unit": "date"
-          }
-        },
-        "response": {
-          "status": 201,
-          "body": {
-            "data": {
-              "background_info_html": null,
-              "budget": 100.0,
-              "code": "~6655",
-              "cumulative": true,
-              "end_date": null,
-              "following": true,
-              "id": 6655,
-              "inserted_at": "2026-10-10T19:44:29Z",
-              "local_code": "ct-made5539",
-              "reference": "~6655",
-              "resolution_criteria": "Criteria",
-              "status": "draft",
-              "subscribed_to_comments": true,
-              "title": "Made over the API",
-              "type": "date",
-              "visibility": "private",
-              "x_unit": "date"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.update_liquidity",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/liquidity",
-      "summary": "Set a market's liquidity (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "mode": "multiply",
-            "value": "2"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "mode": "multiply",
-              "total_after": 100.0,
-              "total_before": 50.0,
-              "updated_submarkets": 1,
-              "value": 2.0
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.get_draft",
-      "method": "GET",
-      "path": "/api/v1/markets/{code}/staging",
-      "summary": "A market's staged draft (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "draft": {
-                "background_info_html": null,
-                "changes": [],
-                "id": 61,
-                "market_id": 6654,
-                "number_format": null,
-                "resolution_criteria": "Revised criteria",
-                "svelte_params": null,
-                "target_major": 1,
-                "target_minor": 0,
-                "updated_at": "2026-10-10T19:44:28Z",
-                "updated_by_id": 10469,
-                "x_unit": null
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.upsert_draft",
-      "method": "PUT",
-      "path": "/api/v1/markets/{code}/staging",
-      "summary": "Create or update a market's staged draft (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "background_info_html": {
-            "type": "string"
-          },
-          "resolution_criteria": {
-            "type": "string"
-          },
-          "version_bump": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "resolution_criteria": "Revised criteria"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "background_info_html": null,
-              "changes": [],
-              "id": 61,
-              "market_id": 6654,
-              "number_format": null,
-              "resolution_criteria": "Revised criteria",
-              "svelte_params": null,
-              "target_major": 1,
-              "target_minor": 0,
-              "updated_at": "2026-10-10T19:44:28Z",
-              "updated_by_id": 10469,
-              "x_unit": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.stage_draft_probability_update",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/staging/probability-update",
-      "summary": "Stage starting-probability changes and new bars (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "additions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "initial_probability": {
-                  "type": "string"
-                },
-                "label": {
-                  "type": "string"
-                },
-                "projection_group": {
-                  "type": "string"
-                },
-                "threshold_date": {
-                  "type": "string"
-                },
-                "end_date": {
-                  "type": "string"
-                },
-                "budget_allocation": {
-                  "type": "string"
-                },
-                "threshold_decimal": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "initial_probability",
-                "label",
-                "projection_group"
-              ]
-            }
-          },
-          "updates": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "initial_probability": {
-                  "type": "string"
-                },
-                "submarket_id": {
-                  "type": "number"
-                },
-                "end_date": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "initial_probability",
-                "submarket_id"
-              ]
-            }
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "additions": [
-              {
-                "initial_probability": "0.3",
-                "label": "By Feb 2029",
-                "projection_group": "main",
-                "threshold_date": "2029-02-28T23:59:59Z"
-              }
-            ]
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "background_info_html": null,
-              "changes": [
-                {
-                  "action": "add",
-                  "budget_allocation": null,
-                  "end_date": "2029-02-28T23:59:59Z",
-                  "existing_submarket_id": null,
-                  "id": 42,
-                  "initial_probability": 0.3,
-                  "label": "By Feb 2029",
-                  "projection_group": "main",
-                  "threshold_date": "2029-02-28T23:59:59Z",
-                  "threshold_decimal": null
-                }
-              ],
-              "id": 46,
-              "market_id": 5113,
-              "number_format": null,
-              "resolution_criteria": null,
-              "svelte_params": null,
-              "target_major": 1,
-              "target_minor": 0,
-              "updated_at": "2026-10-10T19:17:57Z",
-              "updated_by_id": 7940,
-              "x_unit": null
-            },
-            "warnings": []
-          }
-        }
-      }
-    },
-    {
-      "id": "market.publish_draft",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/staging/publish",
-      "summary": "Publish a market's staged draft (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "description_change_summary": {
-            "type": "string"
-          },
-          "external_commit_url": {
-            "type": "string"
-          },
-          "version_bump": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "market": {
-                "background_info_html": null,
-                "budget": 120.0,
-                "code": "de12680",
-                "cumulative": true,
-                "end_date": null,
-                "id": 5113,
-                "inserted_at": "2026-10-10T19:17:57Z",
-                "local_code": "de12680",
-                "reference": "de12680",
-                "resolution_criteria": "Criteria",
-                "status": "draft",
-                "title": "Date end default market",
-                "type": "date",
-                "visibility": "public",
-                "x_unit": "date"
-              },
-              "trading_status": "draft",
-              "version": {
-                "change_summary": null,
-                "external_commit_url": null,
-                "id": 764,
-                "major_version": 1,
-                "minor_version": 0,
-                "version_kind": "published"
-              },
-              "version_major": 1,
-              "version_minor": 0
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.discard_draft",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/staging/discard",
-      "summary": "Discard a market's staged draft (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object"
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "status": "ok"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.preview_liquidity_adjustment",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/liquidity-adjustments/preview",
-      "summary": "Preview a liquidity adjustment (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "reduction_pct": {
-            "type": "string"
-          },
-          "scheduled_for": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "categories": [
-              "g01"
-            ],
-            "reduction_pct": "50",
-            "scheduled_for": "2026-10-10T19:16:25Z"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "actual_pct": 24.9999,
-              "after_max_points": 51.911,
-              "before_max_points": 69.2146,
-              "categories": [
-                "g01"
-              ],
-              "multiplier": 0.5,
-              "per_category": [
-                {
-                  "affected": true,
-                  "after_max_points": 17.3037,
-                  "before_max_points": 34.6073,
-                  "category": "g01"
-                },
-                {
-                  "affected": false,
-                  "after_max_points": 34.6073,
-                  "before_max_points": 34.6073,
-                  "category": "g02"
-                }
-              ],
-              "per_submarket": [
-                {
-                  "affected": true,
-                  "after_max_points": 17.3037,
-                  "before_max_points": 34.6073,
-                  "label": "g01 at least 10",
-                  "multiplier": 0.5,
-                  "projection_group": "g01",
-                  "submarket_id": 35269
-                },
-                {
-                  "affected": false,
-                  "after_max_points": 34.6073,
-                  "before_max_points": 34.6073,
-                  "label": "g02 at least 10",
-                  "multiplier": 1.0,
-                  "projection_group": "g02",
-                  "submarket_id": 35270
-                }
-              ],
-              "reduction_pct": 50.0,
-              "scheduled_for": "2026-10-10T19:16:25Z",
-              "warnings": [
-                "scheduled_for is in the past; apply-now may be more appropriate"
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.schedule_liquidity_adjustment",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/liquidity-adjustments/schedule",
-      "summary": "Schedule a liquidity adjustment (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "reduction_pct": {
-            "type": "string"
-          },
-          "scheduled_for": {
-            "type": "string"
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "type": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "reduction_pct": "10",
-            "scheduled_for": "2026-10-11T19:44:28Z",
-            "type": "proactive"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "adjustment": {
-                "applied_at": null,
-                "categories": null,
-                "created_by_id": 10469,
-                "description": "Scheduled liquidity reduction of 10% max points",
-                "id": 227,
-                "inserted_at": "2026-10-10T19:44:28Z",
-                "kind": "max_points_reduction",
-                "market_id": 6654,
-                "multiplier": 0.9,
-                "notes": null,
-                "reduction_pct": 10.0,
-                "scheduled_for": "2026-10-11T19:44:28Z",
-                "status": "scheduled",
-                "type": "proactive"
-              },
-              "preview": {
-                "actual_pct": 10.0,
-                "after_max_points": 95.0606,
-                "before_max_points": 105.6229,
-                "categories": null,
-                "multiplier": 0.9,
-                "per_category": [
-                  {
-                    "affected": true,
-                    "after_max_points": 95.0606,
-                    "before_max_points": 105.6229,
-                    "category": "2026"
-                  }
-                ],
-                "per_submarket": [
-                  {
-                    "affected": true,
-                    "after_max_points": 41.0752,
-                    "before_max_points": 45.6391,
-                    "label": "At least 100",
-                    "multiplier": 0.9,
-                    "projection_group": "2026",
-                    "submarket_id": 48368
-                  },
-                  {
-                    "affected": true,
-                    "after_max_points": 53.9854,
-                    "before_max_points": 59.9838,
-                    "label": "At least 200",
-                    "multiplier": 0.9,
-                    "projection_group": "2026",
-                    "submarket_id": 48369
-                  }
-                ],
-                "reduction_pct": 10.0,
-                "scheduled_for": "2026-10-11T19:44:28Z",
-                "warnings": []
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.list_liquidity_adjustments",
-      "method": "GET",
-      "path": "/api/v1/markets/{code}/liquidity-adjustments",
-      "summary": "A market's liquidity adjustments (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": null,
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": [
-              {
-                "applied_at": "2026-10-10T19:17:26Z",
-                "categories": [
-                  "g01"
-                ],
-                "created_by_id": 7517,
-                "description": "Retroactive liquidity reduction of 50% max points in category g01",
-                "id": 155,
-                "inserted_at": "2026-10-10T19:17:26Z",
-                "kind": "max_points_reduction",
-                "market_id": 4916,
-                "multiplier": 0.5,
-                "notes": null,
-                "reduction_pct": 50.0,
-                "scheduled_for": "2026-10-10T19:16:25Z",
-                "status": "applied",
-                "type": "retroactive"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": "market.cancel_liquidity_adjustment",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/liquidity-adjustments/{id}/cancel",
-      "summary": "Cancel a scheduled liquidity adjustment (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object"
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "applied_at": null,
-              "categories": null,
-              "created_by_id": 10469,
-              "description": "Scheduled liquidity reduction of 10% max points",
-              "id": 227,
-              "inserted_at": "2026-10-10T19:44:28Z",
-              "kind": "max_points_reduction",
-              "market_id": 6654,
-              "multiplier": 0.9,
-              "notes": null,
-              "reduction_pct": 10.0,
-              "scheduled_for": "2026-10-11T19:44:28Z",
-              "status": "cancelled",
-              "type": "proactive"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.apply_liquidity_adjustment_now",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/liquidity-adjustments/{id}/apply-now",
-      "summary": "Apply a scheduled liquidity adjustment now (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object"
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {},
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "applied_at": "2026-10-10T19:44:29Z",
-              "categories": null,
-              "created_by_id": 10469,
-              "description": "Scheduled liquidity reduction of 10% max points",
-              "id": 228,
-              "inserted_at": "2026-10-10T19:44:29Z",
-              "kind": "max_points_reduction",
-              "market_id": 6654,
-              "multiplier": 0.9,
-              "notes": null,
-              "reduction_pct": 10.0,
-              "scheduled_for": "2026-10-11T19:44:28Z",
-              "status": "applied",
-              "type": "proactive"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.historical_resolutions",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/historical-resolutions",
-      "summary": "Record historical resolutions for a market's bars (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "entries": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "projection_group": {
-                  "type": "string"
-                },
-                "resolved_value": {
-                  "type": "string"
-                },
-                "resolved_at": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "projection_group",
-                "resolved_value"
-              ]
-            }
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "entries": [
-              {
-                "projection_group": "2019",
-                "resolved_value": "100"
-              }
-            ]
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "entries": [
-                {
-                  "action": "updated_resolution",
-                  "created_submarket_ids": [],
-                  "existing_submarket_ids": [
-                    37690
-                  ],
-                  "index": 0,
-                  "projection_group": "2019",
-                  "resolved_submarket_ids": [
-                    37690
-                  ]
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.activate_conditional_date",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/activate-conditional-date",
-      "summary": "Activate a conditional date market (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "deployed_at_utc": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "deployed_at_utc": "2026-05-01T00:00:00Z"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "background_info_html": null,
-              "budget": 1000.0,
-              "code": "cda20547",
-              "cumulative": true,
-              "end_date": "2026-08-13T00:00:00Z",
-              "id": 5322,
-              "inserted_at": "2026-10-10T19:18:15Z",
-              "local_code": "cda20547",
-              "reference": "cda20547",
-              "resolution_criteria": "Conditional criteria",
-              "status": "open",
-              "title": "Activated title",
-              "type": "date",
-              "visibility": "public",
-              "x_unit": "date"
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "market.activate_conditional_multicount",
-      "method": "POST",
-      "path": "/api/v1/markets/{code}/activate-conditional-multicount",
-      "summary": "Activate a condition of a conditional count market (admin).",
-      "group": "admin",
-      "auth": "admin",
-      "headers": [],
-      "rate_limit": "write",
-      "schema_status": "envelope",
-      "query": null,
-      "body": {
-        "type": "object",
-        "properties": {
-          "condition_key": {
-            "type": "string"
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "$ref": "#/$defs/envelope"
-        }
-      },
-      "example": {
-        "request": {
-          "body": {
-            "condition_key": "scenario-a"
-          }
-        },
-        "response": {
-          "status": 200,
-          "body": {
-            "data": {
-              "background_info_html": null,
-              "budget": 1000.0,
-              "code": "mca17799",
-              "cumulative": true,
-              "end_date": "2027-10-10T19:18:01Z",
-              "id": 5139,
-              "inserted_at": "2026-10-10T19:18:01Z",
-              "local_code": "mca17799",
-              "reference": "mca17799",
-              "resolution_criteria": "Conditional criteria",
-              "status": "open",
-              "title": "Activated multicount title",
-              "type": "count",
-              "visibility": "public",
-              "x_unit": "units"
-            }
-          }
-        }
-      }
-    },
-    {
       "id": "market.update_status",
       "method": "PUT",
       "path": "/api/v1/markets/{code}/status",
@@ -24119,7 +24154,7 @@
       "path": "/api/v1/sandbox/planner_jobs/{job_id}/script",
       "summary": "Replace a client-planned turn's story with the client's prose.",
       "group": "sandboxes",
-      "description": "The client's prose for the committed turn (`script`): it replaces the code-built story; the header, Results, Markets and Questions stay the server's. Days outside the turn are refused. The job id is the token take_turn returned with `status: \"planner_job\"` for a run with `planner: \"client\"`; only the run's owner can use it. Errors: 404 (no such job), 409 `job_drawn` / `job_submitted` / `job_closed`, 410 `job_expired` (take the turn again with the same turn_id). For a wrap-up job, `script` is the wrap-up's arc (once); the response has `wrapup`.",
+      "description": "The client's prose for the committed turn (`script`): it replaces the code-built story; the header, Results, Markets and Questions stay the server's. Days outside the turn are refused. The job id is the token take_turn returned with `status: \"planner_job\"` for a run with `planner: \"client\"`; only the run's owner can use it. Errors: 404 (no such job), 409 `job_drawn` / `job_submitted` / `job_closed`, 410 `job_expired` (take the turn again with the same turn_id). For a wrap-up job, `script` is the wrap-up's arc (once); the response has `wrapup`. For an info job, `script` is the answer to the player's questions; the response has `answer`.",
       "auth": "write",
       "headers": [],
       "rate_limit": "write",
